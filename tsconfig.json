@@ -1,0 +1,38 @@
+{
+	"$schema": "https://json.schemastore.org/tsconfig",
+	"compilerOptions": {
+		"target": "ES2020",
+		"module": "ES2022",
+		"strict": true,
+		"allowSyntheticDefaultImports": true,
+		"allowUnreachableCode": false,
+		"noUncheckedIndexedAccess": true,
+		"allowUnusedLabels": false,
+		"skipLibCheck": true,
+		"checkJs": true,
+		"noUnusedLocals": true,
+		"noImplicitReturns": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"erasableSyntaxOnly": true,
+
+		"composite": true,
+		"declaration": true,
+		"declarationMap": true,
+		"emitDeclarationOnly": true,
+		"incremental": true,
+		"isolatedModules": true,
+
+		"types": ["node"],
+		"lib": ["DOM", "DOM.Iterable", "ES2022"],
+		"moduleResolution": "Bundler",
+		"noEmit": false,
+
+		"noUnusedParameters": true,
+		"resolveJsonModule": true
+	},
+	"include": [
+		"packages/time-sync/src/**/*",
+		"packages/time-sync-react/src/**/*"
+	]
+}

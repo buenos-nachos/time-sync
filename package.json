@@ -1,0 +1,31 @@
+{
+  "name": "root",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.17.0",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/buenos-nachos/time-sync.git"
+  },
+  "scripts": {
+    "test:watch": "vitest test --watch"
+  },
+  "homepage": "https://github.com/buenos-nachos/time-sync",
+  "author": "Michael Smith <contact@nachos.dev> (https://nachos.dev)",
+  "bugs": {
+    "url": "https://github.com/buenos-nachos/time-sync/issues"
+  },
+  "keywords": [
+    "react",
+    "typescript",
+    "utility"
+  ],
+  "devDependencies": {
+    "@biomejs/biome": "2.3.4",
+    "@types/node": "^24.10.0",
+    "happy-dom": "^20.0.10",
+    "vitest": "^4.0.8"
+  }
+}
