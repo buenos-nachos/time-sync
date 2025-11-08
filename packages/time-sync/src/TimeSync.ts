@@ -38,8 +38,26 @@ const readonlyEnforcer: ProxyHandler<Date> = {
  * This function does not use a custom type to make it easier to interface with
  * existing time libraries.
  */
-export function newReadonlyDate(sourceDate?: Date): Date {
-	const newDate = sourceDate ? new Date(sourceDate) : new Date();
+export function newReadonlyDate(sourceDate?: Date | string | number): Date {
+	let newDate: Date;
+	if (sourceDate instanceof Date) {
+		newDate = new Date(sourceDate);
+	} else {
+		switch (typeof sourceDate) {
+			case "undefined": {
+				newDate = new Date();
+				break;
+			}
+			case "number": {
+				newDate = new Date(sourceDate);
+				break;
+			}
+			case "string": {
+				newDate = sourceDate ? new Date(sourceDate) : new Date();
+			}
+		}
+	}
+
 	return new Proxy(newDate, readonlyEnforcer);
 }
 

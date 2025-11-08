@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import { newReadonlyDate, REFRESH_ONE_SECOND, TimeSync } from "./TimeSync";
 
-const defaultInitialDate = newReadonlyDate(new Date("October 27, 2025"));
+const defaultInitialDate = newReadonlyDate("October 27, 2025");
 const sampleInvalidIntervals: readonly number[] = [
 	Number.NaN,
 	Number.NEGATIVE_INFINITY,
@@ -29,7 +29,7 @@ describe(TimeSync.name, () => {
 			const initialSnap = sync.getStateSnapshot();
 			expect(initialSnap).toEqual(defaultInitialDate);
 
-			await vi.advanceTimersByTimeAsync(5_000);
+			await vi.advanceTimersByTimeAsync(5 * REFRESH_ONE_SECOND);
 			const newSnap = sync.getStateSnapshot();
 			expect(initialSnap).toEqual(newSnap);
 		});
@@ -42,12 +42,12 @@ describe(TimeSync.name, () => {
 			sync.subscribe({ onUpdate, targetRefreshIntervalMs: REFRESH_ONE_SECOND });
 			expect(onUpdate).not.toHaveBeenCalled();
 
-			await vi.advanceTimersByTimeAsync(1_000);
+			await vi.advanceTimersByTimeAsync(REFRESH_ONE_SECOND);
 			const snap1 = sync.getStateSnapshot();
 			expect(onUpdate).toHaveBeenCalledTimes(1);
 			expect(onUpdate).toHaveBeenCalledWith(snap1);
 
-			await vi.advanceTimersByTimeAsync(1_000);
+			await vi.advanceTimersByTimeAsync(REFRESH_ONE_SECOND);
 			const snap2 = sync.getStateSnapshot();
 			expect(onUpdate).toHaveBeenCalledTimes(1);
 			expect(onUpdate).toHaveBeenCalledWith(snap2);
