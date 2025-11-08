@@ -25,8 +25,8 @@ const readonlyEnforcer: ProxyHandler<Date> = {
 };
 
 /**
- * Returns a Date that cannot be modified at runtime (all set methods still
- * exist, but are aliased into no-ops).
+ * Returns a Date that cannot be modified at runtime (all its `set` methods
+ * will still exist at runtime, but are turned into no-ops).
  *
  * This function does not use a custom type to make it easier to interface with
  * existing time libraries.
@@ -45,7 +45,8 @@ type TimeSyncInitOptions = Readonly<{
 
 	/**
 	 * Defaults to false. Indicates whether the TimeSync instance should be
-	 * frozen for Snapshot tests. Should be used together with initialDate.
+	 * frozen for Snapshot tests. Highly encouraged that you use this together
+	 * with `initialDate`.
 	 */
 	isSnapshot: boolean;
 
@@ -66,7 +67,7 @@ type TimeSyncInitOptions = Readonly<{
 /**
  * The callback to call when a new state update is ready to be dispatched.
  */
-export type OnUpdate = (newDate: Date) => void;
+type OnTimeSyncUpdate = (newDate: Date) => void;
 
 export type SubscriptionHandshake = Readonly<{
 	/**
@@ -88,7 +89,7 @@ export type SubscriptionHandshake = Readonly<{
 	 * after A, updates will pause completely.
 	 */
 	targetRefreshIntervalMs: number;
-	onUpdate: OnUpdate;
+	onUpdate: OnTimeSyncUpdate;
 }>;
 
 type InvalidateSnapshotOptions = Readonly<{
@@ -198,7 +199,7 @@ export class TimeSync implements TimeSyncApi {
 	// intervals are allowed (in case multiple systems subscribe with the same
 	// interval-onUpdate pairs). Each map value should stay sorted by refresh
 	// interval, in ascending order.
-	#subscriptions: Map<OnUpdate, SubscriptionEntry[]>;
+	#subscriptions: Map<OnTimeSyncUpdate, SubscriptionEntry[]>;
 
 	// A cached version of the fastest interval currently registered with
 	// TimeSync. Should always be derived from #subscriptions

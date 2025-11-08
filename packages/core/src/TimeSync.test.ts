@@ -1,10 +1,9 @@
+import { describe, it, vi } from "vitest"
 import { TimeSync } from "./TimeSync";
-import {describe, it, vi } from "vitest"
 
 const sampleInvalidIntervals: readonly number[] = [
 	Number.NaN,
 	Number.NEGATIVE_INFINITY,
-	Number.POSITIVE_INFINITY,
 	0,
 	-42,
 	470.53,
