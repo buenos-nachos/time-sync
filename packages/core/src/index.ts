@@ -1,1 +1,1 @@
-export * from "../TimeSync"
+export * from "./TimeSync"

@@ -1,0 +1,26 @@
+{
+  "name": "root",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.17.0",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/buenos-nachos/time-sync.git"
+  },
+  "homepage": "https://github.com/buenos-nachos/time-sync",
+  "author": "Michael Smith <contact@nachos.dev> (https://nachos.dev)",
+  "bugs": {
+    "url": "https://github.com/buenos-nachos/time-sync/issues"
+  },
+  "keywords": [
+    "react",
+    "typescript",
+    "utility"
+  ],
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "vitest": "^4.0.8"
+  }
+}

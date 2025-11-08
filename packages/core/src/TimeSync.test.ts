@@ -1,4 +1,5 @@
-import { TimeSync } from "../TimeSync";
+import { TimeSync } from "./TimeSync";
+import {describe, it, vi } from "vitest"
 
 const sampleInvalidIntervals: readonly number[] = [
 	Number.NaN,
@@ -13,15 +14,15 @@ const sampleInvalidIntervals: readonly number[] = [
 // about how the system should work
 describe(TimeSync.name, () => {
 	describe("Subscriptions: default behavior", () => {
-		it("Does not ever update any internal state while there are zero subscribers", () => {
+		it("Does not ever update any internal state while there are zero subscribers", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Lets a single subscriber subscribe to periodic time updates", () => {
+		it("Lets a single subscriber subscribe to periodic time updates", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Lets multiple subscriber subscribe to periodic time updates", () => {
+		it("Lets multiple subscriber subscribe to periodic time updates", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
@@ -29,13 +30,13 @@ describe(TimeSync.name, () => {
 		// useSyncExternalStore under the hood, which require that you always
 		// return out the same value by reference every time React tries to pull
 		// a value from an external state source
-		it("Exposes the exact same date snapshot (by reference) to subscribers on each update", () => {
+		it("Exposes the exact same date snapshot (by reference) to subscribers on each update", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Throws an error if provided subscription interval is not a positive integer", () => {
+		it("Throws an error if provided subscription interval is not a positive integer", ({ expect }) => {
 			const sync = new TimeSync();
-			const dummyFunction = jest.fn();
+			const dummyFunction = vi.fn();
 
 			for (const i of sampleInvalidIntervals) {
 				expect(() => {
@@ -49,27 +50,27 @@ describe(TimeSync.name, () => {
 			}
 		});
 
-		it("Dispatches updates to all subscribers based on fastest interval specified", () => {
+		it("Dispatches updates to all subscribers based on fastest interval specified", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Calls onUpdate callback one time total if subscription is registered multiple times for the same time interval", () => {
+		it("Calls onUpdate callback one time total if subscription is registered multiple times for the same time interval", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Calls onUpdate callback one time total if subscription is registered multiple times for different time intervals", () => {
+		it("Calls onUpdate callback one time total if subscription is registered multiple times for different time intervals", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Calls onUpdate callback one time total if subscription is registered multiple times with a mix of redundant/different intervals", () => {
+		it("Calls onUpdate callback one time total if subscription is registered multiple times with a mix of redundant/different intervals", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Lets an external system unsubscribe", () => {
+		it("Lets an external system unsubscribe", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Slows updates down to the second-fastest interval when the all subscribers for the fastest interval unsubscribe", () => {
+		it("Slows updates down to the second-fastest interval when the all subscribers for the fastest interval unsubscribe", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
@@ -83,37 +84,37 @@ describe(TimeSync.name, () => {
 		 * 4. After the timeout resolves, updates go back to happening on an
 		 *    interval of 1000ms.
 		 */
-		it("Does not completely start next interval over from scratch if fastest subscription is removed halfway through update", () => {
+		it("Does not completely start next interval over from scratch if fastest subscription is removed halfway through update", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Immediately notifies subscribers if new refresh interval is added that is less than or equal to the time since the last update", () => {
+		it("Immediately notifies subscribers if new refresh interval is added that is less than or equal to the time since the last update", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Does not fully remove an onUpdate callback if multiple systems use it to subscribe, and only one system unsubscribes", () => {
+		it("Does not fully remove an onUpdate callback if multiple systems use it to subscribe, and only one system unsubscribes", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Automatically updates the date snapshot after the very first subscription is received, regardless of specified refresh interval", () => {
+		it("Automatically updates the date snapshot after the very first subscription is received, regardless of specified refresh interval", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Does not ever do periodic notifications if all subscribers specify an update interval of positive infinity", () => {
+		it("Does not ever do periodic notifications if all subscribers specify an update interval of positive infinity", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Never indicates to new subscriber that there are pending updates (even if the subscription updates the date snapshot)", () => {
+		it("Never indicates to new subscriber that there are pending updates (even if the subscription updates the date snapshot)", ({ expect }) => {
 			expect.hasAssertions();
 		});
 	});
 
 	describe("Subscriptions: custom `minimumRefreshIntervalMs` value", () => {
-		it("Rounds up all incoming subscription intervals to custom min interval", () => {
+		it("Rounds up all incoming subscription intervals to custom min interval", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Throws if custom min interval is not a positive integer", () => {
+		it("Throws if custom min interval is not a positive integer", ({ expect }) => {
 			for (const i of sampleInvalidIntervals) {
 				expect(() => {
 					void new TimeSync({ minimumRefreshIntervalMs: i });
@@ -128,25 +129,25 @@ describe(TimeSync.name, () => {
 	// lifecycles, but it didn't feel reasonable to make this behavior the
 	// default for a system that should ideally be decoupled from React
 	describe("Subscriptions: turning `autoNotifyAfterStateUpdate` off", () => {
-		it("Does not auto-notify subscribers when date state is updated", () => {
+		it("Does not auto-notify subscribers when date state is updated", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Indicates to new subscriber that there are pending subscribers if the subscription updates the date snapshot", () => {
+		it("Indicates to new subscriber that there are pending subscribers if the subscription updates the date snapshot", ({ expect }) => {
 			expect.hasAssertions();
 		});
 	});
 
 	describe("Other public methods", () => {
-		it("Lets any external system manually flush the latest state snapshot to all subscribers (for any reason, at any time)", () => {
+		it("Lets any external system manually flush the latest state snapshot to all subscribers (for any reason, at any time)", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Lets any external system access the latest date snapshot without subscribing", () => {
+		it("Lets any external system access the latest date snapshot without subscribing", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Keeps pulled date snapshot over time as other subscribers update it", () => {
+		it("Keeps pulled date snapshot over time as other subscribers update it", ({ expect }) => {
 			expect.hasAssertions();
 		});
 	});
