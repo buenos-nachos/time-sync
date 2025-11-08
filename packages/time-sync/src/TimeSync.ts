@@ -20,7 +20,14 @@ const readonlyEnforcer: ProxyHandler<Date> = {
 		if (typeof key === "string" && key.startsWith("set")) {
 			return noOp;
 		}
-		return date[key as keyof Date];
+		const value = date[key as keyof Date];
+		if (key === "constructor") {
+			return value;
+		}
+		if (typeof value === "function") {
+			return value.bind(date);
+		}
+		return value;
 	},
 };
 
