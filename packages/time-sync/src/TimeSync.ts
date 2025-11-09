@@ -1,5 +1,5 @@
 export const REFRESH_IDLE = Number.POSITIVE_INFINITY;
-export const REFRESH_ONE_SECOND: number = 1_000;
+export const REFRESH_ONE_SECOND: number = 1000;
 export const REFRESH_ONE_MINUTE = 60 * REFRESH_ONE_SECOND;
 export const REFRESH_ONE_HOUR = 60 * REFRESH_ONE_MINUTE;
 

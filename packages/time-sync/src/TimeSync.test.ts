@@ -1,7 +1,6 @@
-import { afterEach, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, describe, it, vi } from "vitest";
 import {
 	newReadonlyDate,
-	REFRESH_IDLE,
 	REFRESH_ONE_HOUR,
 	REFRESH_ONE_MINUTE,
 	REFRESH_ONE_SECOND,
@@ -12,14 +11,14 @@ import {
 // detail for the moment, but because we still export it for convenience,
 // we need to make sure that it's 100% interchangeable with native Date
 // objects for all purposes aside from mutations
-describe(newReadonlyDate.name, () => {
+describe.concurrent(newReadonlyDate.name, () => {
 	it("Mirrors all instantiation methods from native Date object", ({
 		expect,
 	}) => {
 		expect.hasAssertions();
 	});
 
-	it("Turns all set-based methods into no-ops", ({ expect }) => {
+	it("Turns all mutation methods into no-ops", ({ expect }) => {
 		expect.hasAssertions();
 	});
 
@@ -30,12 +29,17 @@ describe(newReadonlyDate.name, () => {
 	});
 });
 
-describe(TimeSync.name, () => {
-	function initializeSystemDate(dateString: string = "October 27, 2025"): Date {
+describe.concurrent(TimeSync.name, () => {
+	function initializeTime(dateString: string = "October 27, 2025"): Date {
 		const sourceDate = new Date(dateString);
 		vi.setSystemTime(sourceDate);
+		vi.useFakeTimers();
 		return newReadonlyDate(sourceDate);
 	}
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
 
 	const sampleLiveRefreshRates = [
 		REFRESH_ONE_SECOND,
@@ -51,19 +55,11 @@ describe(TimeSync.name, () => {
 		470.53,
 	];
 
-	beforeEach(() => {
-		vi.useFakeTimers();
-	});
-
-	afterEach(() => {
-		vi.restoreAllMocks();
-	});
-
 	describe("Subscriptions: default behavior", () => {
 		it("Never auto-updates state while there are zero subscribers", async ({
 			expect,
 		}) => {
-			const initialDate = initializeSystemDate();
+			const initialDate = initializeTime();
 			const sync = new TimeSync({ initialDate });
 			const initialSnap = sync.getStateSnapshot();
 			expect(initialSnap).toEqual(initialDate);
@@ -80,7 +76,7 @@ describe(TimeSync.name, () => {
 		it.only("Lets a single external system subscribe to periodic time updates", async ({
 			expect,
 		}) => {
-			const initialDate = initializeSystemDate();
+			const initialDate = initializeTime();
 			const sync = new TimeSync({ initialDate });
 			const onUpdate = vi.fn();
 

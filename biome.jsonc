@@ -33,7 +33,21 @@
 		"enabled": true,
 		"rules": {
 			"recommended": true,
-			"a11y": "error"
+			"a11y": "error",
+			"correctness": {
+				"noUnusedImports": "error",
+				"noConstantCondition": "error",
+				"noConstantMathMinMaxClamp": "error",
+				"noNestedComponentDefinitions": "error"
+			},
+			"style": {
+				"noDefaultExport": "error",
+				"noEnum": "error",
+				"noNonNullAssertion": "error",
+				"useConst": "error",
+				"useConsistentCurlyBraces": "error",
+				"useNumericSeparators": "error"
+			}
 		}
 	},
 	"assist": {
