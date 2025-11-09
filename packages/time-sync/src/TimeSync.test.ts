@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
-import { newReadonlyDate, REFRESH_ONE_SECOND, TimeSync } from "./TimeSync";
+import {
+	newReadonlyDate,
+	REFRESH_IDLE,
+	REFRESH_ONE_HOUR,
+	REFRESH_ONE_MINUTE,
+	REFRESH_ONE_SECOND,
+	TimeSync,
+} from "./TimeSync";
 
 // newReadonlyDate is mostly being treated as an internal implementation
 // detail for the moment, but because we still export it for convenience,
@@ -29,6 +36,12 @@ describe(TimeSync.name, () => {
 		vi.setSystemTime(sourceDate);
 		return newReadonlyDate(sourceDate);
 	}
+
+	const sampleLiveRefreshRates = [
+		REFRESH_ONE_SECOND,
+		REFRESH_ONE_MINUTE,
+		REFRESH_ONE_HOUR,
+	];
 
 	const sampleInvalidIntervals: readonly number[] = [
 		Number.NaN,
@@ -70,19 +83,22 @@ describe(TimeSync.name, () => {
 			const initialDate = initializeSystemDate();
 			const sync = new TimeSync({ initialDate });
 			const onUpdate = vi.fn();
-			sync.subscribe({ onUpdate, targetRefreshIntervalMs: REFRESH_ONE_SECOND });
-			expect(onUpdate).not.toHaveBeenCalled();
 
-			await vi.advanceTimersByTimeAsync(REFRESH_ONE_SECOND);
-			const snap1 = sync.getStateSnapshot();
-			expect(onUpdate).toHaveBeenCalledTimes(1);
-			expect(onUpdate).toHaveBeenCalledWith(snap1);
-			onUpdate.mockRestore();
+			for (const rate of sampleLiveRefreshRates) {
+				const unsub = sync.subscribe({
+					onUpdate,
+					targetRefreshIntervalMs: rate,
+				});
+				expect(onUpdate).not.toHaveBeenCalled();
 
-			await vi.advanceTimersByTimeAsync(REFRESH_ONE_SECOND);
-			const snap2 = sync.getStateSnapshot();
-			expect(onUpdate).toHaveBeenCalledTimes(1);
-			expect(onUpdate).toHaveBeenCalledWith(snap2);
+				await vi.advanceTimersByTimeAsync(rate);
+				const snap = sync.getStateSnapshot();
+				expect(onUpdate).toHaveBeenCalledTimes(1);
+				expect(onUpdate).toHaveBeenCalledWith(snap);
+
+				unsub();
+				onUpdate.mockRestore();
+			}
 		});
 
 		it("Lets multiple subscriber subscribe to periodic time updates", ({
