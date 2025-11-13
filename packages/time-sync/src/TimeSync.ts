@@ -221,7 +221,7 @@ export class TimeSync implements TimeSyncApi {
 	readonly #isFrozen: boolean;
 	#isDisposed: boolean;
 	#latestDateSnapshot: Date;
-	#hasPendingUpdates: boolean;
+	#hasPendingNotification: boolean;
 
 	// Stores all refresh intervals actively associated with an onUpdate
 	// callback (along with their associated unsubscribe callbacks). "Duplicate"
@@ -258,7 +258,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		this.#isDisposed = false;
-		this.#hasPendingUpdates = false;
+		this.#hasPendingNotification = false;
 		this.#isFrozen = isSnapshot;
 		this.#subscriptions = new Map();
 		this.#latestDateSnapshot = newReadonlyDate(initialDate);
@@ -308,11 +308,11 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		const updated = this.#updateDateSnapshot();
-		if (updated || this.#hasPendingUpdates) {
+		const wasUpdated = this.#updateDateSnapshot();
+		if (wasUpdated || this.#hasPendingNotification) {
 			this.#notifyAllSubscriptions();
 		}
-		this.#hasPendingUpdates = false;
+		this.#hasPendingNotification = false;
 	};
 
 	#onFastestIntervalChange(): void {
@@ -336,7 +336,7 @@ export class TimeSync implements TimeSyncApi {
 			const updated = this.#updateDateSnapshot();
 			if (updated) {
 				this.#notifyAllSubscriptions();
-				this.#hasPendingUpdates = false;
+				this.#hasPendingNotification = false;
 			}
 			this.#intervalId = setInterval(this.#onTick, fastest);
 			return;
@@ -393,7 +393,7 @@ export class TimeSync implements TimeSyncApi {
 		// It's not ever safe for this method to flip this property to false,
 		// because it doesn't have enough context about where it will be called
 		// to know whether that could break other stateful logic
-		this.#hasPendingUpdates = true;
+		this.#hasPendingNotification = true;
 		this.#latestDateSnapshot = newSnap;
 		return true;
 	}
@@ -466,21 +466,21 @@ export class TimeSync implements TimeSyncApi {
 		const { stalenessThresholdMs = 0, notificationBehavior = "onChange" } =
 			options ?? {};
 
-		const changed = this.#updateDateSnapshot(stalenessThresholdMs);
+		const wasChanged = this.#updateDateSnapshot(stalenessThresholdMs);
 		switch (notificationBehavior) {
 			case "never": {
 				break;
 			}
 			case "always": {
-				this.#hasPendingUpdates = false;
+				this.#hasPendingNotification = false;
 				this.#notifyAllSubscriptions();
 				break;
 			}
 			case "onChange": {
-				if (changed || this.#hasPendingUpdates) {
+				if (wasChanged || this.#hasPendingNotification) {
 					this.#notifyAllSubscriptions();
 				}
-				this.#hasPendingUpdates = false;
+				this.#hasPendingNotification = false;
 				break;
 			}
 		}
@@ -492,9 +492,12 @@ export class TimeSync implements TimeSyncApi {
 		if (this.#isDisposed) {
 			return;
 		}
-
 		this.#isDisposed = true;
+
+		this.#fastestRefreshInterval = 0;
 		clearInterval(this.#intervalId);
+		this.#intervalId = undefined;
+
 		for (const entries of this.#subscriptions.values()) {
 			for (const e of entries) {
 				e.unsubscribe();
