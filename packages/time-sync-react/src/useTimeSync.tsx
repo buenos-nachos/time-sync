@@ -279,7 +279,7 @@ class ReactTimeSync {
 			newReadonlyDate().getTime() - this.#timeSync.getSnapshot().getTime() >
 			ReactTimeSync.#stalenessThresholdMs;
 		if (shouldInvalidateDate) {
-			void this.#timeSync.invalidateSnapshot({
+			void this.#timeSync.invalidateState({
 				// This is normally a little risky, but because of how the
 				// onUpdate callback above is defined, dispatching a
 				// subscription update doesn't always trigger a re-render
@@ -356,7 +356,7 @@ class ReactTimeSync {
 			this.#batchMountUpdateId = undefined;
 		});
 
-		void this.#timeSync.invalidateSnapshot({
+		void this.#timeSync.invalidateState({
 			notificationBehavior: "onChange",
 		});
 	}
@@ -370,7 +370,7 @@ class ReactTimeSync {
 		// have really slow refresh intervals, when a new component gets
 		// mounted, it will be guaranteed to have "fresh-ish" data.
 		this.#invalidationIntervalId = setTimeout(() => {
-			this.#timeSync.invalidateSnapshot({
+			this.#timeSync.invalidateState({
 				stalenessThresholdMs: ReactTimeSync.#stalenessThresholdMs,
 				notificationBehavior: "never",
 			});

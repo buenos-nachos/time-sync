@@ -37,7 +37,7 @@ export type TimeSyncInitOptions = Readonly<{
 /**
  * The callback to call when a new state update is ready to be dispatched.
  */
-type OnTimeSyncUpdate = (newDate: Date) => void;
+type OnTimeSyncUpdate = (dateSnapshot: Date) => void;
 
 export type SubscriptionHandshake = Readonly<{
 	/**
@@ -63,7 +63,7 @@ export type SubscriptionHandshake = Readonly<{
 	onUpdate: OnTimeSyncUpdate;
 }>;
 
-export type InvalidateSnapshotOptions = Readonly<{
+export type InvalidateStateOptions = Readonly<{
 	/**
 	 * The amount of time (in milliseconds) that you can tolerate stale dates.
 	 * If the time since the last subscription dispatch and the current time
@@ -91,14 +91,15 @@ export type InvalidateSnapshotOptions = Readonly<{
 }>;
 
 /**
- * A complete snapshot of the user-relevant internal state from TimeSync.
+ * A complete snapshot of the user-relevant internal state from TimeSync. This
+ * value is treated as immutable at both runtime and compile time.
  */
 export type TimeSyncSnapshot = Readonly<{
 	dateSnapshot: Date;
 	subscriberCount: number;
 	isFrozen: boolean;
 	isDisposed: boolean;
-	minUpdateIntervalMs: number;
+	minimumRefreshIntervalMs: number;
 }>;
 
 interface TimeSyncApi {
@@ -136,7 +137,7 @@ interface TimeSyncApi {
 	 * @returns The latest date state snapshot right after invalidation. Note
 	 * that this snapshot might be the same as before.
 	 */
-	invalidateSnapshot: (options: InvalidateSnapshotOptions) => TimeSyncSnapshot;
+	invalidateState: (options: InvalidateStateOptions) => TimeSyncSnapshot;
 
 	/**
 	 * Cleans up the TimeSync instance and renders it inert for all other
@@ -211,11 +212,11 @@ export class TimeSync implements TimeSyncApi {
 		this.#intervalId = undefined;
 
 		this.#latestSnapshot = {
+			minimumRefreshIntervalMs,
 			dateSnapshot: newReadonlyDate(initialDate),
 			subscriberCount: 0,
 			isFrozen: freezeUpdates,
 			isDisposed: false,
-			minUpdateIntervalMs: minimumRefreshIntervalMs,
 		};
 	}
 
@@ -341,7 +342,11 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
 	#updateDateSnapshot(stalenessThresholdMs = 0): boolean {
-		const { isDisposed, isFrozen, minUpdateIntervalMs } = this.#latestSnapshot;
+		const {
+			isDisposed,
+			isFrozen,
+			minimumRefreshIntervalMs: minUpdateIntervalMs,
+		} = this.#latestSnapshot;
 		if (isDisposed || isFrozen) {
 			return false;
 		}
@@ -362,7 +367,7 @@ export class TimeSync implements TimeSyncApi {
 		this.#latestSnapshot = {
 			isDisposed,
 			isFrozen,
-			minUpdateIntervalMs,
+			minimumRefreshIntervalMs: minUpdateIntervalMs,
 			dateSnapshot: newSnap,
 			subscriberCount: this.#countSubscriptions(),
 		};
@@ -370,7 +375,11 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	subscribe(sh: SubscriptionHandshake): () => void {
-		const { isDisposed, isFrozen, minUpdateIntervalMs } = this.#latestSnapshot;
+		const {
+			isDisposed,
+			isFrozen,
+			minimumRefreshIntervalMs: minUpdateIntervalMs,
+		} = this.#latestSnapshot;
 		if (isDisposed || isFrozen) {
 			return noOp;
 		}
@@ -407,6 +416,11 @@ export class TimeSync implements TimeSyncApi {
 				this.#subscriptions.delete(onUpdate);
 			}
 			this.#updateFastestInterval();
+
+			this.#latestSnapshot = {
+				...this.#latestSnapshot,
+				subscriberCount: Math.max(0, this.#latestSnapshot.subscriberCount - 1),
+			};
 		};
 
 		let entries = this.#subscriptions.get(onUpdate);
@@ -423,6 +437,11 @@ export class TimeSync implements TimeSyncApi {
 		entries.sort((e1, e2) => e2.targetInterval - e1.targetInterval);
 		this.#updateFastestInterval();
 
+		this.#latestSnapshot = {
+			...this.#latestSnapshot,
+			subscriberCount: this.#latestSnapshot.subscriberCount + 1,
+		};
+
 		return unsubscribe;
 	}
 
@@ -430,7 +449,7 @@ export class TimeSync implements TimeSyncApi {
 		return this.#latestSnapshot;
 	}
 
-	invalidateSnapshot(options?: InvalidateSnapshotOptions): TimeSyncSnapshot {
+	invalidateState(options?: InvalidateStateOptions): TimeSyncSnapshot {
 		const { isDisposed, isFrozen } = this.#latestSnapshot;
 		if (isDisposed || isFrozen) {
 			return this.#latestSnapshot;
@@ -480,6 +499,7 @@ export class TimeSync implements TimeSyncApi {
 
 		this.#latestSnapshot = {
 			...this.#latestSnapshot,
+			subscriberCount: 0,
 			isDisposed: true,
 		};
 	}

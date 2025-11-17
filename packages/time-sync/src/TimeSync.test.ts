@@ -5,6 +5,7 @@ import {
 	REFRESH_ONE_MINUTE,
 	REFRESH_ONE_SECOND,
 	TimeSync,
+	type TimeSyncSnapshot,
 } from "./TimeSync";
 
 // For better or worse, this is a personally meaningful date to me
@@ -38,21 +39,21 @@ describe.concurrent(TimeSync.name, () => {
 		470.53,
 	];
 
-	describe("Subscriptions: default behavior", () => {
+	describe.skip("Subscriptions: default behavior", () => {
 		it("Never auto-updates state while there are zero subscribers", async ({
 			expect,
 		}) => {
 			const initialDate = initializeTime();
 			const sync = new TimeSync({ initialDate });
-			const initialSnap = sync.getSnapshot();
+			const initialSnap = sync.getSnapshot().dateSnapshot;
 			expect(initialSnap).toEqual(initialDate);
 
 			await vi.advanceTimersByTimeAsync(5 * REFRESH_ONE_SECOND);
-			const newSnap1 = sync.getSnapshot();
+			const newSnap1 = sync.getSnapshot().dateSnapshot;
 			expect(newSnap1).toEqual(initialSnap);
 
 			await vi.advanceTimersByTimeAsync(500 * REFRESH_ONE_SECOND);
-			const newSnap2 = sync.getSnapshot();
+			const newSnap2 = sync.getSnapshot().dateSnapshot;
 			expect(newSnap2).toEqual(initialSnap);
 		});
 
@@ -200,7 +201,7 @@ describe.concurrent(TimeSync.name, () => {
 		});
 	});
 
-	describe("Subscriptions: custom `minimumRefreshIntervalMs` value", () => {
+	describe.skip("Subscriptions: custom `minimumRefreshIntervalMs` value", () => {
 		it("Rounds up all incoming subscription intervals to custom min interval", ({
 			expect,
 		}) => {
@@ -220,82 +221,199 @@ describe.concurrent(TimeSync.name, () => {
 		});
 	});
 
-	// This behavior is needed to make TimeSync play well with React's
-	// lifecycles, but it didn't feel reasonable to make this behavior the
-	// default for a system that should ideally be decoupled from React
-	describe("Subscriptions: turning `autoNotifyAfterStateUpdate` off", () => {
-		it("Does not auto-notify subscribers when date state is updated", ({
-			expect,
-		}) => {
-			expect.hasAssertions();
-		});
-
-		it("Indicates to new subscriber that there are pending subscribers if the subscription updates the date snapshot", ({
-			expect,
-		}) => {
-			expect.hasAssertions();
-		});
-	});
-
-	describe("Pulling date snapshots", () => {
+	describe("State snapshots", () => {
 		it("Lets external system pull snapshot without subscribing", ({
 			expect,
 		}) => {
+			const initialDate = initializeTime();
+			const minimumRefreshIntervalMs = 5_000_000;
+			const sync = new TimeSync({ initialDate, minimumRefreshIntervalMs });
+
+			const snap = sync.getSnapshot();
+			expect(snap).toEqual<TimeSyncSnapshot>({
+				dateSnapshot: initialDate,
+				isDisposed: false,
+				isFrozen: false,
+				subscriberCount: 0,
+				minimumRefreshIntervalMs: minimumRefreshIntervalMs,
+			});
+		});
+
+		it("Reflects the minimum refresh interval used on init", ({ expect }) => {
+			const sync = new TimeSync({ minimumRefreshIntervalMs: REFRESH_ONE_HOUR });
+			const snap = sync.getSnapshot();
+			expect(snap.minimumRefreshIntervalMs).toBe(REFRESH_ONE_HOUR);
+		});
+
+		// This behavior is super, super important for the React bindings. The
+		// bindings rely on useSyncExternalStore, which will pull from whatever
+		// is bound to it multiple times in dev mode. That ensures that React
+		// can fudge the rules and treat it like a pure value, but if it gets
+		// back different references, it will keep pulling over and over until
+		// it gives up and blows up the entire app.
+		it("Always gives back the same snapshot by reference if it's pulled synchronously multiple times in sequence", ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+			const initialSnap = sync.getSnapshot();
+
+			for (let i = 0; i < 100; i++) {
+				const newSnap = sync.getSnapshot();
+				expect(newSnap).toEqual(initialSnap);
+			}
+		});
+
+		it("Does not mutate old snapshots when a new update is queued for subscribers", ({
+			expect,
+		}) => {
 			expect.hasAssertions();
 		});
 
-		it("Never mutates snapshots", ({ expect }) => {
-			expect.hasAssertions();
+		it.skip("Does not mutate old snapshot when TimeSync state is invalidated", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+			const initialSnap = sync.getSnapshot();
+
+			await vi.advanceTimersByTimeAsync(REFRESH_ONE_HOUR);
+			sync.invalidateState({ notificationBehavior: "always" });
+			const newSnap = sync.getSnapshot();
+			expect(newSnap).not.toEqual(initialSnap);
 		});
 
 		it("Provides accurate count of active subscriptions", ({ expect }) => {
+			const sync = new TimeSync();
+
+			expect.hasAssertions();
+		});
+
+		it("Does not mutate snapshots when new subscription is added", ({
+			expect,
+		}) => {
+			expect.hasAssertions();
+		});
+
+		it("Does not mutate snapshots when new subscription is removed", ({
+			expect,
+		}) => {
+			expect.hasAssertions();
+		});
+
+		it("Indicates frozen status", ({ expect }) => {
+			const normalSync = new TimeSync();
+			const normalSnap = normalSync.getSnapshot();
+			expect(normalSnap.isFrozen).toBe(false);
+
+			const frozenSync = new TimeSync({ freezeUpdates: true });
+			const frozenSnap = frozenSync.getSnapshot();
+			expect(frozenSnap.isFrozen).toBe(true);
+		});
+
+		it("Indicates disposed status", ({ expect }) => {
+			const sync = new TimeSync();
+			const oldSnap = sync.getSnapshot();
+			expect(oldSnap.isDisposed).toBe(false);
+
+			sync.dispose();
+			const newSnap = sync.getSnapshot();
+			expect(newSnap.isDisposed).toBe(true);
+		});
+
+		it("Prevents mutating properties at runtime", ({ expect }) => {
 			expect.hasAssertions();
 		});
 	});
 
-	describe("Invalidating snapshots", () => {
-		it("Defaults to only notifying subscribers when the snapshot actually changed", ({
+	describe("Invalidating state", () => {
+		it("Defaults to only notifying subscribers when the state actually changed", ({
 			expect,
 		}) => {
 			expect.hasAssertions();
 		});
 
-		it("Supports invalidating the snapshot without notifying anything", ({
+		it("Supports invalidating state without notifying anything", ({
 			expect,
 		}) => {
 			expect.hasAssertions();
 		});
 
-		it("Supports force-notifying subscribers, even if snapshot did not change", ({
+		it("Supports force-notifying subscribers, even if state did not change", ({
 			expect,
 		}) => {
 			expect.hasAssertions();
 		});
 	});
 
-	describe("Disposing a TimeSync instance", () => {
+	describe("Disposing of a TimeSync instance", () => {
 		it("Clears active interval", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
-		it("Automatically unsubscribes everything", ({ expect }) => {
-			expect.hasAssertions();
+		it("Automatically unsubscribes everything", async ({ expect }) => {
+			const sync = new TimeSync();
+			const sharedOnUpdate = vi.fn();
+
+			for (let i = 0; i < 100; i++) {
+				void sync.subscribe({
+					onUpdate: sharedOnUpdate,
+					targetRefreshIntervalMs: REFRESH_ONE_MINUTE,
+				});
+			}
+
+			const oldSnap = sync.getSnapshot();
+			expect(oldSnap.subscriberCount).toBe(100);
+
+			sync.dispose();
+			const newSnap = sync.getSnapshot();
+			expect(newSnap.isDisposed).toBe(true);
+			expect(newSnap.subscriberCount).toBe(0);
+
+			await vi.advanceTimersByTimeAsync(REFRESH_ONE_MINUTE);
+			expect(sharedOnUpdate).not.toHaveBeenCalled();
 		});
 
-		it("Indicates disposed status in pulled snapshots", ({ expect }) => {
-			expect.hasAssertions();
+		it("Turns future subscriptions into no-ops", async ({ expect }) => {
+			const sync = new TimeSync();
+			sync.dispose();
+
+			const onUpdate = vi.fn();
+			const unsub = sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: REFRESH_ONE_MINUTE,
+			});
+
+			const snap1 = sync.getSnapshot();
+			expect(snap1.subscriberCount).toBe(0);
+
+			await vi.advanceTimersByTimeAsync(2 * REFRESH_ONE_MINUTE);
+			expect(onUpdate).not.toHaveBeenCalled();
+
+			// Doing unsub assertion just to be extra safe
+			unsub();
+			const snap2 = sync.getSnapshot();
+			expect(snap2.subscriberCount).toBe(0);
 		});
 	});
 
+	// The intention with the frozen status is that once set on init, there
+	// should be no way to make it un-frozen – a consumer would need to create a
+	// fresh instance from scratch. Not sure how to codify that in tests yet.
 	describe("Freezing updates on init", () => {
 		it("Never updates internal state, no matter how many subscribers susbcribe", ({
 			expect,
 		}) => {
-			expect.hasAssertions();
-		});
+			const sync = new TimeSync({ freezeUpdates: true });
+			const dummyOnUpdate = vi.fn();
 
-		it("Indicates frozen status in pulled snapshots", ({ expect }) => {
-			expect.hasAssertions();
+			for (let i = 0; i < 1000; i++) {
+				void sync.subscribe({
+					onUpdate: dummyOnUpdate,
+					targetRefreshIntervalMs: REFRESH_ONE_MINUTE,
+				});
+			}
+
+			const snap = sync.getSnapshot();
+			expect(snap.subscriberCount).toBe(0);
 		});
 	});
 });

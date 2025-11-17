@@ -22,14 +22,14 @@ describe.concurrent(newReadonlyDate.name, () => {
 	/**
 	 * @todo 2025-11-16 - Need to figure out why, but for some reason, sometimes
 	 * when you create an expected native Date via an ISO string, all
-	 * comparisons against it and the readonly Date created during the test fail
-	 * with a TypeError from trying to access the .toISOString method
-	 * (presumably on the readonly date).
+	 * comparisons against it and a readonly Date fail with a TypeError. The
+	 * error message is cryptic, but mentions a bad property access for the
+	 * .toISOString method (presumably on the readonly date).
 	 *
 	 * Having trouble reproducing this error – seems very flaky.
 	 *
 	 * Calling .toISOString on the readonly date still works, so this might be
-	 * some weird nuance from how Vitest works.
+	 * some weird nuance from how Vitest's utility functions work.
 	 *
 	 * Current investigations point towards this being a case where native Dates
 	 * have weird interactions with proxy objects

@@ -47,6 +47,9 @@
 				"useConst": "error",
 				"useConsistentCurlyBraces": "error",
 				"useNumericSeparators": "error"
+			},
+			"suspicious": {
+				"noSkippedTests": "warn"
 			}
 		}
 	},
