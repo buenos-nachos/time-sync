@@ -492,8 +492,24 @@ describe.concurrent(TimeSync.name, () => {
 	});
 
 	describe("Disposing of a TimeSync instance", () => {
-		it("Clears active interval", ({ expect }) => {
-			expect.hasAssertions();
+		it("Clears active interval", async ({ expect }) => {
+			const setSpy = vi.spyOn(window, "setInterval");
+			const clearSpy = vi.spyOn(window, "clearInterval");
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+
+			const onUpdate = vi.fn();
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: REFRESH_ONE_MINUTE,
+			});
+			expect(setSpy).toHaveBeenCalled();
+
+			sync.dispose();
+			expect(clearSpy).toHaveBeenCalled();
+
+			await vi.advanceTimersByTimeAsync(REFRESH_ONE_MINUTE);
+			expect(onUpdate).not.toHaveBeenCalled();
 		});
 
 		it("Automatically unsubscribes everything", async ({ expect }) => {
