@@ -1,4 +1,4 @@
-import { afterEach, describe, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import { newReadonlyDate } from "./readonlyDate";
 import {
 	REFRESH_ONE_HOUR,
@@ -13,32 +13,38 @@ const defaultDateString = "October 27, 2025";
 
 const epsilonThreshold = 0.0001;
 
+function initializeTime(dateString: string = defaultDateString): Date {
+	const sourceDate = new Date(dateString);
+	vi.setSystemTime(sourceDate);
+	vi.useFakeTimers();
+	return newReadonlyDate(sourceDate);
+}
+
+const sampleLiveRefreshRates: readonly number[] = [
+	REFRESH_ONE_SECOND,
+	REFRESH_ONE_MINUTE,
+	REFRESH_ONE_HOUR,
+];
+
+const sampleInvalidIntervals: readonly number[] = [
+	Number.NaN,
+	Number.NEGATIVE_INFINITY,
+	0,
+	-42,
+	470.53,
+];
+
+type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
+
+beforeEach(() => {
+	vi.useFakeTimers();
+});
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
 describe.concurrent(TimeSync.name, () => {
-	function initializeTime(dateString: string = defaultDateString): Date {
-		const sourceDate = new Date(dateString);
-		vi.setSystemTime(sourceDate);
-		vi.useFakeTimers();
-		return newReadonlyDate(sourceDate);
-	}
-
-	afterEach(() => {
-		vi.restoreAllMocks();
-	});
-
-	const sampleLiveRefreshRates: readonly number[] = [
-		REFRESH_ONE_SECOND,
-		REFRESH_ONE_MINUTE,
-		REFRESH_ONE_HOUR,
-	];
-
-	const sampleInvalidIntervals: readonly number[] = [
-		Number.NaN,
-		Number.NEGATIVE_INFINITY,
-		0,
-		-42,
-		470.53,
-	];
-
 	describe("Subscriptions: default behavior", () => {
 		it("Never auto-updates state while there are zero subscribers", async ({
 			expect,
@@ -194,10 +200,25 @@ describe.concurrent(TimeSync.name, () => {
 	});
 
 	describe("Subscriptions: custom `minimumRefreshIntervalMs` value", () => {
-		it("Rounds up all incoming subscription intervals to custom min interval", ({
+		it("Rounds up target intervals to custom min interval", async ({
 			expect,
 		}) => {
-			expect.hasAssertions();
+			const initialDate = initializeTime();
+			const sync = new TimeSync({
+				initialDate,
+				minimumRefreshIntervalMs: REFRESH_ONE_HOUR,
+			});
+
+			const onUpdate = vi.fn();
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: REFRESH_ONE_MINUTE,
+			});
+
+			await vi.advanceTimersByTimeAsync(REFRESH_ONE_MINUTE);
+			expect(onUpdate).not.toHaveBeenCalled();
+			await vi.advanceTimersByTimeAsync(REFRESH_ONE_HOUR);
+			expect(onUpdate).toHaveBeenCalledTimes(1);
 		});
 
 		it("Throws if custom min interval is not a positive integer", ({
@@ -349,26 +370,48 @@ describe.concurrent(TimeSync.name, () => {
 		});
 
 		it("Prevents mutating properties at runtime", ({ expect }) => {
-			expect.hasAssertions();
+			const sync = new TimeSync();
+
+			// We have readonly modifiers on the types, but we need to make sure
+			// nothing can break at runtime
+			const snap = sync.getStateSnapshot() as Writeable<TimeSyncSnapshot>;
+			const copyBeforeMutations = { ...snap };
+			const mutationSource: TimeSyncSnapshot = {
+				dateSnapshot: newReadonlyDate("April 1, 1970"),
+				isDisposed: true,
+				isFrozen: true,
+				minimumRefreshIntervalMs: Number.POSITIVE_INFINITY,
+				subscriberCount: Number.POSITIVE_INFINITY,
+			};
+
+			snap.dateSnapshot = mutationSource.dateSnapshot;
+			snap.isDisposed = mutationSource.isDisposed;
+			snap.isFrozen = mutationSource.isFrozen;
+			snap.subscriberCount = mutationSource.subscriberCount;
+			snap.minimumRefreshIntervalMs = mutationSource.minimumRefreshIntervalMs;
+
+			expect(snap).toEqual(copyBeforeMutations);
 		});
 	});
 
 	describe("Invalidating state", () => {
-		it("Defaults to only notifying subscribers when the state actually changed", ({
+		it("Supports onChange behavior (only notifies subscribers if time meaningfully changed)", ({
 			expect,
 		}) => {
 			expect.hasAssertions();
 		});
 
-		it("Supports invalidating state without notifying anything", ({
+		it("Defaults to onChange notification behavior", ({ expect }) => {
+			expect.hasAssertions();
+		});
+
+		it("Accepts custom staleness threshold for onChange behavior", ({
 			expect,
 		}) => {
 			expect.hasAssertions();
 		});
 
-		it("Supports force-notifying subscribers, even if state did not change", ({
-			expect,
-		}) => {
+		it("Defaults to staleness threshold of 0", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
@@ -378,10 +421,50 @@ describe.concurrent(TimeSync.name, () => {
 			expect.hasAssertions();
 		});
 
-		it("Uses staleness threshold to decide whether a snapshot has meaningfully changed", ({
+		it("Supports invalidating state without notifying anything", async ({
 			expect,
 		}) => {
-			expect.hasAssertions();
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+			const initialSnap = sync.getStateSnapshot();
+
+			const onUpdate = vi.fn();
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: REFRESH_ONE_HOUR,
+			});
+
+			await vi.advanceTimersByTimeAsync(REFRESH_ONE_MINUTE);
+			sync.invalidateState({ notificationBehavior: "never" });
+			expect(onUpdate).not.toHaveBeenCalled();
+
+			const newSnap = sync.getStateSnapshot();
+			expect(newSnap).not.toEqual(initialSnap);
+		});
+
+		it("Can force-notify subscribers, even if state did not change", ({
+			expect,
+		}) => {
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+			const initialSnap = sync.getStateSnapshot();
+
+			let ejectedDate!: Date;
+			const onUpdate = vi.fn((d: Date) => {
+				ejectedDate = d;
+			});
+
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: REFRESH_ONE_HOUR,
+			});
+
+			sync.invalidateState({ notificationBehavior: "always" });
+			expect(onUpdate).toHaveBeenCalledTimes(1);
+
+			const newSnap = sync.getStateSnapshot();
+			expect(newSnap).not.toEqual(initialSnap);
+			expect(newSnap.dateSnapshot).toEqual(ejectedDate);
 		});
 	});
 

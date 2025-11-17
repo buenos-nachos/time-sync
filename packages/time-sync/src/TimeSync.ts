@@ -364,13 +364,13 @@ export class TimeSync implements TimeSyncApi {
 		// because it doesn't have enough context about where it will be called
 		// to know whether that could break other stateful logic
 		this.#hasPendingBroadcast = true;
-		this.#latestSnapshot = {
+		this.#latestSnapshot = Object.freeze({
 			isDisposed,
 			isFrozen,
 			minimumRefreshIntervalMs: minUpdateIntervalMs,
 			dateSnapshot: newSnap,
 			subscriberCount: this.#countSubscriptions(),
-		};
+		});
 		return true;
 	}
 
@@ -417,10 +417,10 @@ export class TimeSync implements TimeSyncApi {
 			}
 			this.#updateFastestInterval();
 
-			this.#latestSnapshot = {
+			this.#latestSnapshot = Object.freeze({
 				...this.#latestSnapshot,
 				subscriberCount: Math.max(0, this.#latestSnapshot.subscriberCount - 1),
-			};
+			});
 		};
 
 		let entries = this.#subscriptions.get(onUpdate);
@@ -437,10 +437,10 @@ export class TimeSync implements TimeSyncApi {
 		entries.sort((e1, e2) => e2.targetInterval - e1.targetInterval);
 		this.#updateFastestInterval();
 
-		this.#latestSnapshot = {
+		this.#latestSnapshot = Object.freeze({
 			...this.#latestSnapshot,
 			subscriberCount: this.#latestSnapshot.subscriberCount + 1,
-		};
+		});
 
 		return unsubscribe;
 	}
@@ -459,7 +459,7 @@ export class TimeSync implements TimeSyncApi {
 			options ?? {};
 
 		const isStaleValid =
-			Number.isInteger(stalenessThresholdMs) && stalenessThresholdMs > 0;
+			Number.isInteger(stalenessThresholdMs) && stalenessThresholdMs >= 0;
 		if (!isStaleValid) {
 			throw new RangeError(
 				`Minimum refresh interval must be a positive integer (received ${stalenessThresholdMs}ms)`,
@@ -505,10 +505,10 @@ export class TimeSync implements TimeSyncApi {
 		}
 		this.#subscriptions.clear();
 
-		this.#latestSnapshot = {
+		this.#latestSnapshot = Object.freeze({
 			...this.#latestSnapshot,
 			subscriberCount: 0,
 			isDisposed: true,
-		};
+		});
 	}
 }
