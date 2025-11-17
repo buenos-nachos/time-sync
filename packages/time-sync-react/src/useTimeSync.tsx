@@ -208,7 +208,7 @@ class ReactTimeSync {
 	// Only safe to call inside a render that is bound to useSyncExternalStore
 	// in some way
 	getDateSnapshot(): Date {
-		return this.#timeSync.getSnapshot();
+		return this.#timeSync.getStateSnapshot();
 	}
 
 	// Always safe to call inside a render
@@ -276,7 +276,8 @@ class ReactTimeSync {
 		// Regardless of how the subscription happened, update all other
 		// subscribers to get them in sync with the newest state
 		const shouldInvalidateDate =
-			newReadonlyDate().getTime() - this.#timeSync.getSnapshot().getTime() >
+			newReadonlyDate().getTime() -
+				this.#timeSync.getStateSnapshot().getTime() >
 			ReactTimeSync.#stalenessThresholdMs;
 		if (shouldInvalidateDate) {
 			void this.#timeSync.invalidateState({
@@ -326,7 +327,7 @@ class ReactTimeSync {
 			return prev.cachedTransformation as T;
 		}
 
-		const latestDate = this.#timeSync.getSnapshot();
+		const latestDate = this.#timeSync.getStateSnapshot();
 		return latestDate as T;
 	}
 

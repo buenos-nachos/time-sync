@@ -49,7 +49,8 @@
 				"useNumericSeparators": "error"
 			},
 			"suspicious": {
-				"noSkippedTests": "warn"
+				"noSkippedTests": "error",
+				"noFocusedTests": "error"
 			}
 		}
 	},

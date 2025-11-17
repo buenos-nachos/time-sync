@@ -39,21 +39,21 @@ describe.concurrent(TimeSync.name, () => {
 		470.53,
 	];
 
-	describe.skip("Subscriptions: default behavior", () => {
+	describe("Subscriptions: default behavior", () => {
 		it("Never auto-updates state while there are zero subscribers", async ({
 			expect,
 		}) => {
 			const initialDate = initializeTime();
 			const sync = new TimeSync({ initialDate });
-			const initialSnap = sync.getSnapshot().dateSnapshot;
+			const initialSnap = sync.getStateSnapshot().dateSnapshot;
 			expect(initialSnap).toEqual(initialDate);
 
 			await vi.advanceTimersByTimeAsync(5 * REFRESH_ONE_SECOND);
-			const newSnap1 = sync.getSnapshot().dateSnapshot;
+			const newSnap1 = sync.getStateSnapshot().dateSnapshot;
 			expect(newSnap1).toEqual(initialSnap);
 
 			await vi.advanceTimersByTimeAsync(500 * REFRESH_ONE_SECOND);
-			const newSnap2 = sync.getSnapshot().dateSnapshot;
+			const newSnap2 = sync.getStateSnapshot().dateSnapshot;
 			expect(newSnap2).toEqual(initialSnap);
 		});
 
@@ -69,9 +69,9 @@ describe.concurrent(TimeSync.name, () => {
 				});
 				expect(onUpdate).not.toHaveBeenCalled();
 
-				const dateBefore = sync.getSnapshot().dateSnapshot;
+				const dateBefore = sync.getStateSnapshot().dateSnapshot;
 				await vi.advanceTimersByTimeAsync(rate);
-				const dateAfter = sync.getSnapshot().dateSnapshot;
+				const dateAfter = sync.getStateSnapshot().dateSnapshot;
 				expect(onUpdate).toHaveBeenCalledTimes(1);
 				expect(onUpdate).toHaveBeenCalledWith(dateAfter);
 
@@ -84,9 +84,7 @@ describe.concurrent(TimeSync.name, () => {
 			}
 		});
 
-		it("Lets multiple subscribers subscribe to periodic time updates", ({
-			expect,
-		}) => {
+		it("Lets multiple subscribers subscribe to updates", ({ expect }) => {
 			expect.hasAssertions();
 		});
 
@@ -96,7 +94,7 @@ describe.concurrent(TimeSync.name, () => {
 		// a value from an external state source. Otherwise the hook will keep
 		// pulling the values over and over again until it gives up and throws
 		// a runtime error
-		it("Exposes the exact same date snapshot (by reference) to subscribers on each update", ({
+		it("Exposes the exact same date value (by reference) to all subscribers on each update tick", ({
 			expect,
 		}) => {
 			expect.hasAssertions();
@@ -126,19 +124,19 @@ describe.concurrent(TimeSync.name, () => {
 			expect.hasAssertions();
 		});
 
-		it("Calls onUpdate callback one time total if subscription is registered multiple times for the same time interval", ({
+		it("Calls onUpdate callback one time total if callback is registered multiple times for the same time interval", ({
 			expect,
 		}) => {
 			expect.hasAssertions();
 		});
 
-		it("Calls onUpdate callback one time total if subscription is registered multiple times for different time intervals", ({
+		it("Calls onUpdate callback one time total if callback is registered multiple times for different time intervals", ({
 			expect,
 		}) => {
 			expect.hasAssertions();
 		});
 
-		it("Calls onUpdate callback one time total if subscription is registered multiple times with a mix of redundant/different intervals", ({
+		it("Calls onUpdate callback one time total if callback is registered multiple times with a mix of redundant/different intervals", ({
 			expect,
 		}) => {
 			expect.hasAssertions();
@@ -156,7 +154,7 @@ describe.concurrent(TimeSync.name, () => {
 
 		/**
 		 * Was really hard to describe this in a single sentence, but basically:
-		 * 1. Let's say that we have subscribers A AND B. A subscribes for 500ms
+		 * 1. Let's say that we have subscribers A and B. A subscribes for 500ms
 		 *    and B subscribes for 1000ms.
 		 * 2. At 450ms, A unsubscribes.
 		 * 3. Rather than starting the timer over, a one-time 'pseudo-timeout'
@@ -188,20 +186,14 @@ describe.concurrent(TimeSync.name, () => {
 			expect.hasAssertions();
 		});
 
-		it("Does not ever do periodic notifications if all subscribers specify an update interval of positive infinity", ({
-			expect,
-		}) => {
-			expect.hasAssertions();
-		});
-
-		it("Never indicates to new subscriber that there are pending updates (even if the subscription updates the date snapshot)", ({
+		it("Does not ever dispatch updates if all subscribers specify an update interval of positive infinity", ({
 			expect,
 		}) => {
 			expect.hasAssertions();
 		});
 	});
 
-	describe.skip("Subscriptions: custom `minimumRefreshIntervalMs` value", () => {
+	describe("Subscriptions: custom `minimumRefreshIntervalMs` value", () => {
 		it("Rounds up all incoming subscription intervals to custom min interval", ({
 			expect,
 		}) => {
@@ -229,7 +221,7 @@ describe.concurrent(TimeSync.name, () => {
 			const minimumRefreshIntervalMs = 5_000_000;
 			const sync = new TimeSync({ initialDate, minimumRefreshIntervalMs });
 
-			const snap = sync.getSnapshot();
+			const snap = sync.getStateSnapshot();
 			expect(snap).toEqual<TimeSyncSnapshot>({
 				dateSnapshot: initialDate,
 				isDisposed: false,
@@ -241,7 +233,7 @@ describe.concurrent(TimeSync.name, () => {
 
 		it("Reflects the minimum refresh interval used on init", ({ expect }) => {
 			const sync = new TimeSync({ minimumRefreshIntervalMs: REFRESH_ONE_HOUR });
-			const snap = sync.getSnapshot();
+			const snap = sync.getStateSnapshot();
 			expect(snap.minimumRefreshIntervalMs).toBe(REFRESH_ONE_HOUR);
 		});
 
@@ -251,71 +243,108 @@ describe.concurrent(TimeSync.name, () => {
 		// can fudge the rules and treat it like a pure value, but if it gets
 		// back different references, it will keep pulling over and over until
 		// it gives up and blows up the entire app.
-		it("Always gives back the same snapshot by reference if it's pulled synchronously multiple times in sequence", ({
+		it("Always gives back the same snapshot by reference if it's pulled synchronously multiple times", ({
 			expect,
 		}) => {
 			const sync = new TimeSync();
-			const initialSnap = sync.getSnapshot();
+			const initialSnap = sync.getStateSnapshot();
 
 			for (let i = 0; i < 100; i++) {
-				const newSnap = sync.getSnapshot();
+				const newSnap = sync.getStateSnapshot();
 				expect(newSnap).toEqual(initialSnap);
 			}
 		});
 
-		it("Does not mutate old snapshots when a new update is queued for subscribers", ({
+		it("Does not mutate old snapshots when a new update is queued for subscribers", async ({
 			expect,
 		}) => {
-			expect.hasAssertions();
-		});
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+			const initialSnap = sync.getStateSnapshot();
 
-		it.skip("Does not mutate old snapshot when TimeSync state is invalidated", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-			const initialSnap = sync.getSnapshot();
-
+			const onUpdate = vi.fn();
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: REFRESH_ONE_HOUR,
+			});
 			await vi.advanceTimersByTimeAsync(REFRESH_ONE_HOUR);
-			sync.invalidateState({ notificationBehavior: "always" });
-			const newSnap = sync.getSnapshot();
+
+			expect(onUpdate).toHaveBeenCalledTimes(1);
+			expect(onUpdate).toHaveBeenCalledWith(expect.any(Date));
+
+			const newSnap = sync.getStateSnapshot();
 			expect(newSnap).not.toEqual(initialSnap);
 		});
 
-		it("Provides accurate count of active subscriptions", ({ expect }) => {
+		it("Does not mutate old snapshot when TimeSync state is invalidated", async ({
+			expect,
+		}) => {
 			const sync = new TimeSync();
+			const initialSnap = sync.getStateSnapshot();
 
-			expect.hasAssertions();
+			await vi.advanceTimersByTimeAsync(REFRESH_ONE_HOUR);
+			sync.invalidateState({ notificationBehavior: "always" });
+			const newSnap = sync.getStateSnapshot();
+			expect(newSnap).not.toEqual(initialSnap);
 		});
 
-		it("Does not mutate snapshots when new subscription is added", ({
+		it("Provides accurate count of active subscriptions as it changes over time", ({
 			expect,
 		}) => {
-			expect.hasAssertions();
+			const sync = new TimeSync();
+			const snap = sync.getStateSnapshot();
+			expect(snap.subscriberCount).toBe(0);
+
+			const dummyOnUpdate = vi.fn();
+			for (let i = 1; i <= 10; i++) {
+				void sync.subscribe({
+					onUpdate: dummyOnUpdate,
+					targetRefreshIntervalMs: REFRESH_ONE_HOUR,
+				});
+
+				const newSnap = sync.getStateSnapshot();
+				expect(newSnap.subscriberCount).toBe(i);
+			}
 		});
 
-		it("Does not mutate snapshots when new subscription is removed", ({
+		it("Does not mutate old snapshots when new subscription is added or removed", ({
 			expect,
 		}) => {
-			expect.hasAssertions();
+			const sync = new TimeSync();
+			const initialSnap = sync.getStateSnapshot();
+
+			const unsub = sync.subscribe({
+				targetRefreshIntervalMs: REFRESH_ONE_HOUR,
+				onUpdate: vi.fn(),
+			});
+			const afterAdd = sync.getStateSnapshot();
+			expect(afterAdd.subscriberCount).toBe(1);
+			expect(afterAdd).not.toEqual(initialSnap);
+
+			unsub();
+			const afterRemove = sync.getStateSnapshot();
+			expect(afterRemove.subscriberCount).toBe(0);
+			expect(afterRemove).not.toEqual(initialSnap);
+			expect(afterRemove).not.toEqual(afterAdd);
 		});
 
 		it("Indicates frozen status", ({ expect }) => {
 			const normalSync = new TimeSync();
-			const normalSnap = normalSync.getSnapshot();
+			const normalSnap = normalSync.getStateSnapshot();
 			expect(normalSnap.isFrozen).toBe(false);
 
 			const frozenSync = new TimeSync({ freezeUpdates: true });
-			const frozenSnap = frozenSync.getSnapshot();
+			const frozenSnap = frozenSync.getStateSnapshot();
 			expect(frozenSnap.isFrozen).toBe(true);
 		});
 
 		it("Indicates disposed status", ({ expect }) => {
 			const sync = new TimeSync();
-			const oldSnap = sync.getSnapshot();
+			const oldSnap = sync.getStateSnapshot();
 			expect(oldSnap.isDisposed).toBe(false);
 
 			sync.dispose();
-			const newSnap = sync.getSnapshot();
+			const newSnap = sync.getStateSnapshot();
 			expect(newSnap.isDisposed).toBe(true);
 		});
 
@@ -342,6 +371,18 @@ describe.concurrent(TimeSync.name, () => {
 		}) => {
 			expect.hasAssertions();
 		});
+
+		it("Throws when provided a staleness threshold that is neither a positive integer nor zero", ({
+			expect,
+		}) => {
+			expect.hasAssertions();
+		});
+
+		it("Uses staleness threshold to decide whether a snapshot has meaningfully changed", ({
+			expect,
+		}) => {
+			expect.hasAssertions();
+		});
 	});
 
 	describe("Disposing of a TimeSync instance", () => {
@@ -360,11 +401,11 @@ describe.concurrent(TimeSync.name, () => {
 				});
 			}
 
-			const oldSnap = sync.getSnapshot();
+			const oldSnap = sync.getStateSnapshot();
 			expect(oldSnap.subscriberCount).toBe(100);
 
 			sync.dispose();
-			const newSnap = sync.getSnapshot();
+			const newSnap = sync.getStateSnapshot();
 			expect(newSnap.isDisposed).toBe(true);
 			expect(newSnap.subscriberCount).toBe(0);
 
@@ -382,7 +423,7 @@ describe.concurrent(TimeSync.name, () => {
 				targetRefreshIntervalMs: REFRESH_ONE_MINUTE,
 			});
 
-			const snap1 = sync.getSnapshot();
+			const snap1 = sync.getStateSnapshot();
 			expect(snap1.subscriberCount).toBe(0);
 
 			await vi.advanceTimersByTimeAsync(2 * REFRESH_ONE_MINUTE);
@@ -390,7 +431,7 @@ describe.concurrent(TimeSync.name, () => {
 
 			// Doing unsub assertion just to be extra safe
 			unsub();
-			const snap2 = sync.getSnapshot();
+			const snap2 = sync.getStateSnapshot();
 			expect(snap2.subscriberCount).toBe(0);
 		});
 	});
@@ -412,7 +453,7 @@ describe.concurrent(TimeSync.name, () => {
 				});
 			}
 
-			const snap = sync.getSnapshot();
+			const snap = sync.getStateSnapshot();
 			expect(snap.subscriberCount).toBe(0);
 		});
 	});

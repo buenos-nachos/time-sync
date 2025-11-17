@@ -125,7 +125,7 @@ interface TimeSyncApi {
 	 *
 	 * @returns The Date produced from the most recent internal update.
 	 */
-	getSnapshot: () => TimeSyncSnapshot;
+	getStateSnapshot: () => TimeSyncSnapshot;
 
 	/**
 	 * Immediately tries to refresh the current date snapshot, regardless of
@@ -201,7 +201,7 @@ export class TimeSync implements TimeSyncApi {
 			Number.isInteger(minimumRefreshIntervalMs) &&
 			minimumRefreshIntervalMs > 0;
 		if (!isMinValid) {
-			throw new Error(
+			throw new RangeError(
 				`Minimum refresh interval must be a positive integer (received ${minimumRefreshIntervalMs}ms)`,
 			);
 		}
@@ -445,7 +445,7 @@ export class TimeSync implements TimeSyncApi {
 		return unsubscribe;
 	}
 
-	getSnapshot(): TimeSyncSnapshot {
+	getStateSnapshot(): TimeSyncSnapshot {
 		return this.#latestSnapshot;
 	}
 
@@ -457,6 +457,14 @@ export class TimeSync implements TimeSyncApi {
 
 		const { stalenessThresholdMs = 0, notificationBehavior = "onChange" } =
 			options ?? {};
+
+		const isStaleValid =
+			Number.isInteger(stalenessThresholdMs) && stalenessThresholdMs > 0;
+		if (!isStaleValid) {
+			throw new RangeError(
+				`Minimum refresh interval must be a positive integer (received ${stalenessThresholdMs}ms)`,
+			);
+		}
 
 		const wasChanged = this.#updateDateSnapshot(stalenessThresholdMs);
 		switch (notificationBehavior) {
