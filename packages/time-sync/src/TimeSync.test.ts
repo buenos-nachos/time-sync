@@ -29,8 +29,9 @@ afterEach(() => {
 /**
  * Unfortunately, because the tests make extensive use of vi's mocking, these
  * tests are a bad candidate for concurrent running. There's a very high risk of
- * all the fake timer setup and teardown calls getting in each other's way. For
- * example:
+ * all the fake timer setup and teardown calls getting in each other's way.
+ *
+ * For example:
  * 1. Test A sets up fake timers
  * 2. Test B sets up fake timers around the same time
  * 3. Test A finishes and clears out all fake timers (for A and B)
@@ -41,11 +42,18 @@ afterEach(() => {
  *
  * We could redefine TimeSync to accept setInterval and clearInterval callbacks
  * manually during instantiation, which would give us the needed test isolation
- * to avoid the vi mocks and enable concurrency. But that would pollute the API
- * with extra properties that are only ever relevant for internal testing.
+ * to avoid the vi mocks and enable concurrency. But then you'd have to do one
+ * of two things:
  *
- * That seems bad, and especially with the scope of the package being pretty
- * small, and Vitest being pretty fast, we're just going to use serial tests.
+ * 1. Pollute the API with extra properties that are only ever relevant for
+ *    internal testing
+ * 2. Create two versions of TimeSync – an internal one used for core logic and
+ *    testing, and a public wrapper that embeds setInterval and clearInterval,
+ *    and then prevents them from being set afterwards.
+ *
+ * Those both feel a bit clunky, and not worth it. Especially with the scope of
+ * the package being pretty small, and Vitest being pretty fast normally, we're
+ * just going to use serial tests.
  */
 describe(TimeSync.name, () => {
 	describe("Subscriptions: default behavior", () => {
@@ -350,10 +358,48 @@ describe(TimeSync.name, () => {
 			expect(sharedOnUpdate).toHaveBeenCalledTimes(1);
 		});
 
-		it("Slows updates down to the second-fastest interval when the all subscribers for the fastest interval unsubscribe", ({
+		it("Slows updates down to the second-fastest interval when the all subscribers for the fastest interval unsubscribe", async ({
 			expect,
 		}) => {
-			expect.hasAssertions();
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+
+			const onUpdate1 = vi.fn();
+			const unsub1 = sync.subscribe({
+				onUpdate: onUpdate1,
+				targetRefreshIntervalMs: refreshRates.oneSecond,
+			});
+
+			const onUpdate2 = vi.fn();
+			const unsub2 = sync.subscribe({
+				onUpdate: onUpdate2,
+				targetRefreshIntervalMs: refreshRates.oneSecond,
+			});
+
+			const onUpdate3 = vi.fn();
+			void sync.subscribe({
+				onUpdate: onUpdate3,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+			expect(onUpdate1).toHaveBeenCalledTimes(1);
+			expect(onUpdate2).toHaveBeenCalledTimes(1);
+			expect(onUpdate3).toHaveBeenCalledTimes(1);
+
+			unsub1();
+			unsub2();
+			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+			expect(onUpdate1).toHaveBeenCalledTimes(1);
+			expect(onUpdate2).toHaveBeenCalledTimes(1);
+			expect(onUpdate3).toHaveBeenCalledTimes(1);
+
+			await vi.advanceTimersByTimeAsync(
+				refreshRates.oneMinute - refreshRates.oneSecond,
+			);
+			expect(onUpdate1).toHaveBeenCalledTimes(1);
+			expect(onUpdate2).toHaveBeenCalledTimes(1);
+			expect(onUpdate3).toHaveBeenCalledTimes(2);
 		});
 
 		/**
@@ -362,14 +408,44 @@ describe(TimeSync.name, () => {
 		 *    and B subscribes for 1000ms.
 		 * 2. At 450ms, A unsubscribes.
 		 * 3. Rather than starting the timer over, a one-time 'pseudo-timeout'
-		 *    is kicked off for the delta between the elapsed time and B (650ms)
+		 *    is kicked off for the delta between the elapsed time and B (550ms)
 		 * 4. After the timeout resolves, updates go back to happening on an
 		 *    interval of 1000ms.
+		 *
+		 * Because of unfortunate limitations with JavaScript's macrotask queue,
+		 * there is a risk that there will be small delays introduced between
+		 * starting and stopping intervals, but any attempts to minimize them
+		 * (you can't completely remove them) might make the library a nightmare
+		 * to maintain.
 		 */
-		it("Does not completely start next interval over from scratch if fastest subscription is removed halfway through update", ({
+		it.only("Does not completely start next interval over from scratch if fastest subscription is removed halfway through update", async ({
 			expect,
 		}) => {
-			expect.hasAssertions();
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+
+			const onUpdate1 = vi.fn();
+			const unsub1 = sync.subscribe({
+				onUpdate: onUpdate1,
+				targetRefreshIntervalMs: refreshRates.halfSecond,
+			});
+
+			const onUpdate2 = vi.fn();
+			void sync.subscribe({
+				onUpdate: onUpdate2,
+				targetRefreshIntervalMs: refreshRates.oneSecond,
+			});
+
+			await vi.advanceTimersByTimeAsync(450);
+			unsub1();
+
+			await vi.advanceTimersByTimeAsync(50);
+			expect(onUpdate1).not.toHaveBeenCalled();
+			expect(onUpdate2).not.toHaveBeenCalled();
+
+			await vi.advanceTimersByTimeAsync(500);
+			expect(onUpdate1).not.toHaveBeenCalled();
+			expect(onUpdate2).toHaveBeenCalledTimes(1);
 		});
 
 		it("Immediately notifies subscribers if new refresh interval is added that is less than or equal to the time since the last update", ({
@@ -473,7 +549,7 @@ describe(TimeSync.name, () => {
 		// is bound to it multiple times in dev mode. That ensures that React
 		// can fudge the rules and treat it like a pure value, but if it gets
 		// back different references, it will keep pulling over and over until
-		// it gives up and blows up the entire app.
+		// it gives up, throws a rendering error, and blows up the entire app.
 		it("Always gives back the same snapshot by reference if it's pulled synchronously multiple times", ({
 			expect,
 		}) => {

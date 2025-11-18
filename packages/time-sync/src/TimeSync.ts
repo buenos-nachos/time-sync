@@ -4,12 +4,14 @@ import { noOp } from "./utils";
 /**
  * A collection of commonly-needed intervals (all defined in milliseconds).
  */
+// Doing type assertion on the static numeric values to prevent compiler from
+// over-inferring the types, and exposing too much info to end users
 export const refreshRates = Object.freeze({
-	paused: Number.POSITIVE_INFINITY,
-	// Doing type assertion to prevent compiler from over-inferring the type of
-	// this property, and exposing too much info to end users
+	idle: Number.POSITIVE_INFINITY,
+	halfSecond: 500 as number,
 	oneSecond: 1000 as number,
 	oneMinute: 60 * 1000,
+	fiveMinutes: 5 * 60 * 1000,
 	oneHour: 60 * 60 * 1000,
 }) satisfies Record<string, number>;
 
