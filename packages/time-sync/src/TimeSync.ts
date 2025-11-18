@@ -78,6 +78,14 @@ export type SubscriptionHandshake = Readonly<{
 	onUpdate: OnTimeSyncUpdate;
 }>;
 
+const notificationBehaviors = [
+	"onChange",
+	"never",
+	"always",
+] as const satisfies readonly string[];
+
+type NotificationBehavior = (typeof notificationBehaviors)[number];
+
 export type InvalidateStateOptions = Readonly<{
 	/**
 	 * The amount of time (in milliseconds) that you can tolerate stale dates.
@@ -102,7 +110,7 @@ export type InvalidateStateOptions = Readonly<{
 	 * `never` - Never notify subscribers, regardless of any state changes.
 	 * `always` - Notify subscribers, even if the date didn't change.
 	 */
-	notificationBehavior?: "onChange" | "never" | "always";
+	notificationBehavior?: NotificationBehavior;
 }>;
 
 /**
@@ -500,11 +508,6 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	invalidateState(options?: InvalidateStateOptions): Snapshot {
-		const { isDisposed, isFrozen } = this.#latestSnapshot;
-		if (isDisposed || isFrozen) {
-			return this.#latestSnapshot;
-		}
-
 		const { stalenessThresholdMs = 0, notificationBehavior = "onChange" } =
 			options ?? {};
 
@@ -514,6 +517,16 @@ export class TimeSync implements TimeSyncApi {
 			throw new RangeError(
 				`Minimum refresh interval must be a positive integer (received ${stalenessThresholdMs} ms)`,
 			);
+		}
+		if (!notificationBehaviors.includes(notificationBehavior)) {
+			throw new RangeError(
+				`Received notification behavior of "${notificationBehavior}", which is not supported`,
+			);
+		}
+
+		const { isDisposed, isFrozen } = this.#latestSnapshot;
+		if (isDisposed || isFrozen) {
+			return this.#latestSnapshot;
 		}
 
 		const wasChanged = this.#updateDateSnapshot(stalenessThresholdMs);

@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import { newReadonlyDate } from "./readonlyDate";
-import { refreshRates, type Snapshot, TimeSync } from "./TimeSync";
+import {
+	type NotificationBehavior,
+	refreshRates,
+	type Snapshot,
+	TimeSync,
+} from "./TimeSync";
 
 type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
 
@@ -752,6 +757,19 @@ describe(TimeSync.name, () => {
 		it("Supports onChange behavior (only notifies subscribers if time meaningfully changed)", ({
 			expect,
 		}) => {
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+
+			const onUpdate = vi.fn();
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneHour,
+			});
+
+			sync.invalidateState({
+				notificationBehavior: "onChange",
+			});
+
 			expect.hasAssertions();
 		});
 
@@ -799,6 +817,37 @@ describe(TimeSync.name, () => {
 					});
 				}).toThrow(RangeError);
 			}
+		});
+
+		// Doing this to provide more runtime guarantees of correctness, instead
+		// of praying that the type system does everything for us
+		it("Throws if notification behavior provided at runtime is not supported", ({
+			expect,
+		}) => {
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+
+			const junkValues = [
+				"blah",
+				"guh",
+				"huh",
+				"what",
+				"onchange",
+				"ALWAYS",
+				"NEVER",
+				" never ",
+			] as unknown as readonly NotificationBehavior[];
+			for (const jv of junkValues) {
+				expect(() => {
+					void sync.invalidateState({ notificationBehavior: jv });
+				}).toThrow(
+					new RangeError(
+						`Received notification behavior of "${jv}", which is not supported`,
+					),
+				);
+			}
+
+			expect.hasAssertions();
 		});
 
 		it("Supports invalidating state without notifying anything", async ({
