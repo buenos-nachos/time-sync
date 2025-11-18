@@ -214,7 +214,7 @@ export class TimeSync implements TimeSyncApi {
 			minimumRefreshIntervalMs > 0;
 		if (!isMinValid) {
 			throw new RangeError(
-				`Minimum refresh interval must be a positive integer (received ${minimumRefreshIntervalMs}ms)`,
+				`Minimum refresh interval must be a positive integer (received ${minimumRefreshIntervalMs} ms)`,
 			);
 		}
 
@@ -400,7 +400,7 @@ export class TimeSync implements TimeSyncApi {
 				targetRefreshIntervalMs > 0);
 		if (!isTargetValid) {
 			throw new Error(
-				`Target refresh interval must be positive infinity or a positive integer (received ${targetRefreshIntervalMs}ms)`,
+				`Target refresh interval must be positive infinity or a positive integer (received ${targetRefreshIntervalMs} ms)`,
 			);
 		}
 
@@ -468,7 +468,7 @@ export class TimeSync implements TimeSyncApi {
 			Number.isInteger(stalenessThresholdMs) && stalenessThresholdMs >= 0;
 		if (!isStaleValid) {
 			throw new RangeError(
-				`Minimum refresh interval must be a positive integer (received ${stalenessThresholdMs}ms)`,
+				`Minimum refresh interval must be a positive integer (received ${stalenessThresholdMs} ms)`,
 			);
 		}
 

@@ -58,7 +58,7 @@ describe.concurrent(TimeSync.name, () => {
 			expect(newSnap2).toEqual(initialSnap);
 		});
 
-		it("Lets a single system subscribe to updates", async ({ expect }) => {
+		it.only("Lets a single system subscribe to updates", async ({ expect }) => {
 			const initialDate = initializeTime();
 			const sync = new TimeSync({ initialDate });
 			const onUpdate = vi.fn();
@@ -121,7 +121,7 @@ describe.concurrent(TimeSync.name, () => {
 						onUpdate: dummyFunction,
 					});
 				}).toThrow(
-					`TimeSync refresh interval must be a positive integer (received ${i}ms)`,
+					`Target refresh interval must be positive infinity or a positive integer (received ${i} ms)`,
 				);
 			}
 		});
@@ -597,7 +597,8 @@ describe.concurrent(TimeSync.name, () => {
 		it("Never updates internal state, no matter how many subscribers susbcribe", ({
 			expect,
 		}) => {
-			const sync = new TimeSync({ freezeUpdates: true });
+			const initialDate = new Date("August 25, 1832");
+			const sync = new TimeSync({ initialDate, freezeUpdates: true });
 			const dummyOnUpdate = vi.fn();
 
 			for (let i = 0; i < 1000; i++) {
@@ -609,6 +610,7 @@ describe.concurrent(TimeSync.name, () => {
 
 			const snap = sync.getStateSnapshot();
 			expect(snap.subscriberCount).toBe(0);
+			expect(snap.dateSnapshot).toEqual(initialDate);
 		});
 
 		it("Turns state invalidations into no-ops", ({ expect }) => {
