@@ -1,12 +1,17 @@
 import { newReadonlyDate } from "./readonlyDate";
 import { noOp } from "./utils";
 
-export const REFRESH_IDLE = Number.POSITIVE_INFINITY;
-export const REFRESH_ONE_SECOND: number = 1000;
-export const REFRESH_ONE_MINUTE = 60 * REFRESH_ONE_SECOND;
-export const REFRESH_ONE_HOUR = 60 * REFRESH_ONE_MINUTE;
+/**
+ * A runtime collection of commonly-needed intervals.
+ */
+export const refreshRates = {
+	paused: Number.POSITIVE_INFINITY,
+	oneSecond: 1000,
+	oneMinute: 60 * 1000,
+	oneHour: 60 * 60 * 1000,
+} satisfies Record<string, number>;
 
-export type TimeSyncInitOptions = Readonly<{
+export type InitOptions = Readonly<{
 	/**
 	 * The Date object to use when initializing TimeSync to make the constructor
 	 * more pure and deterministic.
@@ -94,7 +99,7 @@ export type InvalidateStateOptions = Readonly<{
  * A complete snapshot of the user-relevant internal state from TimeSync. This
  * value is treated as immutable at both runtime and compile time.
  */
-export type TimeSyncSnapshot = Readonly<{
+export type Snapshot = Readonly<{
 	dateSnapshot: Date;
 	subscriberCount: number;
 	isFrozen: boolean;
@@ -125,7 +130,7 @@ interface TimeSyncApi {
 	 *
 	 * @returns The Date produced from the most recent internal update.
 	 */
-	getStateSnapshot: () => TimeSyncSnapshot;
+	getStateSnapshot: () => Snapshot;
 
 	/**
 	 * Immediately tries to refresh the current date snapshot, regardless of
@@ -137,7 +142,7 @@ interface TimeSyncApi {
 	 * @returns The latest date state snapshot right after invalidation. Note
 	 * that this snapshot might be the same as before.
 	 */
-	invalidateState: (options: InvalidateStateOptions) => TimeSyncSnapshot;
+	invalidateState: (options: InvalidateStateOptions) => Snapshot;
 
 	/**
 	 * Cleans up the TimeSync instance and renders it inert for all other
@@ -169,8 +174,15 @@ const defaultMinimumRefreshIntervalMs: number = 200;
  * See comments for exported methods and types for more information.
  */
 export class TimeSync implements TimeSyncApi {
-	#latestSnapshot: TimeSyncSnapshot;
 	#hasPendingBroadcast: boolean;
+
+	// The snapshot should be frozen at runtime. Tried making a private method
+	// for deriving new snapshots by letting you supply partial updates and
+	// merging them with the latest snapshot. But it felt clunky, especially
+	// since some properties on the snapshot currently cannot change at runtime,
+	// but a method would still let them through. There also aren't that many
+	// points where a snapshot can change right now.
+	#latestSnapshot: Snapshot;
 
 	// Stores all refresh intervals actively associated with an onUpdate
 	// callback (along with their associated unsubscribe callbacks). "Duplicate"
@@ -190,7 +202,7 @@ export class TimeSync implements TimeSyncApi {
 	// this to support client and server behavior.
 	#intervalId: NodeJS.Timeout | number | undefined;
 
-	constructor(options?: Partial<TimeSyncInitOptions>) {
+	constructor(options?: Partial<InitOptions>) {
 		const {
 			freezeUpdates = false,
 			initialDate = new Date(),
@@ -439,11 +451,11 @@ export class TimeSync implements TimeSyncApi {
 		return unsubscribe;
 	}
 
-	getStateSnapshot(): TimeSyncSnapshot {
+	getStateSnapshot(): Snapshot {
 		return this.#latestSnapshot;
 	}
 
-	invalidateState(options?: InvalidateStateOptions): TimeSyncSnapshot {
+	invalidateState(options?: InvalidateStateOptions): Snapshot {
 		const { isDisposed, isFrozen } = this.#latestSnapshot;
 		if (isDisposed || isFrozen) {
 			return this.#latestSnapshot;

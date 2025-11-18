@@ -3,13 +3,10 @@
 // extra keystrokes.
 export { newReadonlyDate } from "./readonlyDate";
 export {
-	type InvalidateStateOptions as InvalidateSnapshotOptions,
-	REFRESH_IDLE,
-	REFRESH_ONE_HOUR,
-	REFRESH_ONE_MINUTE,
-	REFRESH_ONE_SECOND,
+	type InitOptions,
+	type InvalidateStateOptions,
+	refreshRates,
+	type Snapshot,
 	type SubscriptionHandshake,
 	TimeSync,
-	type TimeSyncInitOptions,
-	type TimeSyncSnapshot,
 } from "./TimeSync";

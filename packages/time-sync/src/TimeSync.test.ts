@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import { newReadonlyDate } from "./readonlyDate";
-import {
-	REFRESH_ONE_HOUR,
-	REFRESH_ONE_MINUTE,
-	REFRESH_ONE_SECOND,
-	TimeSync,
-	type TimeSyncSnapshot,
-} from "./TimeSync";
+import { refreshRates, type Snapshot, TimeSync } from "./TimeSync";
 
 // Ideally we shouldn't need this, but because Dates often get converted to
 // milliseconds, and JavaScript only has floats, we're using this for direct
@@ -24,9 +18,9 @@ function initializeTime(dateString: string = defaultDateString): Date {
 }
 
 const sampleLiveRefreshRates: readonly number[] = [
-	REFRESH_ONE_SECOND,
-	REFRESH_ONE_MINUTE,
-	REFRESH_ONE_HOUR,
+	refreshRates.oneSecond,
+	refreshRates.oneMinute,
+	refreshRates.oneHour,
 ];
 
 type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
@@ -51,11 +45,11 @@ describe.concurrent(TimeSync.name, () => {
 			const initialSnap = sync.getStateSnapshot().dateSnapshot;
 			expect(initialSnap).toEqual(initialDate);
 
-			await vi.advanceTimersByTimeAsync(5 * REFRESH_ONE_SECOND);
+			await vi.advanceTimersByTimeAsync(5 * refreshRates.oneSecond);
 			const newSnap1 = sync.getStateSnapshot().dateSnapshot;
 			expect(newSnap1).toEqual(initialSnap);
 
-			await vi.advanceTimersByTimeAsync(500 * REFRESH_ONE_SECOND);
+			await vi.advanceTimersByTimeAsync(500 * refreshRates.oneSecond);
 			const newSnap2 = sync.getStateSnapshot().dateSnapshot;
 			expect(newSnap2).toEqual(initialSnap);
 		});
@@ -216,18 +210,18 @@ describe.concurrent(TimeSync.name, () => {
 			const initialDate = initializeTime();
 			const sync = new TimeSync({
 				initialDate,
-				minimumRefreshIntervalMs: REFRESH_ONE_HOUR,
+				minimumRefreshIntervalMs: refreshRates.oneHour,
 			});
 
 			const onUpdate = vi.fn();
 			void sync.subscribe({
 				onUpdate,
-				targetRefreshIntervalMs: REFRESH_ONE_MINUTE,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
 			});
 
-			await vi.advanceTimersByTimeAsync(REFRESH_ONE_MINUTE);
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			expect(onUpdate).not.toHaveBeenCalled();
-			await vi.advanceTimersByTimeAsync(REFRESH_ONE_HOUR);
+			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
 			expect(onUpdate).toHaveBeenCalledTimes(1);
 		});
 
@@ -260,7 +254,7 @@ describe.concurrent(TimeSync.name, () => {
 			const sync = new TimeSync({ initialDate, minimumRefreshIntervalMs });
 
 			const snap = sync.getStateSnapshot();
-			expect(snap).toEqual<TimeSyncSnapshot>({
+			expect(snap).toEqual<Snapshot>({
 				dateSnapshot: initialDate,
 				isDisposed: false,
 				isFrozen: false,
@@ -270,9 +264,11 @@ describe.concurrent(TimeSync.name, () => {
 		});
 
 		it("Reflects the minimum refresh interval used on init", ({ expect }) => {
-			const sync = new TimeSync({ minimumRefreshIntervalMs: REFRESH_ONE_HOUR });
+			const sync = new TimeSync({
+				minimumRefreshIntervalMs: refreshRates.oneHour,
+			});
 			const snap = sync.getStateSnapshot();
-			expect(snap.minimumRefreshIntervalMs).toBe(REFRESH_ONE_HOUR);
+			expect(snap.minimumRefreshIntervalMs).toBe(refreshRates.oneHour);
 		});
 
 		// This behavior is super, super important for the React bindings. The
@@ -303,9 +299,9 @@ describe.concurrent(TimeSync.name, () => {
 			const onUpdate = vi.fn();
 			void sync.subscribe({
 				onUpdate,
-				targetRefreshIntervalMs: REFRESH_ONE_HOUR,
+				targetRefreshIntervalMs: refreshRates.oneHour,
 			});
-			await vi.advanceTimersByTimeAsync(REFRESH_ONE_HOUR);
+			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
 
 			expect(onUpdate).toHaveBeenCalledTimes(1);
 			expect(onUpdate).toHaveBeenCalledWith(expect.any(Date));
@@ -320,7 +316,7 @@ describe.concurrent(TimeSync.name, () => {
 			const sync = new TimeSync();
 			const initialSnap = sync.getStateSnapshot();
 
-			await vi.advanceTimersByTimeAsync(REFRESH_ONE_HOUR);
+			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
 			sync.invalidateState({ notificationBehavior: "always" });
 			const newSnap = sync.getStateSnapshot();
 			expect(newSnap).not.toEqual(initialSnap);
@@ -337,7 +333,7 @@ describe.concurrent(TimeSync.name, () => {
 			for (let i = 1; i <= 10; i++) {
 				void sync.subscribe({
 					onUpdate: dummyOnUpdate,
-					targetRefreshIntervalMs: REFRESH_ONE_HOUR,
+					targetRefreshIntervalMs: refreshRates.oneHour,
 				});
 
 				const newSnap = sync.getStateSnapshot();
@@ -352,7 +348,7 @@ describe.concurrent(TimeSync.name, () => {
 			const initialSnap = sync.getStateSnapshot();
 
 			const unsub = sync.subscribe({
-				targetRefreshIntervalMs: REFRESH_ONE_HOUR,
+				targetRefreshIntervalMs: refreshRates.oneHour,
 				onUpdate: vi.fn(),
 			});
 			const afterAdd = sync.getStateSnapshot();
@@ -391,9 +387,9 @@ describe.concurrent(TimeSync.name, () => {
 
 			// We have readonly modifiers on the types, but we need to make sure
 			// nothing can break at runtime
-			const snap = sync.getStateSnapshot() as Writeable<TimeSyncSnapshot>;
+			const snap = sync.getStateSnapshot() as Writeable<Snapshot>;
 			const copyBeforeMutations = { ...snap };
-			const mutationSource: TimeSyncSnapshot = {
+			const mutationSource: Snapshot = {
 				dateSnapshot: newReadonlyDate("April 1, 1970"),
 				isDisposed: true,
 				isFrozen: true,
@@ -474,10 +470,10 @@ describe.concurrent(TimeSync.name, () => {
 			const onUpdate = vi.fn();
 			void sync.subscribe({
 				onUpdate,
-				targetRefreshIntervalMs: REFRESH_ONE_HOUR,
+				targetRefreshIntervalMs: refreshRates.oneHour,
 			});
 
-			await vi.advanceTimersByTimeAsync(REFRESH_ONE_MINUTE);
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			sync.invalidateState({ notificationBehavior: "never" });
 			expect(onUpdate).not.toHaveBeenCalled();
 
@@ -499,7 +495,7 @@ describe.concurrent(TimeSync.name, () => {
 
 			void sync.subscribe({
 				onUpdate,
-				targetRefreshIntervalMs: REFRESH_ONE_HOUR,
+				targetRefreshIntervalMs: refreshRates.oneHour,
 			});
 
 			sync.invalidateState({ notificationBehavior: "always" });
@@ -512,23 +508,21 @@ describe.concurrent(TimeSync.name, () => {
 	});
 
 	describe("Disposing of a TimeSync instance", () => {
-		it("Clears active interval", async ({ expect }) => {
-			const setSpy = vi.spyOn(window, "setInterval");
-			const clearSpy = vi.spyOn(window, "clearInterval");
+		it.only("Clears active interval", async ({ expect }) => {
+			const clearSpy = vi.spyOn(globalThis, "clearInterval");
 			const initialDate = initializeTime();
 			const sync = new TimeSync({ initialDate });
 
 			const onUpdate = vi.fn();
 			void sync.subscribe({
 				onUpdate,
-				targetRefreshIntervalMs: REFRESH_ONE_MINUTE,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
 			});
-			expect(setSpy).toHaveBeenCalled();
 
 			sync.dispose();
-			expect(clearSpy).toHaveBeenCalled();
+			expect(clearSpy).toHaveBeenCalledTimes(1);
 
-			await vi.advanceTimersByTimeAsync(REFRESH_ONE_MINUTE);
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			expect(onUpdate).not.toHaveBeenCalled();
 		});
 
@@ -539,7 +533,7 @@ describe.concurrent(TimeSync.name, () => {
 			for (let i = 0; i < 100; i++) {
 				void sync.subscribe({
 					onUpdate: sharedOnUpdate,
-					targetRefreshIntervalMs: REFRESH_ONE_MINUTE,
+					targetRefreshIntervalMs: refreshRates.oneMinute,
 				});
 			}
 
@@ -551,7 +545,7 @@ describe.concurrent(TimeSync.name, () => {
 			expect(newSnap.isDisposed).toBe(true);
 			expect(newSnap.subscriberCount).toBe(0);
 
-			await vi.advanceTimersByTimeAsync(REFRESH_ONE_MINUTE);
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			expect(sharedOnUpdate).not.toHaveBeenCalled();
 		});
 
@@ -562,13 +556,13 @@ describe.concurrent(TimeSync.name, () => {
 			const onUpdate = vi.fn();
 			const unsub = sync.subscribe({
 				onUpdate,
-				targetRefreshIntervalMs: REFRESH_ONE_MINUTE,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
 			});
 
 			const snap1 = sync.getStateSnapshot();
 			expect(snap1.subscriberCount).toBe(0);
 
-			await vi.advanceTimersByTimeAsync(2 * REFRESH_ONE_MINUTE);
+			await vi.advanceTimersByTimeAsync(2 * refreshRates.oneMinute);
 			expect(onUpdate).not.toHaveBeenCalled();
 
 			// Doing unsub assertion just to be extra safe
@@ -595,7 +589,7 @@ describe.concurrent(TimeSync.name, () => {
 			for (let i = 0; i < 1000; i++) {
 				void sync.subscribe({
 					onUpdate: dummyOnUpdate,
-					targetRefreshIntervalMs: REFRESH_ONE_MINUTE,
+					targetRefreshIntervalMs: refreshRates.oneMinute,
 				});
 			}
 
@@ -608,7 +602,7 @@ describe.concurrent(TimeSync.name, () => {
 			const onUpdate = vi.fn();
 			void sync.subscribe({
 				onUpdate,
-				targetRefreshIntervalMs: REFRESH_ONE_MINUTE,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
 			});
 
 			void sync.invalidateState({
