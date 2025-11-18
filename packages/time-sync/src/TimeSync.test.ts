@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import { newReadonlyDate } from "./readonlyDate";
 import { refreshRates, type Snapshot, TimeSync } from "./TimeSync";
 
+type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
+
 // For better or worse, this is a personally meaningful date to me
 const defaultDateString = "October 27, 2025";
 
@@ -10,14 +12,6 @@ function initializeTime(dateString: string = defaultDateString): Date {
 	vi.setSystemTime(sourceDate);
 	return newReadonlyDate(sourceDate);
 }
-
-const sampleLiveRefreshRates: readonly number[] = [
-	refreshRates.oneSecond,
-	refreshRates.oneMinute,
-	refreshRates.oneHour,
-];
-
-type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
 
 beforeEach(() => {
 	/**
@@ -73,6 +67,11 @@ describe(TimeSync.name, () => {
 		});
 
 		it("Lets a single system subscribe to updates", async ({ expect }) => {
+			const sampleLiveRefreshRates: readonly number[] = [
+				refreshRates.oneSecond,
+				refreshRates.oneMinute,
+				refreshRates.oneHour,
+			];
 			for (const rate of sampleLiveRefreshRates) {
 				// Duplicating all of these calls per iteration to maximize
 				// test isolation
@@ -123,13 +122,45 @@ describe(TimeSync.name, () => {
 		});
 
 		it("Lets multiple subscribers subscribe to updates", ({ expect }) => {
-			expect.hasAssertions();
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+			const dummyOnUpdate = vi.fn();
+
+			void sync.subscribe({
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+				onUpdate: dummyOnUpdate,
+			});
+			void sync.subscribe({
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+				onUpdate: dummyOnUpdate,
+			});
+
+			const snap = sync.getStateSnapshot();
+			expect(snap.subscriberCount).toBe(2);
 		});
 
-		it("Dispatches updates to all subscribers based on fastest interval specified", ({
+		it.only("Dispatches updates to all subscribers based on fastest interval specified", async ({
 			expect,
 		}) => {
-			expect.hasAssertions();
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+			const sharedOnUpdate = vi.fn();
+
+			void sync.subscribe({
+				onUpdate: sharedOnUpdate,
+				targetRefreshIntervalMs: refreshRates.oneHour,
+			});
+			void sync.subscribe({
+				onUpdate: sharedOnUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+			void sync.subscribe({
+				onUpdate: sharedOnUpdate,
+				targetRefreshIntervalMs: refreshRates.oneSecond,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+			expect(sharedOnUpdate).toHaveBeenCalledTimes(3);
 		});
 
 		it("Calls onUpdate callback one time total if callback is registered multiple times for the same time interval", ({
@@ -243,7 +274,7 @@ describe(TimeSync.name, () => {
 				expect(() => {
 					void new TimeSync({ minimumRefreshIntervalMs: i });
 				}).toThrow(
-					`Minimum refresh interval must be a positive integer (received ${i}ms)`,
+					`Minimum refresh interval must be a positive integer (received ${i} ms)`,
 				);
 			}
 		});
