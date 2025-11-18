@@ -208,7 +208,7 @@ class ReactTimeSync {
 	// Only safe to call inside a render that is bound to useSyncExternalStore
 	// in some way
 	getDateSnapshot(): Date {
-		return this.#timeSync.getStateSnapshot();
+		return this.#timeSync.getStateSnapshot().dateSnapshot;
 	}
 
 	// Always safe to call inside a render
@@ -277,7 +277,7 @@ class ReactTimeSync {
 		// subscribers to get them in sync with the newest state
 		const shouldInvalidateDate =
 			newReadonlyDate().getTime() -
-				this.#timeSync.getStateSnapshot().getTime() >
+				this.#timeSync.getStateSnapshot().dateSnapshot.getTime() >
 			ReactTimeSync.#stalenessThresholdMs;
 		if (shouldInvalidateDate) {
 			void this.#timeSync.invalidateState({
@@ -438,6 +438,8 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	);
 };
 
+type TimeSyncWithoutDispose = Readonly<Omit<TimeSync, "dispose">>;
+
 /**
  * Provides direct access to the TimeSync instance being dependency-injected
  * throughout the React application. It functions as ref state – most of its
@@ -448,9 +450,24 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
  * `useTimeSync` instead, which handles all render-safety concerns for you
  * automatically.
  */
-export function useTimeSyncRef(): TimeSync {
+export function useTimeSyncRef(): TimeSyncWithoutDispose {
 	const reactTs = useReactTimeSync();
-	return reactTs.getTimeSync();
+
+	// We could just return the sync directly, and that would still satisfy the
+	// type contract for the without version. But then there would be a mismatch
+	// between the types and runtime logic, and we'd be praying that the types
+	// would be enough to prevent pitfalls. Just making a wrapper that manually
+	// strips out dispose to be on the safe side
+	const without = useMemo<TimeSyncWithoutDispose>(() => {
+		const sync = reactTs.getTimeSync();
+		return {
+			getStateSnapshot: () => sync.getStateSnapshot(),
+			invalidateState: (options) => sync.invalidateState(options),
+			subscribe: (handshake) => sync.subscribe(handshake),
+		};
+	}, [reactTs]);
+
+	return without;
 }
 
 // Even though this is a really simple function, keeping it defined outside

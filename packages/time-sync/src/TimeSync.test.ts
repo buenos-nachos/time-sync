@@ -187,7 +187,7 @@ describe(TimeSync.name, () => {
 			expect(sharedOnUpdate).toHaveBeenCalledTimes(1);
 		});
 
-		it.only("Calls onUpdate callback one time total if callback is registered multiple times for different time intervals", async ({
+		it("Calls onUpdate callback one time total if callback is registered multiple times for different time intervals", async ({
 			expect,
 		}) => {
 			const initialDate = initializeTime();
@@ -207,21 +207,87 @@ describe(TimeSync.name, () => {
 				targetRefreshIntervalMs: refreshRates.oneSecond,
 			});
 
-			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
-			expect(sharedOnUpdate).toHaveBeenCalledTimes(1);
+			// Testing like this to ensure that for really, really long spans of
+			// time, the no duplicated calls logic still holds up
+			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
+			const secondsInOneHour = 3600;
+			expect(sharedOnUpdate).toHaveBeenCalledTimes(secondsInOneHour);
 		});
 
-		it("Calls onUpdate callback one time total if callback is registered multiple times with a mix of redundant/different intervals", ({
+		it("Calls onUpdate callback one time total if callback is registered multiple times with a mix of redundant/different intervals", async ({
 			expect,
 		}) => {
-			expect.hasAssertions();
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+			const sharedOnUpdate = vi.fn();
+
+			for (let i = 0; i < 10; i++) {
+				void sync.subscribe({
+					onUpdate: sharedOnUpdate,
+					targetRefreshIntervalMs: refreshRates.oneHour,
+				});
+				void sync.subscribe({
+					onUpdate: sharedOnUpdate,
+					targetRefreshIntervalMs: refreshRates.oneMinute,
+				});
+				void sync.subscribe({
+					onUpdate: sharedOnUpdate,
+					targetRefreshIntervalMs: refreshRates.oneSecond,
+				});
+			}
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
+			const secondsInOneHour = 3600;
+			expect(sharedOnUpdate).toHaveBeenCalledTimes(secondsInOneHour);
 		});
 
-		it("Lets an external system unsubscribe", ({ expect }) => {
-			expect.hasAssertions();
+		it("Lets an external system unsubscribe", async ({ expect }) => {
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+
+			const onUpdate = vi.fn();
+			const unsub = sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneSecond,
+			});
+
+			unsub();
+			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+			expect(onUpdate).not.toHaveBeenCalled();
 		});
 
-		it("Turns unsubscribe callback into no-op if called more than once", ({
+		it("Turns unsubscribe callback into no-op if called more than once", async ({
+			expect,
+		}) => {
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+
+			const onUpdate = vi.fn();
+			const unsub = sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneSecond,
+			});
+
+			// Also adding extra dummy subscription to make sure internal state
+			// still works properly and isn't messed with from extra unsub calls
+			void sync.subscribe({
+				onUpdate: vi.fn(),
+				targetRefreshIntervalMs: refreshRates.oneSecond,
+			});
+			const initialSnap = sync.getStateSnapshot();
+			expect(initialSnap.subscriberCount).toBe(2);
+
+			for (let i = 0; i < 10; i++) {
+				unsub();
+				await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+				expect(onUpdate).not.toHaveBeenCalled();
+
+				const newSnap = sync.getStateSnapshot();
+				expect(newSnap.subscriberCount).toBe(1);
+			}
+		});
+
+		it("Does not fully remove an onUpdate callback if multiple systems use it to subscribe, and only one system unsubscribes", ({
 			expect,
 		}) => {
 			expect.hasAssertions();
@@ -255,13 +321,7 @@ describe(TimeSync.name, () => {
 			expect.hasAssertions();
 		});
 
-		it("Does not fully remove an onUpdate callback if multiple systems use it to subscribe, and only one system unsubscribes", ({
-			expect,
-		}) => {
-			expect.hasAssertions();
-		});
-
-		it("Automatically updates the date snapshot after the very first subscription is received, regardless of specified refresh interval", ({
+		it("Automatically refreshes the date snapshot after the very first subscription is received, regardless of specified refresh interval", ({
 			expect,
 		}) => {
 			expect.hasAssertions();

@@ -448,7 +448,7 @@ export class TimeSync implements TimeSyncApi {
 			targetRefreshIntervalMs,
 		);
 		entries.push({ unsubscribe, targetInterval });
-		entries.sort((e1, e2) => e2.targetInterval - e1.targetInterval);
+		entries.sort((e1, e2) => e1.targetInterval - e2.targetInterval);
 		this.#updateFastestInterval();
 
 		this.#latestSnapshot = Object.freeze({
