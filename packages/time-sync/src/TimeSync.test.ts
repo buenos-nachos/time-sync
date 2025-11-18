@@ -139,7 +139,55 @@ describe(TimeSync.name, () => {
 			expect(snap.subscriberCount).toBe(2);
 		});
 
-		it.only("Dispatches updates to all subscribers based on fastest interval specified", async ({
+		it("Dispatches updates to all subscribers based on fastest interval specified", async ({
+			expect,
+		}) => {
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+
+			const hourOnUpdate = vi.fn();
+			void sync.subscribe({
+				onUpdate: hourOnUpdate,
+				targetRefreshIntervalMs: refreshRates.oneHour,
+			});
+
+			const minuteOnUpdate = vi.fn();
+			void sync.subscribe({
+				onUpdate: minuteOnUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			const secondOnUpdate = vi.fn();
+			void sync.subscribe({
+				onUpdate: secondOnUpdate,
+				targetRefreshIntervalMs: refreshRates.oneSecond,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+			expect(hourOnUpdate).toHaveBeenCalledTimes(1);
+			expect(minuteOnUpdate).toHaveBeenCalledTimes(1);
+			expect(secondOnUpdate).toHaveBeenCalledTimes(1);
+		});
+
+		it("Calls onUpdate callback one time total if callback is registered multiple times for the same time interval", async ({
+			expect,
+		}) => {
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+			const sharedOnUpdate = vi.fn();
+
+			for (let i = 1; i <= 3; i++) {
+				void sync.subscribe({
+					onUpdate: sharedOnUpdate,
+					targetRefreshIntervalMs: refreshRates.oneMinute,
+				});
+			}
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(sharedOnUpdate).toHaveBeenCalledTimes(1);
+		});
+
+		it.only("Calls onUpdate callback one time total if callback is registered multiple times for different time intervals", async ({
 			expect,
 		}) => {
 			const initialDate = initializeTime();
@@ -160,19 +208,7 @@ describe(TimeSync.name, () => {
 			});
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
-			expect(sharedOnUpdate).toHaveBeenCalledTimes(3);
-		});
-
-		it("Calls onUpdate callback one time total if callback is registered multiple times for the same time interval", ({
-			expect,
-		}) => {
-			expect.hasAssertions();
-		});
-
-		it("Calls onUpdate callback one time total if callback is registered multiple times for different time intervals", ({
-			expect,
-		}) => {
-			expect.hasAssertions();
+			expect(sharedOnUpdate).toHaveBeenCalledTimes(1);
 		});
 
 		it("Calls onUpdate callback one time total if callback is registered multiple times with a mix of redundant/different intervals", ({
