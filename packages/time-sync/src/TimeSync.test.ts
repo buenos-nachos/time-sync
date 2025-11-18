@@ -32,7 +32,28 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
-describe.concurrent(TimeSync.name, () => {
+/**
+ * Unfortunately, because the tests make extensive use of vi's mocking, these
+ * tests are a bad candidate for concurrent running. There's a very high risk of
+ * all the fake timer setup and teardown calls getting in each other's way. For
+ * example:
+ * 1. Test A sets up fake timers
+ * 2. Test B sets up fake timers around the same time
+ * 3. Test A finishes and clears out all fake timers (for A and B)
+ * 4. Test B runs and expects fake timers to be used, but they no longer exist
+ *
+ * Especially with there being so many test cases, the risk of flakes goes up a
+ * lot.
+ *
+ * We could redefine TimeSync to accept setInterval and clearInterval callbacks
+ * manually during instantiation, which would give us the needed test isolation
+ * to avoid the vi mocks and enable concurrency. But that would pollute the API
+ * with extra properties that are only ever relevant for internal testing.
+ *
+ * That seems bad, and especially with the scope of the package being pretty
+ * small, and Vitest being pretty fast, we're just going to use serial tests.
+ */
+describe(TimeSync.name, () => {
 	describe("Subscriptions: default behavior", () => {
 		it("Never auto-updates state while there are zero subscribers", async ({
 			expect,
@@ -73,12 +94,7 @@ describe.concurrent(TimeSync.name, () => {
 
 				const diff = dateAfter.getTime() - dateBefore.getTime();
 				expect(diff).toBe(rate);
-				break;
 			}
-		});
-
-		it("Lets multiple subscribers subscribe to updates", ({ expect }) => {
-			expect.hasAssertions();
 		});
 
 		it("Throws an error if provided subscription interval is not a positive integer", ({
@@ -104,6 +120,10 @@ describe.concurrent(TimeSync.name, () => {
 					`Target refresh interval must be positive infinity or a positive integer (received ${i} ms)`,
 				);
 			}
+		});
+
+		it("Lets multiple subscribers subscribe to updates", ({ expect }) => {
+			expect.hasAssertions();
 		});
 
 		it("Dispatches updates to all subscribers based on fastest interval specified", ({
