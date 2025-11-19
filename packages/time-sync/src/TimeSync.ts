@@ -42,6 +42,14 @@ export type InitOptions = Readonly<{
 	 * get really hot and really tank performance elsewhere in an application.
 	 */
 	minimumRefreshIntervalMs: number;
+
+	/**
+	 * Indicates whether the same callback (by reference) should be called
+	 * multiple time if registered by multiple systems.
+	 *
+	 * Defaults to false.
+	 */
+	allowDuplicateFunctionCalls: boolean;
 }>;
 
 /**
@@ -123,6 +131,7 @@ export type Snapshot = Readonly<{
 	isFrozen: boolean;
 	isDisposed: boolean;
 	minimumRefreshIntervalMs: number;
+	allowDuplicateFunctionCalls: boolean;
 }>;
 
 interface TimeSyncApi {
@@ -250,6 +259,7 @@ export class TimeSync implements TimeSyncApi {
 		const {
 			freezeUpdates = false,
 			initialDate = new Date(),
+			allowDuplicateFunctionCalls = false,
 			minimumRefreshIntervalMs = defaultMinimumRefreshIntervalMs,
 		} = options ?? {};
 
@@ -267,20 +277,22 @@ export class TimeSync implements TimeSyncApi {
 		this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 		this.#intervalId = undefined;
 
-		this.#latestSnapshot = {
+		this.#latestSnapshot = Object.freeze({
 			minimumRefreshIntervalMs,
+			allowDuplicateFunctionCalls,
 			dateSnapshot: newReadonlyDate(initialDate),
 			subscriberCount: 0,
 			isFrozen: freezeUpdates,
 			isDisposed: false,
-		};
+		});
 	}
 
 	#notifyAllSubscriptions(): void {
 		// We still need to let the logic go through if the current fastest
 		// interval is Infinity, so that we can support letting any arbitrary
 		// consumer invalidate the date immediately
-		const { isDisposed, isFrozen } = this.#latestSnapshot;
+		const { isDisposed, isFrozen, allowDuplicateFunctionCalls } =
+			this.#latestSnapshot;
 		const subscriptionsPaused =
 			isDisposed || isFrozen || this.#subscriptions.size === 0;
 		if (subscriptionsPaused) {
@@ -297,6 +309,15 @@ export class TimeSync implements TimeSyncApi {
 		// subscriber disposes of the whole TimeSync instance. Once the Map is
 		// cleared, the map's iterator will automatically break the loop. So
 		// there's no risk of continuing to dispatch values after cleanup.
+		if (allowDuplicateFunctionCalls) {
+			for (const [onUpdate, subs] of this.#subscriptions) {
+				for (let i = 0; i < subs.length; i++) {
+					onUpdate(bound);
+				}
+			}
+			return;
+		}
+
 		for (const onUpdate of this.#subscriptions.keys()) {
 			onUpdate(bound);
 		}
@@ -408,8 +429,7 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
 	#updateDateSnapshot(stalenessThresholdMs = 0): boolean {
-		const { isDisposed, isFrozen, dateSnapshot, minimumRefreshIntervalMs } =
-			this.#latestSnapshot;
+		const { isDisposed, isFrozen, dateSnapshot } = this.#latestSnapshot;
 		if (isDisposed || isFrozen) {
 			return false;
 		}
@@ -426,9 +446,7 @@ export class TimeSync implements TimeSyncApi {
 		// to know whether that could break other stateful logic
 		this.#hasPendingBroadcast = true;
 		this.#latestSnapshot = Object.freeze({
-			isDisposed,
-			isFrozen,
-			minimumRefreshIntervalMs,
+			...this.#latestSnapshot,
 			dateSnapshot: newSnap,
 			subscriberCount: this.#countSubscriptions(),
 		});

@@ -547,6 +547,27 @@ describe(TimeSync.name, () => {
 		});
 	});
 
+	describe("Subscriptions: duplicating function calls", () => {
+		it("Lets user turn on duplication", async ({ expect }) => {
+			const initialDate = initializeTime();
+			const sync = new TimeSync({
+				initialDate,
+				allowDuplicateFunctionCalls: true,
+			});
+
+			const sharedOnUpdate = vi.fn();
+			for (let i = 0; i < 100; i++) {
+				void sync.subscribe({
+					onUpdate: sharedOnUpdate,
+					targetRefreshIntervalMs: refreshRates.oneMinute,
+				});
+			}
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(sharedOnUpdate).toHaveBeenCalledTimes(100);
+		});
+	});
+
 	describe("State snapshots", () => {
 		it("Lets external system pull snapshot without subscribing", ({
 			expect,
@@ -562,6 +583,7 @@ describe(TimeSync.name, () => {
 				isFrozen: false,
 				subscriberCount: 0,
 				minimumRefreshIntervalMs: minimumRefreshIntervalMs,
+				allowDuplicateFunctionCalls: false,
 			});
 		});
 
@@ -674,7 +696,7 @@ describe(TimeSync.name, () => {
 		});
 
 		it("Indicates frozen status", ({ expect }) => {
-			const normalSync = new TimeSync();
+			const normalSync = new TimeSync({ freezeUpdates: false });
 			const normalSnap = normalSync.getStateSnapshot();
 			expect(normalSnap.isFrozen).toBe(false);
 
@@ -693,6 +715,16 @@ describe(TimeSync.name, () => {
 			expect(newSnap.isDisposed).toBe(true);
 		});
 
+		it("Indicates deduplicated functions status", ({ expect }) => {
+			const normalSync = new TimeSync({ allowDuplicateFunctionCalls: false });
+			const normalSnap = normalSync.getStateSnapshot();
+			expect(normalSnap.allowDuplicateFunctionCalls).toBe(false);
+
+			const frozenSync = new TimeSync({ allowDuplicateFunctionCalls: true });
+			const frozenSnap = frozenSync.getStateSnapshot();
+			expect(frozenSnap.allowDuplicateFunctionCalls).toBe(true);
+		});
+
 		it.skip("Prevents mutating properties at runtime", ({ expect }) => {
 			const sync = new TimeSync();
 
@@ -706,6 +738,7 @@ describe(TimeSync.name, () => {
 				isFrozen: true,
 				minimumRefreshIntervalMs: Number.POSITIVE_INFINITY,
 				subscriberCount: Number.POSITIVE_INFINITY,
+				allowDuplicateFunctionCalls: false,
 			};
 
 			snap.dateSnapshot = mutationSource.dateSnapshot;
@@ -713,6 +746,8 @@ describe(TimeSync.name, () => {
 			snap.isFrozen = mutationSource.isFrozen;
 			snap.subscriberCount = mutationSource.subscriberCount;
 			snap.minimumRefreshIntervalMs = mutationSource.minimumRefreshIntervalMs;
+			snap.allowDuplicateFunctionCalls =
+				mutationSource.allowDuplicateFunctionCalls;
 
 			expect(snap).toEqual(copyBeforeMutations);
 		});
