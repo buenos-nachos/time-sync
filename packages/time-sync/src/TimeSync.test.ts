@@ -27,8 +27,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-	vi.restoreAllMocks();
 	vi.useRealTimers();
+	vi.restoreAllMocks();
 });
 
 /**
@@ -39,7 +39,8 @@ afterEach(() => {
  * For example:
  * 1. Test A sets up fake timers
  * 2. Test B sets up fake timers around the same time
- * 3. Test A finishes and clears out all fake timers (for A and B)
+ * 3. Test A finishes and clears out all fake timers (for A and B) before B has
+ *    a chance to do anything
  * 4. Test B runs and expects fake timers to be used, but they no longer exist
  *
  * Especially with there being so many test cases, the risk of flakes goes up a
@@ -56,9 +57,11 @@ afterEach(() => {
  *    testing, and a public wrapper that embeds setInterval and clearInterval,
  *    and then prevents them from being set afterwards.
  *
- * Those both feel a bit clunky, and not worth it. Especially with the scope of
- * the package being pretty small, and Vitest being pretty fast normally, we're
- * just going to use serial tests.
+ * (1) is always going to be bad, and (2) feels like it'll only make sense if
+ * this project grows to a size where we have +200 tests and we need concurrency
+ * to help with feedback loops in dev and CI. Since this package is expected to
+ * stay small, and since Vitest is pretty fast already, we're just going to use
+ * serial tests for now.
  */
 describe(TimeSync.name, () => {
 	describe("Subscriptions: general behavior", () => {
@@ -782,14 +785,28 @@ describe(TimeSync.name, () => {
 
 				const newSnap = sync.getStateSnapshot().dateSnapshot;
 				const diff = newSnap.getTime() - snapWithoutSubscribers.getTime();
-				console.log(newSnap.toISOString());
 				expect(diff).toBe(refreshRates.oneHour);
 			}
 		});
 	});
 
 	describe("Invalidating state", () => {
-		it("Supports onChange behavior (only notifies subscribers if time meaningfully changed)", ({
+		it("Defaults to always changing snapshots", ({ expect }) => {
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+
+			const onUpdate = vi.fn();
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneHour,
+			});
+
+			expect(onUpdate).not.toHaveBeenCalled();
+			sync.invalidateState();
+			expect(onUpdate).toHaveBeenCalledTimes(1);
+		});
+
+		it.only("Accepts custom staleness threshold for onChange behavior", async ({
 			expect,
 		}) => {
 			const initialDate = initializeTime();
@@ -801,21 +818,42 @@ describe(TimeSync.name, () => {
 				targetRefreshIntervalMs: refreshRates.oneHour,
 			});
 
+			expect(onUpdate).not.toHaveBeenCalled();
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(onUpdate).not.toHaveBeenCalled();
 			sync.invalidateState({
 				notificationBehavior: "onChange",
+				stalenessThresholdMs: refreshRates.oneHour,
 			});
-
-			expect.hasAssertions();
+			expect(onUpdate).toHaveBeenCalledTimes(1);
 		});
 
-		it("Defaults to onChange notification behavior", ({ expect }) => {
-			expect.hasAssertions();
-		});
-
-		it("Accepts custom staleness threshold for onChange behavior", ({
+		it("Only triggers onChange behavior if threshold has been exceeded", async ({
 			expect,
 		}) => {
-			expect.hasAssertions();
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+
+			const onUpdate = vi.fn();
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneHour,
+			});
+
+			expect(onUpdate).not.toHaveBeenCalled();
+			sync.invalidateState({
+				notificationBehavior: "onChange",
+				stalenessThresholdMs: refreshRates.oneMinute,
+			});
+			expect(onUpdate).not.toHaveBeenCalled();
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(onUpdate).not.toHaveBeenCalled();
+			sync.invalidateState({
+				notificationBehavior: "onChange",
+				stalenessThresholdMs: refreshRates.oneMinute,
+			});
+			expect(onUpdate).toHaveBeenCalledTimes(1);
 		});
 
 		it("Defaults to staleness threshold of 0", async ({ expect }) => {
