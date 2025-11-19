@@ -1,3 +1,7 @@
+/**
+ * @todo 2025-11-19 - Update TimeSync to work with Temporal objects once those
+ * have more adoption.
+ */
 import { newReadonlyDate } from "./readonlyDate";
 import { noOp } from "./utils";
 
@@ -24,6 +28,9 @@ export const refreshRates = Object.freeze({
 	oneHour: 60 * 60 * 1000,
 }) satisfies Record<string, number>;
 
+/**
+ * The set of options that can be used to instantiate a TimeSync.
+ */
 export type InitOptions = Readonly<{
 	/**
 	 * The Date object to use when initializing TimeSync to make the constructor
@@ -63,7 +70,7 @@ export type InitOptions = Readonly<{
 /**
  * The callback to call when a new state update is ready to be dispatched.
  */
-type OnTimeSyncUpdate = (dateSnapshot: Date) => void;
+type OnTimeSyncUpdate = (readonlyDateSnapshot: Date) => void;
 
 export type SubscriptionHandshake = Readonly<{
 	/**
@@ -194,6 +201,31 @@ type SubscriptionEntry = Readonly<{
 
 const defaultMinimumRefreshIntervalMs = 200;
 
+/**
+ * One thing that was considered was giving TimeSync the ability to flip which
+ * kinds of dates it uses, and let it use native dates instead of readonly
+ * dates. We type readonly dates as native dates for better interoperability
+ * with pretty much every JavaScript library under the sun, but there is still a
+ * big difference in runtime behavior. There is a risk that blocking mutations
+ * could break some other library in other ways.
+ *
+ * That might be worth revisiting if we get user feedback, but right now, it
+ * seems like an incredibly bad idea.
+ *
+ * 1. Any single mutation has a risk of breaking the entire integrity of the
+ *    system. If a consumer would try to mutate them, things SHOULD blow up by
+ *    default.
+ * 2. Dates are a type of object that are far more read-heavy than write-heavy,
+ *    so the risks of breaking are generally lower
+ * 3. If a user really needs a mutable version of the date, they can make a
+ *    mutable copy first via `const copy = new Date(readonlyDate)`
+ *
+ * The one case when turning off the readonly behavior would be good would be
+ * if you're on a server that really needs to watch its garbage collection
+ * output, and you the overhead from the readonly date's proxy is causing too
+ * much pressure on resources. In that case, you could switch to native dates,
+ * but you'd still need a LOT of trigger discipline to avoid mutations.
+ */
 /**
  * TimeSync provides a centralized authority for working with time values in a
  * more structured way, where all dependents for the time values must stay in

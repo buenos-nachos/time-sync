@@ -22,13 +22,26 @@ const readonlyHandler: ProxyHandler<Date> = {
 			return noOp;
 		}
 		// This is necessary for making sure that readonly dates interop
-		// properly with .toEqual in Jest and Vitest
+		// properly with .toEqual in Jest and Vitest, and that their various
+		// internal utility functions can process the proxy as a date
 		if (key === Symbol.toStringTag) {
 			return "Date";
 		}
 
+		/**
+		 * There's a couple of things we're accounting for here:
+		 * 1. In general, when we send back a method from the date object, we
+		 *    need to make sure that it can't ever lose its `this` context.
+		 *    Because we don't control the site where the property access would
+		 *    happen, we have to create a wrapper function that binds the
+		 *    context (arrow functions should work here, too).
+		 * 2. Vitest's internal utility functions sometimes need to grab the
+		 *    constructor from the Date. In that case, having the function lose
+		 *    its `this` context is fine, and if we wrap it, we'll actually
+		 *    break things because Vitest always expects the native constructor
+		 */
 		const value = Reflect.get(date, key, receiver);
-		if (typeof value === "function") {
+		if (typeof value === "function" && key !== "constructor") {
 			return value.bind(date);
 		}
 		return value;
