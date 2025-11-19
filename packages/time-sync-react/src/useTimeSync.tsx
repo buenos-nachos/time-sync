@@ -17,6 +17,11 @@ import { ReadonlyDate, TimeSync } from "../../time-sync/src";
 import { useEffectEvent as polyfill } from "./useEffectEventPolyfill";
 
 const useEffectEvent: typeof polyfill =
+	// @ts-expect-error -- Because we need to support React versions 18 and 19,
+	// there's not a great way to define useEffectEvent in the namespace without
+	// it creeping into userland. Either we say it always exists, which breaks
+	// React 18, or we say it optionally exists, which adds unnecessary null
+	// checks to React 19.2+
 	typeof React.useEffectEvent === "undefined" ? polyfill : React.useEffectEvent;
 
 const noOp = (..._: readonly unknown[]): void => {};
