@@ -3,7 +3,11 @@
  * have more adoption.
  */
 import { ReadonlyDate } from "./readonlyDate";
-import { noOp } from "./utils";
+
+/**
+ * A function that can take any arguments, but never does anything at runtime.
+ */
+export function noOp(..._: readonly unknown[]): void {}
 
 /**
  * A collection of commonly-needed intervals (all defined in milliseconds).
