@@ -1,6 +1,6 @@
 /**
  * @file This comment is here to provide clarity on why proxy objects might
- * always be a dead end for this library.
+ * always be a dead end for this library, and document failed experiments.
  *
  * Readonly dates need to have a lot of interoperability with native dates
  * (pretty much every JavaScript library uses the built-in type). So, this code
@@ -23,18 +23,10 @@
  * methods without breaking instanceof checks or breaking TypeScript
  * assignability for libraries that expect native dates. We just have to do a
  * little bit of extra work to fudge things for test runners.
- *
- * Not 100% sure on this, but proxies do also require reflection, which might've
- * had a risk of causing performance issues. Reflection could've ended up
- * breaking V8 engine optimizations by removing the ability to have monomorphic
- * code in some spots.
  */
 
 /**
  * Any extra methods for readonly dates.
- *
- * (The main point of this comment is to add an extra boundary to make sure the
- * file comment above doesn't get bound to this interface definition.)
  */
 interface ReadonlyDateApi {
 	/**
@@ -49,8 +41,8 @@ interface ReadonlyDateApi {
  * level. But crucially, all methods prefixed with `set` have all mutation logic
  * removed.
  *
- * If you need a mutable version of the underlying date, readonly dates expose
- * a .toDate method.
+ * If you need a mutable version of the underlying date, ReadonlyDate exposes a
+ * .toDate method to do a runtime conversion to a native/mutable date.
  */
 export class ReadonlyDate extends Date implements ReadonlyDateApi {
 	// Very chaotic type signature, but that's an artifact of how wonky the
@@ -86,10 +78,47 @@ export class ReadonlyDate extends Date implements ReadonlyDateApi {
 		seconds?: number,
 		milliseconds?: number,
 	) {
+		/**
+		 * This guard clause looks incredibly silly, but we need to do this to
+		 * make sure that the readonly class works properly with Jest, Vitest,
+		 * and anything else that supports fake timers.
+		 *
+		 * Basically:
+		 * 1. We need to make sure that ReadonlyDate is linked to the Date
+		 *    prototype, so that instanceof checks work correctly, and so that
+		 *    the class can interop with all libraries that rely on vanilla
+		 *    Dates.
+		 * 2. In ECMAScript, this linking happens right as the module is
+		 *    imported
+		 * 3. Jest and Vitest will do some degree of hoisting before the
+		 *    imports get evaluated, but most of the mock functionality happens
+		 *    at runtime. useFakeTimers is NOT hoisted
+		 * 4. A Vitest test file might import the readonly class at some point
+		 *    (directly or indirectly), so that link is established.
+		 * 5. useFakeTimers can then be called, and that updates the global
+		 *    scope so that when any FUTURE code references the global Date
+		 *    object, the fake version is used instead
+		 * 6. But because the linking already happened before the call,
+		 *    ReadonlyDate will still be bound to the original Date object
+		 * 7. When super is called (which is required when extending classes),
+		 *    the original date object will be instantiated and then linked to
+		 *    the readonly instance via the prototype chain
+		 * 8. None of this is a problem when you're instantiating with actual
+		 *    inputs, because the date result will always be deterministic. The
+		 *    problem happens when you call super with no arguments, because
+		 *    that causes a new date to be created with the true system time,
+		 *    instead of the fake system time.
+		 * 9. So, to bridge the gap, we make a separate Date with `new Date()`
+		 *    (after it's been turned into the fake version), and then write its
+		 *    content into the date that was created with super/the real time.
+		 */
 		if (initValue === undefined) {
 			super();
+			const constructorOverrideForTestCorrectness = new Date();
+			super.setTime(constructorOverrideForTestCorrectness.getTime());
 			return;
 		}
+
 		if (monthIndex === undefined) {
 			super(initValue);
 			return;
