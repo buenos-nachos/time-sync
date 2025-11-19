@@ -84,7 +84,7 @@ const notificationBehaviors = [
 	"always",
 ] as const satisfies readonly string[];
 
-type NotificationBehavior = (typeof notificationBehaviors)[number];
+export type NotificationBehavior = (typeof notificationBehaviors)[number];
 
 export type InvalidateStateOptions = Readonly<{
 	/**

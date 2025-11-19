@@ -5,6 +5,7 @@ export { newReadonlyDate } from "./readonlyDate";
 export {
 	type InitOptions,
 	type InvalidateStateOptions,
+	type NotificationBehavior,
 	refreshRates,
 	type Snapshot,
 	type SubscriptionHandshake,
