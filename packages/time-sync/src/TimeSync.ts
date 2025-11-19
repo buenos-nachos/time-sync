@@ -140,7 +140,7 @@ export type InvalidateStateOptions = Readonly<{
  * value is treated as immutable at both runtime and compile time.
  */
 export type Snapshot = Readonly<{
-	dateSnapshot: ReadonlyDate;
+	date: ReadonlyDate;
 	subscriberCount: number;
 	isFrozen: boolean;
 	isDisposed: boolean;
@@ -323,9 +323,7 @@ export class TimeSync implements TimeSyncApi {
 			subscriberCount: 0,
 			isFrozen: freezeUpdates,
 			isDisposed: false,
-			dateSnapshot: initialDate
-				? new ReadonlyDate(initialDate)
-				: new ReadonlyDate(),
+			date: initialDate ? new ReadonlyDate(initialDate) : new ReadonlyDate(),
 		});
 	}
 
@@ -345,7 +343,7 @@ export class TimeSync implements TimeSyncApi {
 		// absolutely sure that if the `this` context magically changes between
 		// callback calls (e.g., one of the subscribers calling the invalidate
 		// method), it doesn't cause subscribers to receive different values.
-		const bound = this.#latestSnapshot.dateSnapshot;
+		const bound = this.#latestSnapshot.date;
 
 		// While this is a super niche use case, we're actually safe if a
 		// subscriber disposes of the whole TimeSync instance. Once the Map is
@@ -401,8 +399,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		const elapsed =
-			new ReadonlyDate().getTime() -
-			this.#latestSnapshot.dateSnapshot.getTime();
+			new ReadonlyDate().getTime() - this.#latestSnapshot.date.getTime();
 		const timeBeforeNextUpdate = fastest - elapsed;
 
 		// Clear previous interval sight unseen just to be on the safe side
@@ -472,7 +469,7 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
 	#updateDateSnapshot(stalenessThresholdMs = 0): boolean {
-		const { isDisposed, isFrozen, dateSnapshot } = this.#latestSnapshot;
+		const { isDisposed, isFrozen, date: dateSnapshot } = this.#latestSnapshot;
 		if (isDisposed || isFrozen) {
 			return false;
 		}

@@ -229,7 +229,7 @@ class ReactTimeSync {
 	// Only safe to call inside a render that is bound to useSyncExternalStore
 	// in some way
 	getDateSnapshot(): Date {
-		return this.#timeSync.getStateSnapshot().dateSnapshot;
+		return this.#timeSync.getStateSnapshot().date;
 	}
 
 	// Always safe to call inside a render
@@ -302,7 +302,7 @@ class ReactTimeSync {
 		// subscribers to get them in sync with the newest state
 		const shouldInvalidateDate =
 			new ReadonlyDate().getTime() -
-				this.#timeSync.getStateSnapshot().dateSnapshot.getTime() >
+				this.#timeSync.getStateSnapshot().date.getTime() >
 			ReactTimeSync.#stalenessThresholdMs;
 		if (shouldInvalidateDate) {
 			void this.#timeSync.invalidateState({
