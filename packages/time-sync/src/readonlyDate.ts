@@ -29,9 +29,7 @@
  * Any extra methods for readonly dates.
  */
 interface ReadonlyDateApi {
-	/**
-	 * Converts a readonly date into a native (mutable) date.
-	 */
+	/** Converts a readonly date into a native (mutable) date. */
 	toDate(): Date;
 }
 

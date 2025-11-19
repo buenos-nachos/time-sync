@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
-import { ReadonlyDate } from "./readonlyDate";
+import { ReadonlyDate } from "./ReadonlyDate";
 
 beforeEach(() => {
 	vi.useFakeTimers();

@@ -2,7 +2,7 @@
  * @todo 2025-11-19 - Update TimeSync to work with Temporal objects once those
  * have more adoption.
  */
-import { ReadonlyDate } from "./readonlyDate";
+import { ReadonlyDate } from "./ReadonlyDate";
 
 /**
  * A function that can take any arguments, but never does anything at runtime.
