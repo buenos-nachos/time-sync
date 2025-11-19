@@ -301,8 +301,8 @@ export class TimeSync implements TimeSyncApi {
 
 	constructor(options?: Partial<InitOptions>) {
 		const {
+			initialDate,
 			freezeUpdates = false,
-			initialDate = new Date(),
 			allowDuplicateFunctionCalls = false,
 			minimumRefreshIntervalMs = defaultMinimumRefreshIntervalMs,
 		} = options ?? {};
@@ -324,10 +324,12 @@ export class TimeSync implements TimeSyncApi {
 		this.#latestSnapshot = Object.freeze({
 			minimumRefreshIntervalMs,
 			allowDuplicateFunctionCalls,
-			dateSnapshot: new ReadonlyDate(initialDate),
 			subscriberCount: 0,
 			isFrozen: freezeUpdates,
 			isDisposed: false,
+			dateSnapshot: initialDate
+				? new ReadonlyDate(initialDate)
+				: new ReadonlyDate(),
 		});
 	}
 
