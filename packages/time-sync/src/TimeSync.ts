@@ -5,11 +5,6 @@
 import { ReadonlyDate } from "./ReadonlyDate";
 
 /**
- * A function that can take any arguments, but never does anything at runtime.
- */
-export function noOp(..._: readonly unknown[]): void {}
-
-/**
  * A collection of commonly-needed intervals (all defined in milliseconds).
  */
 // Doing type assertion on the static numeric values to prevent compiler from
@@ -159,9 +154,8 @@ interface TimeSyncApi {
 	 *
 	 * The same callback (by reference) is allowed to be registered multiple
 	 * times, either for the same update interval, or different update
-	 * intervals. However, while each subscriber is tracked individually, when
-	 * a new state update needs to be dispatched, the onUpdate callback will be
-	 * called once, total.
+	 * intervals. Depending on how TimeSync is instantiated, it may choose to
+	 * de-duplicate these function calls on each round of updates.
 	 *
 	 * @throws {RangeError} If the provided interval is not either a positive
 	 * integer or positive infinity.
@@ -202,6 +196,8 @@ type SubscriptionEntry = Readonly<{
 	targetInterval: number;
 	unsubscribe: () => void;
 }>;
+
+function noOp(..._: readonly unknown[]): void {}
 
 const defaultMinimumRefreshIntervalMs = 200;
 
@@ -521,7 +517,12 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
+		let unsubscribed = false;
 		const unsubscribe = (): void => {
+			if (unsubscribed) {
+				return;
+			}
+
 			const entries = this.#subscriptions.get(onUpdate);
 			if (entries === undefined) {
 				return;
@@ -544,6 +545,7 @@ export class TimeSync implements TimeSyncApi {
 				...this.#latestSnapshot,
 				subscriberCount: Math.max(0, this.#latestSnapshot.subscriberCount - 1),
 			});
+			unsubscribed = true;
 		};
 
 		let entries = this.#subscriptions.get(onUpdate);
