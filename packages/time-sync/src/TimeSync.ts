@@ -388,7 +388,7 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		const wasUpdated = this.#updateDateSnapshot();
+		const wasUpdated = this.#updateDate();
 		if (wasUpdated || this.#hasPendingBroadcast) {
 			this.#notifyAllSubscriptions();
 		}
@@ -413,7 +413,7 @@ export class TimeSync implements TimeSyncApi {
 		clearInterval(this.#intervalId);
 
 		if (timeBeforeNextUpdate <= 0) {
-			const updated = this.#updateDateSnapshot();
+			const updated = this.#updateDate();
 			if (updated) {
 				this.#notifyAllSubscriptions();
 				this.#hasPendingBroadcast = false;
@@ -464,19 +464,11 @@ export class TimeSync implements TimeSyncApi {
 		}
 	}
 
-	#countSubscriptions(): number {
-		let total = 0;
-		for (const subGroup of this.#subscriptions.values()) {
-			total += subGroup.length;
-		}
-		return total;
-	}
-
 	/**
 	 * Attempts to update the current Date snapshot, no questions asked.
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
-	#updateDateSnapshot(stalenessThresholdMs = 0): boolean {
+	#updateDate(stalenessThresholdMs = 0): boolean {
 		const { isDisposed, isFrozen, date } = this.#latestSnapshot;
 		if (isDisposed || isFrozen) {
 			return false;
@@ -492,7 +484,6 @@ export class TimeSync implements TimeSyncApi {
 		this.#latestSnapshot = Object.freeze({
 			...this.#latestSnapshot,
 			date: newSnap,
-			subscriberCount: this.#countSubscriptions(),
 		});
 		return true;
 	}
@@ -571,7 +562,7 @@ export class TimeSync implements TimeSyncApi {
 		// could have elapsed between the TimeSync being instantiated and the
 		// first subscription getting added
 		if (this.#latestSnapshot.subscriberCount === 1) {
-			this.#updateDateSnapshot();
+			this.#updateDate();
 		}
 
 		return unsubscribe;
@@ -603,7 +594,7 @@ export class TimeSync implements TimeSyncApi {
 			return this.#latestSnapshot;
 		}
 
-		const wasChanged = this.#updateDateSnapshot(stalenessThresholdMs);
+		const wasChanged = this.#updateDate(stalenessThresholdMs);
 		switch (notificationBehavior) {
 			case "never": {
 				this.#hasPendingBroadcast = wasChanged;
