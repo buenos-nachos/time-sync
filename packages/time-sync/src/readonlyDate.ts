@@ -225,24 +225,6 @@ export class ReadonlyDate extends Date implements ReadonlyDateApi {
 		}
 	}
 
-	/**
-	 * This is used to help fudge things a little bit in test runners like
-	 * Vitest. They tend to look at the string tag associated with an object to
-	 * decide how to process it, rather than going through the prototype chain.
-	 *
-	 * Vitest does this via Object.prototype.toString.call(value), which always
-	 * gives back a string formatted like "[object ReadonlyDate]". Not sure what
-	 * other options are available.
-	 *
-	 * Manually overriding the symbol method means that we can trick Vitest into
-	 * processing readonly dates as native dates for testing. This technically
-	 * does creep into the behavior exposed to end users, but most users are
-	 * going to use instanceof
-	 */
-	// [Symbol.toStringTag](): string {
-	// 	return "Date";
-	// }
-
 	toNativeDate(): Date {
 		const time = super.getTime();
 		return new Date(time);
