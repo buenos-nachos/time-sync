@@ -755,37 +755,6 @@ describe(TimeSync, () => {
 			expect(afterRemove).not.toBe(afterAdd);
 			expect(afterRemove).not.toEqual(afterAdd);
 			expect(afterRemove).not.toBe(initialSnap);
-
-			/**
-			 * @todo 2025-11-19 - Accidentally made a typo that isn't relevant
-			 * to the tests, but does surface a problem with how readonly dates
-			 * are defined via the proxy object
-			 *
-			 * If you add a .not here, Vitest's pretty-format package breaks
-			 * from trying to call the .toISOString method.
-			 *
-			 * The relevant code seems to be here
-			 * @see {@link https://github.com/vitest-dev/vitest/blob/4f58c77147796d48bf70579222a577df977300f8/packages/pretty-format/src/index.ts#L50}
-			 *
-			 * Maybe there's a way that pretty-format could be patched to remove
-			 * this risk, but the deeper problem seems to be that if you run
-			 * this vanilla JS code, you get the same issue:
-			 *
-			 * ```ts
-			 * const date = newReadonlyDate();
-			 * const toISOString = Date.prototype.toISOString;
-			 * toISOString.call(date);
-			 * ```
-			 *
-			 * This should be a niche issue for users, since most developers
-			 * don't even know that Function.prototype.call even exists
-			 * nowadays, but it should be fixed to maximize interoperability
-			 * with Vitest
-			 *
-			 * There is a risk that this behavior could break tests in the
-			 * future, and the bigger problem is that the runtime error is bad
-			 * enough that it actually blows up the Vitest runner itself.
-			 */
 			expect(afterRemove).toEqual(initialSnap);
 		});
 
@@ -1121,7 +1090,7 @@ describe(TimeSync, () => {
 			const sync = new TimeSync({ initialDate });
 			const initialSnap = sync.getStateSnapshot();
 
-			let ejectedDate!: Date;
+			let ejectedDate: Date | undefined;
 			const onUpdate = vi.fn((d: Date) => {
 				ejectedDate = d;
 			});

@@ -48,8 +48,11 @@ describe(useTimeSyncRef, () => {
 				return null;
 			}
 
-			const iso = date.toISOString();
-			return <time dateTime={iso}>The date is {iso}</time>;
+			return (
+				<time dateTime={date.toISOString()}>
+					The date is {date.toDateString()}
+				</time>
+			);
 		};
 
 		const initialDate = new Date("September 2, 2023");

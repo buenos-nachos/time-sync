@@ -26,8 +26,6 @@ const useEffectEvent: typeof polyfill =
 
 const noOp = (..._: readonly unknown[]): void => {};
 
-type InitialDate = Date | (() => Date);
-
 /**
  * @todo 2025-11-17 - This isn't 100% correct, but for the initial
  * implementation, we're going to assume that no one is going to be monkey-
@@ -134,6 +132,8 @@ function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
 	}
 	return updated as T;
 }
+
+type InitialDate = Date | (() => Date);
 
 type ReactTimeSyncInitOptions = Readonly<{
 	initialDate: Date | (() => Date);
