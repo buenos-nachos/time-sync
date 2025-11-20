@@ -3,13 +3,27 @@
  * avoid them in the vanilla TimeSync package.
  *
  * See TimeSync.test.ts in that package for more information.
+ *
+ * Also realizing that React Testing Library can't even support concurrent tests
+ * right now because it has no way for you to pass the test-scoped expect
+ * context into the test calls. They all implicitly use the global expect.
  */
-import { renderHook } from "@testing-library/react";
-import { describe, it } from "vitest";
-import { useTimeSync, useTimeSyncRef } from "./useTimeSync";
+import { render, renderHook, screen } from "@testing-library/react";
+import { type FC, useEffect, useState } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { refreshRates } from "../../time-sync/src";
+import { TimeSyncProvider, useTimeSync, useTimeSyncRef } from "./useTimeSync";
+
+beforeEach(() => {
+	vi.useFakeTimers();
+});
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
 
 describe(useTimeSyncRef, () => {
-	it("Throws if mounted outside of a TimeSyncProvider", ({ expect }) => {
+	it("Throws if mounted outside of a TimeSyncProvider", () => {
 		expect(() => {
 			renderHook(() => useTimeSyncRef());
 		}).toThrow(
@@ -17,10 +31,40 @@ describe(useTimeSyncRef, () => {
 		);
 	});
 
-	it.skip("Lets a component subscribe from inside a side effect", ({
-		expect,
-	}) => {
-		expect.hasAssertions();
+	it.only("Lets component subscribe from inside side effect", async () => {
+		const SampleComponent: FC = () => {
+			const [date, setDate] = useState<Date>();
+			const timeSync = useTimeSyncRef();
+
+			useEffect(() => {
+				const unsub = timeSync.subscribe({
+					onUpdate: (newDate) => setDate(newDate),
+					targetRefreshIntervalMs: refreshRates.oneSecond,
+				});
+				return unsub;
+			}, [timeSync]);
+
+			if (date === undefined) {
+				return null;
+			}
+
+			const iso = date.toISOString();
+			return <time dateTime={iso}>The date is {iso}</time>;
+		};
+
+		const initialDate = new Date("September 2, 2023");
+		vi.setSystemTime(initialDate);
+
+		render(<SampleComponent />, {
+			wrapper: ({ children }) => (
+				<TimeSyncProvider>{children}</TimeSyncProvider>
+			),
+		});
+
+		await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+		await screen.findByRole("time", {
+			name: /The time is Sat Sep 02 2023/i,
+		});
 	});
 
 	it.skip("Lets a component get a state snapshot from inside a side effect", ({
