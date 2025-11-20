@@ -15,7 +15,7 @@ const defaultDateString = "October 27, 2025";
 // detail for the moment, but because we still export it for convenience,
 // we need to make sure that it's 100% interchangeable with native Date
 // objects for all purposes aside from mutations
-describe(ReadonlyDate.name, () => {
+describe(ReadonlyDate, () => {
 	// Asserting this first because we rely on this behavior for the other tests
 	it("Supports .toEqual checks against native Dates", ({ expect }) => {
 		const controlDate = new Date(defaultDateString);
