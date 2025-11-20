@@ -111,7 +111,7 @@ export class ReadonlyDate extends Date implements ReadonlyDateApi {
 		});
 		if (hasInvalidNums) {
 			throw new RangeError(
-				"Cannot instantiate ReadonlyDate via invalid integer(s)",
+				"Cannot instantiate ReadonlyDate via invalid number(s)",
 			);
 		}
 

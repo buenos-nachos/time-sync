@@ -141,15 +141,33 @@ describe(ReadonlyDate, () => {
 	it("Throws when provided invalid input (instead of failing siliently like with native dates)", ({
 		expect,
 	}) => {
-		const samples: readonly Date[] = [
-			new Date(NaN),
-			new Date(new Date(NaN)),
-			new Date("blah"),
-			new Date(Number.NEGATIVE_INFINITY),
-			new Date(-Number.NEGATIVE_INFINITY),
+		const invalidDate = new Date(NaN);
+		expect(() => new ReadonlyDate(invalidDate)).toThrow(
+			RangeError("Cannot instantiate ReadonlyDate via invalid date object"),
+		);
+
+		// Ideally we shouldn't need to worry about undefined values because the
+		// constructor type signature will let you know when you got something
+		// wrong
+		const invalidNums: readonly number[] = [
+			NaN,
+			Number.NEGATIVE_INFINITY,
+			-Number.NEGATIVE_INFINITY,
 		];
-		for (const s of samples) {
-			expect(() => new ReadonlyDate(s)).toThrow(RangeError);
+		for (const i of invalidNums) {
+			expect(() => new ReadonlyDate(i)).toThrow(
+				RangeError("Cannot instantiate ReadonlyDate via invalid number(s)"),
+			);
+		}
+
+		const invalidStrings: readonly string[] = [
+			"blah",
+			"2025-11-20 T13:59:19.545Z", // Extra space inserted
+		];
+		for (const i of invalidStrings) {
+			expect(() => new ReadonlyDate(i)).toThrow(
+				RangeError("Cannot instantiate ReadonlyDate via invalid string"),
+			);
 		}
 	});
 });
