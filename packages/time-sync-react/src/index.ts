@@ -1,2 +1,8 @@
 export * from "../../time-sync/src";
-export { TimeSyncProvider, useTimeSync, useTimeSyncRef } from "./useTimeSync";
+export {
+	TimeSyncProvider,
+	type TimeSyncProviderProps,
+	type TimeSyncWithoutDispose,
+	useTimeSync,
+	useTimeSyncRef,
+} from "./useTimeSync";

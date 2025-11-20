@@ -161,7 +161,7 @@ type TransformationEntry = {
  * A version of TimeSync that deliberately hides the dispose method to prevent
  * the app from accidentally blowing up.
  */
-type TimeSyncWithoutDispose = Readonly<Omit<TimeSync, "dispose">>;
+export type TimeSyncWithoutDispose = Readonly<Omit<TimeSync, "dispose">>;
 
 /**
  * The main conceit for this file is that all of the core state is stored in a
@@ -431,7 +431,7 @@ function useReactTimeSync(): ReactTimeSync {
 	return reactTs;
 }
 
-type TimeSyncProviderProps = Readonly<{
+export type TimeSyncProviderProps = Readonly<{
 	initialDate?: InitialDate;
 	freezeUpdates?: boolean;
 	children?: ReactNode;
