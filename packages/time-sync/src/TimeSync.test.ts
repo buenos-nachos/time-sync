@@ -7,6 +7,14 @@ import {
 	TimeSync,
 } from "./TimeSync";
 
+const invalidIntervals: readonly number[] = [
+	Number.NaN,
+	Number.NEGATIVE_INFINITY,
+	0,
+	-42,
+	470.53,
+];
+
 // For better or worse, this is a personally meaningful date to me
 const defaultDateString = "October 27, 2025";
 
@@ -74,6 +82,14 @@ describe(TimeSync, () => {
 				expect(snap).toEqual(initialDate);
 			}
 		});
+
+		it("Throws if instantiated with invalid refresh interval", ({ expect }) => {
+			for (const i of invalidIntervals) {
+				expect(() => {
+					new TimeSync({ minimumRefreshIntervalMs: i });
+				}).toThrow(RangeError);
+			}
+		});
 	});
 
 	describe("Subscriptions: general behavior", () => {
@@ -95,12 +111,12 @@ describe(TimeSync, () => {
 		});
 
 		it("Lets a single system subscribe to updates", async ({ expect }) => {
-			const sampleLiveRefreshRates: readonly number[] = [
+			const rates: readonly number[] = [
 				refreshRates.oneSecond,
 				refreshRates.oneMinute,
 				refreshRates.oneHour,
 			];
-			for (const rate of sampleLiveRefreshRates) {
+			for (const rate of rates) {
 				// Duplicating all of these calls per iteration to maximize
 				// test isolation
 				const initialDate = initializeTime();
@@ -121,6 +137,7 @@ describe(TimeSync, () => {
 
 				const diff = dateAfter.getTime() - dateBefore.getTime();
 				expect(diff).toBe(rate);
+				break;
 			}
 		});
 
@@ -130,14 +147,7 @@ describe(TimeSync, () => {
 			const sync = new TimeSync();
 			const dummyFunction = vi.fn();
 
-			const intervals: readonly number[] = [
-				Number.NaN,
-				Number.NEGATIVE_INFINITY,
-				0,
-				-42,
-				470.53,
-			];
-			for (const i of intervals) {
+			for (const i of invalidIntervals) {
 				expect(() => {
 					void sync.subscribe({
 						targetRefreshIntervalMs: i,

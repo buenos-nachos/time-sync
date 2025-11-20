@@ -242,6 +242,11 @@ export class TimeSync implements TimeSyncApi {
 	 *
 	 * Right now, this is only relevant for when you invalidate the state and
 	 * set the notification behavior to "never".
+	 *
+	 * @todo 2025-11-19 - Should probably turn this into a date so that we have
+	 * more granular information and can track when the de-sync started. We can
+	 * always derive a boolean from it by comparing it against the date in the
+	 * latest snapshot.
 	 */
 	#hasPendingBroadcast: boolean;
 
@@ -469,14 +474,14 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
 	#updateDateSnapshot(stalenessThresholdMs = 0): boolean {
-		const { isDisposed, isFrozen, date: dateSnapshot } = this.#latestSnapshot;
+		const { isDisposed, isFrozen, date } = this.#latestSnapshot;
 		if (isDisposed || isFrozen) {
 			return false;
 		}
 
 		const newSnap = new ReadonlyDate();
 		const exceedsUpdateThreshold =
-			newSnap.getTime() - dateSnapshot.getTime() >= stalenessThresholdMs;
+			newSnap.getTime() - date.getTime() >= stalenessThresholdMs;
 		if (!exceedsUpdateThreshold) {
 			return false;
 		}
@@ -487,7 +492,7 @@ export class TimeSync implements TimeSyncApi {
 		this.#hasPendingBroadcast = true;
 		this.#latestSnapshot = Object.freeze({
 			...this.#latestSnapshot,
-			dateSnapshot: newSnap,
+			date: newSnap,
 			subscriberCount: this.#countSubscriptions(),
 		});
 		return true;
