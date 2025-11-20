@@ -7,6 +7,7 @@ import React, {
 	useRef,
 	useSyncExternalStore,
 } from "react";
+import type { ReadonlyDate } from "../../time-sync/src";
 import { noOp, structuralMerge, type TransformCallback } from "./general";
 import type { TimeSyncWithoutDispose } from "./ReactTimeSync";
 import { useReactTimeSync } from "./TimeSyncProvider";
@@ -100,14 +101,16 @@ type UseTimeSyncOptions<T> = Readonly<{
  *    avoid stale date issues, and will happen even if all other subscribers
  *    were subscribed with an interval of positive infinity.
  */
-export function useTimeSync<T = Date>(options: UseTimeSyncOptions<T>): T {
+export function useTimeSync<T = ReadonlyDate>(
+	options: UseTimeSyncOptions<T>,
+): T {
 	const { targetIntervalMs, transform } = options;
 	const activeTransform = (transform ?? identity) as TransformCallback<T>;
 
 	// This is an abuse of the useId API, but because it gives us an ID that is
 	// uniquely associated with the current component instance, we can use it to
 	// differentiate between multiple instances of the same function component
-	// subscribing to useTimeSyncState
+	// subscribing to useTimeSync
 	const hookId = useId();
 	const reactTs = useReactTimeSync();
 

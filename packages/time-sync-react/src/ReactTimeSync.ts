@@ -94,7 +94,7 @@ export class ReactTimeSync {
 
 	// Only safe to call inside a render that is bound to useSyncExternalStore
 	// in some way
-	getDateSnapshot(): Date {
+	getDateSnapshot(): ReadonlyDate {
 		return this.#timeSync.getStateSnapshot().date;
 	}
 
@@ -261,7 +261,7 @@ export class ReactTimeSync {
 		// Periodially invalidate the state, so that even if all subscribers
 		// have really slow refresh intervals, when a new component gets
 		// mounted, it will be guaranteed to have "fresh-ish" data.
-		this.#invalidationIntervalId = setTimeout(() => {
+		this.#invalidationIntervalId = setInterval(() => {
 			this.#timeSync.invalidateState({
 				stalenessThresholdMs: ReactTimeSync.#stalenessThresholdMs,
 				notificationBehavior: "never",
@@ -270,7 +270,7 @@ export class ReactTimeSync {
 
 		const cleanup = () => {
 			this.#isProviderMounted = false;
-			clearTimeout(this.#invalidationIntervalId);
+			clearInterval(this.#invalidationIntervalId);
 			this.#invalidationIntervalId = undefined;
 			this.#timeSync.dispose();
 			this.#entries.clear();

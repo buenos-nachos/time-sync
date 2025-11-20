@@ -1,7 +1,9 @@
+import type { ReadonlyDate } from "../../time-sync/src";
+
 export type InitialDate = Date | (() => Date);
 
 export type TransformCallback<T> = (
-	state: Date,
+	date: ReadonlyDate,
 ) => T extends Promise<unknown> ? never : T extends void ? never : T;
 
 export function noOp(..._: readonly unknown[]): void {}
