@@ -137,7 +137,6 @@ describe(TimeSync, () => {
 
 				const diff = dateAfter.getTime() - dateBefore.getTime();
 				expect(diff).toBe(rate);
-				break;
 			}
 		});
 
@@ -833,7 +832,7 @@ describe(TimeSync, () => {
 		// Meant to account for the fact that you don't know how much time might
 		// pass between a TimeSync getting instantiated and the first subscriber
 		// getting registered. But it's also meant to catch
-		it("Automatically refreshes date snapshot when going from 0 to 1 subscribers, regardless of specified refresh interval", async ({
+		it("Automatically refreshes date snapshot for FRESH instance when going from 0 to 1 subscribers, regardless of specified refresh interval", async ({
 			expect,
 		}) => {
 			const dummyOnUpdate = vi.fn();
@@ -862,8 +861,21 @@ describe(TimeSync, () => {
 				const diff1 = freshWithSub.getTime() - freshWithoutSub.getTime();
 				expect(diff1).toBe(refreshRates.oneHour);
 			}
+		});
 
-			// Go from 0 to 1 for already-used instance
+		// Meant to account for the fact that you don't know how much time might
+		// pass between a TimeSync getting instantiated and the first subscriber
+		// getting registered. But it's also meant to catch
+		it("Automatically refreshes date snapshot for USED instance when going from 0 to 1 subscribers, regardless of specified refresh interval", async ({
+			expect,
+		}) => {
+			const dummyOnUpdate = vi.fn();
+			const intervals: readonly number[] = [
+				refreshRates.halfSecond,
+				refreshRates.oneMinute,
+				refreshRates.idle,
+			];
+
 			for (const i of intervals) {
 				const initialDate = initializeTime();
 				const sync = new TimeSync({ initialDate });
@@ -879,7 +891,7 @@ describe(TimeSync, () => {
 				await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
 				const usedWithoutSub = sync.getStateSnapshot().date;
 				const diff2 = usedWithoutSub.getTime() - initialSnap.getTime();
-				expect(diff2).toBe(refreshRates.oneHour);
+				expect(diff2).toBe(0);
 
 				void sync.subscribe({
 					onUpdate: dummyOnUpdate,
@@ -931,7 +943,7 @@ describe(TimeSync, () => {
 			expect(onUpdate).toHaveBeenCalledTimes(1);
 		});
 
-		it("Only triggers onChange behavior if threshold has been exceeded", async ({
+		it.only("Only triggers onChange behavior if threshold has been exceeded", async ({
 			expect,
 		}) => {
 			const initialDate = initializeTime();

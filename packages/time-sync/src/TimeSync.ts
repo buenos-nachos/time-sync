@@ -1,6 +1,9 @@
 /**
- * @todo 2025-11-19 - Update TimeSync to work with Temporal objects once those
- * have more adoption.
+ * @todo 2025-11-19 - Decide how the library should handle the case where you
+ * have a bunch of idle subscriptions (or at least, subscriptions that take a
+ * long time to dispatch the next update), and then you add a new subscription
+ * that does need to be updated more aggressively. Thinking of adding a refresh
+ * threshold to the options when instantiating the class
  */
 import { ReadonlyDate } from "./ReadonlyDate";
 
@@ -568,6 +571,13 @@ export class TimeSync implements TimeSyncApi {
 			...this.#latestSnapshot,
 			subscriberCount: this.#latestSnapshot.subscriberCount + 1,
 		});
+
+		// Immediately update the snapshot because we don't know how much time
+		// could have elapsed between the TimeSync being instantiated and the
+		// first subscription getting added
+		if (this.#latestSnapshot.subscriberCount === 1) {
+			this.#updateDateSnapshot();
+		}
 
 		return unsubscribe;
 	}
