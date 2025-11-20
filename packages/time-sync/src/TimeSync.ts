@@ -397,17 +397,16 @@ export class TimeSync implements TimeSyncApi {
 
 	#onFastestIntervalChange(): void {
 		const fastest = this.#fastestRefreshInterval;
-		const { isDisposed, isFrozen } = this.#latestSnapshot;
-		const skipUpdate =
+		const { isDisposed, isFrozen, date } = this.#latestSnapshot;
+		const updatesShouldStop =
 			isDisposed || isFrozen || fastest === Number.POSITIVE_INFINITY;
-		if (skipUpdate) {
+		if (updatesShouldStop) {
 			clearInterval(this.#intervalId);
 			this.#intervalId = undefined;
 			return;
 		}
 
-		const elapsed =
-			new ReadonlyDate().getTime() - this.#latestSnapshot.date.getTime();
+		const elapsed = new ReadonlyDate().getTime() - date.getTime();
 		const timeBeforeNextUpdate = fastest - elapsed;
 
 		// Clear previous interval sight unseen just to be on the safe side

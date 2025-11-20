@@ -387,6 +387,40 @@ describe(TimeSync, () => {
 			expect(sharedOnUpdate).toHaveBeenCalledTimes(1);
 		});
 
+		it("Speeds up interval when new subscriber is added that is faster than all other subscribers", async ({
+			expect,
+		}) => {
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+
+			const onUpdate1 = vi.fn();
+			void sync.subscribe({
+				onUpdate: onUpdate1,
+				targetRefreshIntervalMs: refreshRates.oneSecond,
+			});
+
+			const onUpdate2 = vi.fn();
+			void sync.subscribe({
+				onUpdate: onUpdate2,
+				targetRefreshIntervalMs: refreshRates.oneSecond,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+			expect(onUpdate1).toHaveBeenCalledTimes(1);
+			expect(onUpdate2).toHaveBeenCalledTimes(1);
+
+			const onUpdate3 = vi.fn();
+			void sync.subscribe({
+				onUpdate: onUpdate3,
+				targetRefreshIntervalMs: refreshRates.halfSecond,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.halfSecond);
+			expect(onUpdate1).toHaveBeenCalledTimes(2);
+			expect(onUpdate2).toHaveBeenCalledTimes(2);
+			expect(onUpdate3).toHaveBeenCalledTimes(1);
+		});
+
 		it("Slows updates down to the second-fastest interval when the all subscribers for the fastest interval unsubscribe", async ({
 			expect,
 		}) => {
@@ -475,6 +509,11 @@ describe(TimeSync, () => {
 			await vi.advanceTimersByTimeAsync(500);
 			expect(onUpdate1).not.toHaveBeenCalled();
 			expect(onUpdate2).toHaveBeenCalledTimes(1);
+
+			// Verify that updates go back to normal after pseudo-timeout
+			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+			expect(onUpdate1).not.toHaveBeenCalled();
+			expect(onUpdate2).toHaveBeenCalledTimes(2);
 		});
 
 		it("Immediately notifies subscribers if new refresh interval is added that is less than or equal to the time since the last update", async ({
