@@ -1,9 +1,20 @@
+/**
+ * @file Avoiding concurrent test running here for the same reasons we have to
+ * avoid them in the vanilla TimeSync package.
+ *
+ * See TimeSync.test.ts in that package for more information.
+ */
+import { renderHook } from "@testing-library/react";
 import { describe, it } from "vitest";
 import { useTimeSync, useTimeSyncRef } from "./useTimeSync";
 
-describe.concurrent(useTimeSyncRef.name, () => {
-	it.skip("Throws if mounted outside of a TimeSyncProvider", ({ expect }) => {
-		expect.hasAssertions();
+describe(useTimeSyncRef, () => {
+	it("Throws if mounted outside of a TimeSyncProvider", ({ expect }) => {
+		expect(() => {
+			renderHook(() => useTimeSyncRef());
+		}).toThrow(
+			new Error("Must call TimeSync hook from inside TimeSyncProvider"),
+		);
 	});
 
 	it.skip("Lets a component subscribe from inside a side effect", ({
@@ -25,7 +36,7 @@ describe.concurrent(useTimeSyncRef.name, () => {
 	});
 });
 
-describe.concurrent(useTimeSync.name, () => {
+describe(useTimeSync, () => {
 	describe("General behavior", () => {
 		it.skip("Throws if mounted outside of a TimeSyncProvider", ({ expect }) => {
 			expect.hasAssertions();
