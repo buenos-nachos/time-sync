@@ -239,9 +239,9 @@ export class ReadonlyDate extends Date implements ReadonlyDateApi {
 	 * does creep into the behavior exposed to end users, but most users are
 	 * going to use instanceof
 	 */
-	[Symbol.toStringTag](): string {
-		return "Date";
-	}
+	// [Symbol.toStringTag](): string {
+	// 	return "Date";
+	// }
 
 	toNativeDate(): Date {
 		const time = super.getTime();

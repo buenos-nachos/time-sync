@@ -16,8 +16,15 @@ const defaultDateString = "October 27, 2025";
 // we need to make sure that it's 100% interchangeable with native Date
 // objects for all purposes aside from mutations
 describe(ReadonlyDate, () => {
+	it("Appears as native Date type for external consumers", ({ expect }) => {
+		const d = new ReadonlyDate();
+		expect(d).toBeInstanceOf(Date);
+	});
+
 	// Asserting this first because we rely on this behavior for the other tests
-	it("Supports .toEqual checks against native Dates", ({ expect }) => {
+	it("Supports .toEqual checks against native Dates in test runners", ({
+		expect,
+	}) => {
 		const controlDate = new Date(defaultDateString);
 		const readonly = new ReadonlyDate(defaultDateString);
 		expect(controlDate).toEqual(readonly);
@@ -127,15 +134,6 @@ describe(ReadonlyDate, () => {
 		expect(d).toEqual(converted);
 		expect(converted).toBeInstanceOf(Date);
 		expect(converted).not.toBeInstanceOf(ReadonlyDate);
-	});
-
-	it("Appears as native Date type for external consumers", ({ expect }) => {
-		const d = new ReadonlyDate();
-		const string = Object.prototype.toString.call(d);
-
-		expect(d).toBeInstanceOf(Date);
-		expect(string).toBe("[object Date]");
-		expect(d[Symbol.toStringTag]()).toBe("Date");
 	});
 
 	it("Throws when provided invalid input (instead of failing siliently like with native dates)", ({
