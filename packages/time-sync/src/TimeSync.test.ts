@@ -943,7 +943,7 @@ describe(TimeSync, () => {
 			expect(onUpdate).toHaveBeenCalledTimes(1);
 		});
 
-		it.only("Only triggers onChange behavior if threshold has been exceeded", async ({
+		it("Only triggers onChange behavior if threshold has been exceeded", async ({
 			expect,
 		}) => {
 			const initialDate = initializeTime();

@@ -489,10 +489,6 @@ export class TimeSync implements TimeSyncApi {
 			return false;
 		}
 
-		// It's not ever safe for this method to flip this property to false,
-		// because it doesn't have enough context about where it will be called
-		// to know whether that could break other stateful logic
-		this.#hasPendingBroadcast = true;
 		this.#latestSnapshot = Object.freeze({
 			...this.#latestSnapshot,
 			date: newSnap,
@@ -611,6 +607,7 @@ export class TimeSync implements TimeSyncApi {
 		const wasChanged = this.#updateDateSnapshot(stalenessThresholdMs);
 		switch (notificationBehavior) {
 			case "never": {
+				this.#hasPendingBroadcast = wasChanged;
 				break;
 			}
 			case "always": {
