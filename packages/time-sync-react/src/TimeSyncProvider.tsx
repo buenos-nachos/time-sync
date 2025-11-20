@@ -11,6 +11,10 @@ import { ReactTimeSync } from "./ReactTimeSync";
 
 const reactTimeSyncContext = createContext<ReactTimeSync | null>(null);
 
+/**
+ * Exposes the raw ReactTimeSync for use by internal hooks. This hook should
+ * NEVER be exported to the end user; it is strictly an implementation detail.
+ */
 export function useReactTimeSync(): ReactTimeSync {
 	const reactTs = useContext(reactTimeSyncContext);
 	if (reactTs === null) {
