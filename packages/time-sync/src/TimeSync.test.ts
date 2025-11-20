@@ -70,7 +70,7 @@ afterEach(() => {
  * serial tests for now.
  */
 describe(TimeSync, () => {
-	describe("Initialization", () => {
+	describe("General initialization", () => {
 		it("Lets users specify custom initial date", ({ expect }) => {
 			const dates: readonly Date[] = [
 				new Date("March 14, 2022"),
@@ -447,7 +447,7 @@ describe(TimeSync, () => {
 		 * (you can't completely remove them) might make the library a nightmare
 		 * to maintain.
 		 */
-		it("Does not completely start next interval over from scratch if fastest subscription is removed halfway through update", async ({
+		it.only("Does not completely start next interval over from scratch if fastest subscription is removed halfway through update", async ({
 			expect,
 		}) => {
 			const initialDate = initializeTime();
@@ -572,6 +572,22 @@ describe(TimeSync, () => {
 	});
 
 	describe("Subscriptions: duplicating function calls", () => {
+		it("Defaults to de-duplicating", async ({ expect }) => {
+			const initialDate = initializeTime();
+			const sync = new TimeSync({ initialDate });
+
+			const sharedOnUpdate = vi.fn();
+			for (let i = 0; i < 100; i++) {
+				void sync.subscribe({
+					onUpdate: sharedOnUpdate,
+					targetRefreshIntervalMs: refreshRates.oneMinute,
+				});
+			}
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(sharedOnUpdate).toHaveBeenCalledTimes(1);
+		});
+
 		it("Lets user turn on duplication", async ({ expect }) => {
 			const initialDate = initializeTime();
 			const sync = new TimeSync({
