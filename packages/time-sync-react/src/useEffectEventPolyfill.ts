@@ -9,7 +9,7 @@ export function useEffectEvent<TArgs extends unknown[], TReturn = unknown>(
 	callback: (...args: TArgs) => TReturn,
 ) {
 	const callbackRef = useRef(callback);
-  
+
 	useInsertionEffect(() => {
 		callbackRef.current = callback;
 	}, [callback]);
