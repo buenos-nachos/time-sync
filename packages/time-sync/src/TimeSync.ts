@@ -591,7 +591,7 @@ export class TimeSync implements TimeSyncApi {
 			return this.#latestSnapshot;
 		}
 
-		const { dateBeforeUpdate } = this.#updateDate();
+		const { wasChanged, dateBeforeUpdate } = this.#updateDate();
 		switch (notificationBehavior) {
 			case "never": {
 				break;
@@ -604,7 +604,7 @@ export class TimeSync implements TimeSyncApi {
 				const meetsThreshold =
 					this.#latestSnapshot.date.getTime() - dateBeforeUpdate.getTime() >=
 					stalenessThresholdMs;
-				if (meetsThreshold) {
+				if (wasChanged && meetsThreshold) {
 					this.#notifyAllSubscriptions();
 				}
 				break;

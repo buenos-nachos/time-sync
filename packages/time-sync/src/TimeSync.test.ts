@@ -933,7 +933,7 @@ describe(TimeSync, () => {
 			expect(onUpdate).toHaveBeenCalledTimes(1);
 		});
 
-		it("Only triggers onChange behavior if threshold has been exceeded", async ({
+		it("Only triggers onChange behavior if threshold was met", async ({
 			expect,
 		}) => {
 			const sync = new TimeSync();
@@ -1063,29 +1063,6 @@ describe(TimeSync, () => {
 
 			const newSnap = sync.getStateSnapshot();
 			expect(newSnap).not.toEqual(initialSnap);
-		});
-
-		// Not sure if this decision makes sense for the system, but at least
-		// wanted to codify it in tests so that if we ever stop doing this when
-		// making other changes, we know that we've broken this part of the API
-		it("Always dispatches if onChange is used after never", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-			const onUpdate = vi.fn();
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneHour,
-			});
-
-			// Invalidate without the time changing
-			sync.invalidateState({ notificationBehavior: "never" });
-			expect(onUpdate).not.toHaveBeenCalled();
-
-			// Even though the time should be the same as before, we should
-			// still trigger an update because we have a pending invalidation
-			sync.invalidateState({ notificationBehavior: "onChange" });
-			expect(onUpdate).toHaveBeenCalledTimes(1);
 		});
 
 		it("Can force-notify subscribers, even if state did not change", ({
