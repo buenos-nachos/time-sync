@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.3.4/schema.json",
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
@@ -38,6 +38,7 @@
 			"recommended": true,
 			"a11y": "error",
 			"correctness": {
+				"recommended": true,
 				"noUnusedImports": "error",
 				"noConstantCondition": "error",
 				"noConstantMathMinMaxClamp": "error",
@@ -45,19 +46,28 @@
 				"noUnusedVariables": "error"
 			},
 			"style": {
+				"recommended": true,
 				"noDefaultExport": "error",
 				"noEnum": "error",
 				"noNonNullAssertion": "error",
 				"useConst": "error",
 				"useConsistentCurlyBraces": "error",
 				"useNumericSeparators": "error",
-				"useSingleVarDeclarator": "error"
+				"useSingleVarDeclarator": "error",
+				"noParameterAssign": "error",
+				"noNegationElse": "warn",
+				"noSubstr": "error",
+				"noShoutyConstants": "error",
+				"noUnusedTemplateLiteral": "error"
 			},
 			"suspicious": {
 				"recommended": true,
 				"noSkippedTests": "error",
 				"noFocusedTests": "error",
-				"noConsole": "error"
+				"noConsole": "error",
+				"noAlert": "error",
+				"noApproximativeNumericConstant": "error",
+				"noExplicitAny": "error"
 			}
 		}
 	},
