@@ -1199,7 +1199,7 @@ describe(TimeSync, () => {
 	 * Not sure how to codify that in tests yet, but ideally it should be.
 	 */
 	describe("Freezing updates on init", () => {
-		it("Never updates internal state, no matter how many subscribers susbcribe", ({
+		it("Never updates internal state, no matter how many subscribers subscribe", ({
 			expect,
 		}) => {
 			const initialDate = new Date("August 25, 1832");
