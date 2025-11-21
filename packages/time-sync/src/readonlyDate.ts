@@ -215,7 +215,7 @@ export class ReadonlyDate extends Date implements ReadonlyDateApi {
 					seconds,
 					milliseconds,
 				);
-				break;
+				return;
 			}
 			default: {
 				throw new Error(

@@ -31,15 +31,9 @@ export const refreshRates = Object.freeze({
 }) satisfies Record<string, number>;
 
 /**
- * The set of options that can be used to instantiate a TimeSync.
+ * The set of readonly options that the TimeSync has been configured with.
  */
-export type InitOptions = Readonly<{
-	/**
-	 * The Date object to use when initializing TimeSync to make the constructor
-	 * more pure and deterministic.
-	 */
-	initialDate: Date;
-
+export type ConfigurationOptions = Readonly<{
 	/**
 	 * Defaults to false. Indicates whether the TimeSync instance should be
 	 * frozen for Snapshot tests. Highly encouraged that you use this together
@@ -68,6 +62,19 @@ export type InitOptions = Readonly<{
 	 */
 	allowDuplicateOnUpdateCalls: boolean;
 }>;
+
+/**
+ * The set of options that can be used to instantiate a TimeSync.
+ */
+export type InitOptions = Readonly<
+	ConfigurationOptions & {
+		/**
+		 * The Date object to use when initializing TimeSync to make the constructor
+		 * more pure and deterministic.
+		 */
+		initialDate: Date;
+	}
+>;
 
 /**
  * The callback to call when a new state update is ready to be dispatched.
@@ -145,10 +152,8 @@ export type InvalidateStateOptions = Readonly<{
 export type Snapshot = Readonly<{
 	date: ReadonlyDate;
 	subscriberCount: number;
-	isFrozen: boolean;
 	isDisposed: boolean;
-	minimumRefreshIntervalMs: number;
-	allowDuplicateOnUpdateCalls: boolean;
+	config: ConfigurationOptions;
 }>;
 
 interface TimeSyncApi {
@@ -254,6 +259,15 @@ export class TimeSync implements TimeSyncApi {
 	#hasPendingBroadcast: boolean;
 
 	/**
+	 * Indicates when the last successful state update dispatch was. Can be used
+	 * to track whether there has been a de-sync from invalidating the state.
+	 *
+	 * Once this value has transitioned from null to a date, there should be no
+	 * way for it to transition back to null.
+	 */
+	#lastDispatchDate: ReadonlyDate | null;
+
+	/**
 	 * An immutable value representation of the TimeSync state that might be
 	 * relevant to an outside consumer.
 	 *
@@ -324,14 +338,17 @@ export class TimeSync implements TimeSyncApi {
 		this.#subscriptions = new Map();
 		this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 		this.#intervalId = undefined;
+		this.#lastDispatchDate = null;
 
 		this.#latestSnapshot = Object.freeze({
-			minimumRefreshIntervalMs,
-			allowDuplicateOnUpdateCalls,
 			subscriberCount: 0,
-			isFrozen: freezeUpdates,
 			isDisposed: false,
 			date: initialDate ? new ReadonlyDate(initialDate) : new ReadonlyDate(),
+			config: Object.freeze({
+				freezeUpdates,
+				minimumRefreshIntervalMs,
+				allowDuplicateOnUpdateCalls,
+			}),
 		});
 	}
 
@@ -339,10 +356,9 @@ export class TimeSync implements TimeSyncApi {
 		// We still need to let the logic go through if the current fastest
 		// interval is Infinity, so that we can support letting any arbitrary
 		// consumer invalidate the date immediately
-		const { isDisposed, isFrozen, allowDuplicateOnUpdateCalls } =
-			this.#latestSnapshot;
+		const { isDisposed, config } = this.#latestSnapshot;
 		const subscriptionsPaused =
-			isDisposed || isFrozen || this.#subscriptions.size === 0;
+			isDisposed || config.freezeUpdates || this.#subscriptions.size === 0;
 		if (subscriptionsPaused) {
 			return;
 		}
@@ -357,7 +373,7 @@ export class TimeSync implements TimeSyncApi {
 		// subscriber disposes of the whole TimeSync instance. Once the Map is
 		// cleared, the map's iterator will automatically break the loop. So
 		// there's no risk of continuing to dispatch values after cleanup.
-		if (allowDuplicateOnUpdateCalls) {
+		if (config.allowDuplicateOnUpdateCalls) {
 			for (const [onUpdate, subs] of this.#subscriptions) {
 				for (let i = 0; i < subs.length; i++) {
 					onUpdate(bound);
@@ -380,8 +396,8 @@ export class TimeSync implements TimeSyncApi {
 	 * is one of them.
 	 */
 	#onTick = (): void => {
-		const { isDisposed, isFrozen } = this.#latestSnapshot;
-		if (isDisposed || isFrozen) {
+		const { isDisposed, config } = this.#latestSnapshot;
+		if (isDisposed || config.freezeUpdates) {
 			// Defensive step to make sure that an invalid tick wasn't started
 			clearInterval(this.#intervalId);
 			this.#intervalId = undefined;
@@ -397,9 +413,11 @@ export class TimeSync implements TimeSyncApi {
 
 	#onFastestIntervalChange(): void {
 		const fastest = this.#fastestRefreshInterval;
-		const { isDisposed, isFrozen, date } = this.#latestSnapshot;
+		const { isDisposed, date, config } = this.#latestSnapshot;
 		const updatesShouldStop =
-			isDisposed || isFrozen || fastest === Number.POSITIVE_INFINITY;
+			isDisposed ||
+			config.freezeUpdates ||
+			fastest === Number.POSITIVE_INFINITY;
 		if (updatesShouldStop) {
 			clearInterval(this.#intervalId);
 			this.#intervalId = undefined;
@@ -446,8 +464,8 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	#updateFastestInterval(): void {
-		const { isDisposed, isFrozen } = this.#latestSnapshot;
-		if (isDisposed || isFrozen) {
+		const { isDisposed, config } = this.#latestSnapshot;
+		if (isDisposed || config.freezeUpdates) {
 			this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 			return;
 		}
@@ -475,8 +493,8 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
 	#updateDate(stalenessThresholdMs = 0): boolean {
-		const { isDisposed, isFrozen, date } = this.#latestSnapshot;
-		if (isDisposed || isFrozen) {
+		const { isDisposed, config, date } = this.#latestSnapshot;
+		if (isDisposed || config.freezeUpdates) {
 			return false;
 		}
 
@@ -495,9 +513,8 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	subscribe(sh: SubscriptionHandshake): () => void {
-		const { isDisposed, isFrozen, minimumRefreshIntervalMs } =
-			this.#latestSnapshot;
-		if (isDisposed || isFrozen) {
+		const { isDisposed, config } = this.#latestSnapshot;
+		if (isDisposed || config.freezeUpdates) {
 			return noOp;
 		}
 
@@ -553,7 +570,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		const targetInterval = Math.max(
-			minimumRefreshIntervalMs,
+			config.minimumRefreshIntervalMs,
 			targetRefreshIntervalMs,
 		);
 		entries.push({ unsubscribe, targetInterval });
@@ -595,8 +612,8 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		const { isDisposed, isFrozen } = this.#latestSnapshot;
-		if (isDisposed || isFrozen) {
+		const { isDisposed, config } = this.#latestSnapshot;
+		if (isDisposed || config.freezeUpdates) {
 			return this.#latestSnapshot;
 		}
 

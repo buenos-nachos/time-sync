@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import { ReadonlyDate } from "./ReadonlyDate";
 import {
+	type ConfigurationOptions,
 	type NotificationBehavior,
 	refreshRates,
 	type Snapshot,
@@ -625,10 +626,12 @@ describe(TimeSync, () => {
 			expect(snap).toEqual<Snapshot>({
 				date: initialDate,
 				isDisposed: false,
-				isFrozen: false,
 				subscriberCount: 0,
-				minimumRefreshIntervalMs: minimumRefreshIntervalMs,
-				allowDuplicateOnUpdateCalls: false,
+				config: {
+					freezeUpdates: false,
+					minimumRefreshIntervalMs,
+					allowDuplicateOnUpdateCalls: false,
+				},
 			});
 		});
 
@@ -646,7 +649,7 @@ describe(TimeSync, () => {
 				minimumRefreshIntervalMs: refreshRates.oneHour,
 			});
 			const snap = sync.getStateSnapshot();
-			expect(snap.minimumRefreshIntervalMs).toBe(refreshRates.oneHour);
+			expect(snap.config.minimumRefreshIntervalMs).toBe(refreshRates.oneHour);
 		});
 
 		// This behavior is super, super important for the React bindings. The
@@ -745,11 +748,11 @@ describe(TimeSync, () => {
 		it("Indicates frozen status", ({ expect }) => {
 			const normalSync = new TimeSync({ freezeUpdates: false });
 			const normalSnap = normalSync.getStateSnapshot();
-			expect(normalSnap.isFrozen).toBe(false);
+			expect(normalSnap.config.freezeUpdates).toBe(false);
 
 			const frozenSync = new TimeSync({ freezeUpdates: true });
 			const frozenSnap = frozenSync.getStateSnapshot();
-			expect(frozenSnap.isFrozen).toBe(true);
+			expect(frozenSnap.config.freezeUpdates).toBe(true);
 		});
 
 		it("Indicates disposed status", ({ expect }) => {
@@ -765,11 +768,11 @@ describe(TimeSync, () => {
 		it("Indicates deduplicated functions status", ({ expect }) => {
 			const normalSync = new TimeSync({ allowDuplicateOnUpdateCalls: false });
 			const normalSnap = normalSync.getStateSnapshot();
-			expect(normalSnap.allowDuplicateOnUpdateCalls).toBe(false);
+			expect(normalSnap.config.allowDuplicateOnUpdateCalls).toBe(false);
 
-			const frozenSync = new TimeSync({ allowDuplicateOnUpdateCalls: true });
-			const frozenSnap = frozenSync.getStateSnapshot();
-			expect(frozenSnap.allowDuplicateOnUpdateCalls).toBe(true);
+			const dupeSync = new TimeSync({ allowDuplicateOnUpdateCalls: true });
+			const dupeSnap = dupeSync.getStateSnapshot();
+			expect(dupeSnap.config.allowDuplicateOnUpdateCalls).toBe(true);
 		});
 
 		it("Prevents mutating properties at runtime", ({ expect }) => {
@@ -779,36 +782,40 @@ describe(TimeSync, () => {
 			// We have readonly modifiers on the types, but we need to make sure
 			// nothing can break at runtime
 			const snap = sync.getStateSnapshot() as Writeable<Snapshot>;
-			const copyBeforeMutations = { ...snap };
-			const mutationSource: Snapshot = {
+			const config = snap.config as Writeable<ConfigurationOptions>;
+			const copyBeforeMutations = { ...snap, config: { ...config } };
+
+			const mutationSnap: Snapshot = {
 				date: new ReadonlyDate("April 1, 1970"),
 				isDisposed: true,
-				isFrozen: true,
-				minimumRefreshIntervalMs: Number.POSITIVE_INFINITY,
 				subscriberCount: Number.POSITIVE_INFINITY,
-				allowDuplicateOnUpdateCalls: false,
+				config: {
+					freezeUpdates: true,
+					minimumRefreshIntervalMs: Number.POSITIVE_INFINITY,
+					allowDuplicateOnUpdateCalls: true,
+				},
 			};
 
 			const mutations: readonly (() => void)[] = [
 				() => {
-					snap.date = mutationSource.date;
+					snap.date = mutationSnap.date;
 				},
 				() => {
-					snap.isDisposed = mutationSource.isDisposed;
+					snap.isDisposed = mutationSnap.isDisposed;
 				},
 				() => {
-					snap.isFrozen = mutationSource.isFrozen;
+					config.freezeUpdates = mutationSnap.config.freezeUpdates;
 				},
 				() => {
-					snap.subscriberCount = mutationSource.subscriberCount;
+					snap.subscriberCount = mutationSnap.subscriberCount;
 				},
 				() => {
-					snap.minimumRefreshIntervalMs =
-						mutationSource.minimumRefreshIntervalMs;
+					config.minimumRefreshIntervalMs =
+						mutationSnap.config.minimumRefreshIntervalMs;
 				},
 				() => {
-					snap.allowDuplicateOnUpdateCalls =
-						mutationSource.allowDuplicateOnUpdateCalls;
+					config.allowDuplicateOnUpdateCalls =
+						mutationSnap.config.allowDuplicateOnUpdateCalls;
 				},
 			];
 			for (const m of mutations) {

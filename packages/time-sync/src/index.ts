@@ -1,6 +1,7 @@
 // Not using wildcard syntax to make final exported dependencies more obvious
 export { ReadonlyDate } from "./ReadonlyDate";
 export {
+	type ConfigurationOptions,
 	type InitOptions,
 	type InvalidateStateOptions,
 	type NotificationBehavior,
