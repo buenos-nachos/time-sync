@@ -10,9 +10,10 @@
 		"url": "https://github.com/buenos-nachos/time-sync.git"
 	},
 	"scripts": {
-		"test:watch": "vitest test --watch",
 		"format": "biome format --write .",
-		"format:check": "biome format ."
+		"format:check": "biome format .",
+		"test": "vitest",
+		"test:watch": "vitest watch"
 	},
 	"homepage": "https://github.com/buenos-nachos/time-sync",
 	"author": "Michael Smith <contact@nachos.dev> (https://nachos.dev)",
