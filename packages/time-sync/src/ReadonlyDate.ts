@@ -8,7 +8,7 @@
  * intercepted all methods prefixed with `set` and turned them into no-ops.
  *
  * That got really close to working, but then development ran into a critical
- * limitiation of the Proxy API. Basically, if the readonly date is defined with
+ * limitation of the Proxy API. Basically, if the readonly date is defined with
  * a proxy, and you try to call Date.prototype.toISOString.call(readonlyDate),
  * that immediately blows up because the proxy itself is treated as the receiver
  * instead of the underlying native date.

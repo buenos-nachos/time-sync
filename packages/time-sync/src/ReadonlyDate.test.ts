@@ -136,7 +136,7 @@ describe(ReadonlyDate, () => {
 		expect(converted).not.toBeInstanceOf(ReadonlyDate);
 	});
 
-	it("Throws when provided invalid input (instead of failing siliently like with native dates)", ({
+	it("Throws when provided invalid input (instead of failing silently like with native dates)", ({
 		expect,
 	}) => {
 		const invalidDate = new Date(NaN);
