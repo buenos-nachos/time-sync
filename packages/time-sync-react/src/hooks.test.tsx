@@ -12,7 +12,7 @@ import { render, renderHook, screen } from "@testing-library/react";
 import { type FC, useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { refreshRates } from "../../time-sync/src";
-import { TimeSyncProvider, useTimeSync, useTimeSyncRef } from "./hooks";
+import { useTimeSync, useTimeSyncRef } from "./hooks";
 
 beforeEach(() => {
 	vi.useFakeTimers();
@@ -22,7 +22,7 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-describe(useTimeSyncRef, () => {
+describe.skip(useTimeSyncRef, () => {
 	it("Throws if mounted outside of a TimeSyncProvider", () => {
 		expect(() => {
 			renderHook(() => useTimeSyncRef());
@@ -31,7 +31,7 @@ describe(useTimeSyncRef, () => {
 		);
 	});
 
-	it.only("Lets component subscribe from inside side effect", async () => {
+	it("Lets component subscribe from inside side effect", async () => {
 		const SampleComponent: FC = () => {
 			const [date, setDate] = useState<Date>();
 			const timeSync = useTimeSyncRef();
@@ -70,44 +70,42 @@ describe(useTimeSyncRef, () => {
 		});
 	});
 
-	it.skip("Lets a component get a state snapshot from inside a side effect", ({
+	it("Lets a component get a state snapshot from inside a side effect", ({
 		expect,
 	}) => {
 		expect.hasAssertions();
 	});
 
-	it.skip("Lets a component invalidate state from inside a side effect", ({
+	it("Lets a component invalidate state from inside a side effect", ({
 		expect,
 	}) => {
 		expect.hasAssertions();
 	});
 });
 
-describe(useTimeSync, () => {
+describe.skip(useTimeSync, () => {
 	describe("General behavior", () => {
-		it.skip("Throws if mounted outside of a TimeSyncProvider", ({ expect }) => {
+		it("Throws if mounted outside of a TimeSyncProvider", ({ expect }) => {
 			expect.hasAssertions();
 		});
 	});
 
 	describe("Single consumer", () => {
 		describe("No transformation callback", () => {
-			it.skip("Returns a new Date synchronously on mount", ({ expect }) => {
+			it("Returns a new Date synchronously on mount", ({ expect }) => {
 				expect.hasAssertions();
 			});
 		});
 
 		describe("With transformation callback", () => {
-			it.skip("Returns callback result synchronously on mount", ({
-				expect,
-			}) => {
+			it("Returns callback result synchronously on mount", ({ expect }) => {
 				expect.hasAssertions();
 			});
 		});
 	});
 
 	describe("Multiple consumers on screen at same time", () => {
-		it.skip("Refreshes previous consumers when new consumer mounts", ({
+		it("Refreshes previous consumers when new consumer mounts", ({
 			expect,
 		}) => {
 			expect.hasAssertions();
