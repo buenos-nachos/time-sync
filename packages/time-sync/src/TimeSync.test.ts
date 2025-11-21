@@ -15,21 +15,15 @@ const invalidIntervals: readonly number[] = [
 	470.53,
 ];
 
-// For better or worse, this is a personally meaningful date to me
-const defaultDateString = "October 27, 2025";
-
-function initializeTime(dateString: string = defaultDateString): ReadonlyDate {
+function setInitialTime(dateString: string): ReadonlyDate {
 	const sourceDate = new ReadonlyDate(dateString);
 	vi.setSystemTime(sourceDate);
 	return sourceDate;
 }
 
 beforeEach(() => {
-	/**
-	 * @todo 2025-11-17 - Once the tests are working, look into whether using
-	 * the `now` property could help clean up some of the setup.
-	 */
-	vi.useFakeTimers();
+	// Date doesn't actually matter. Just choosing a personally meaningful one
+	vi.useFakeTimers({ now: new Date("October 27, 2025") });
 });
 
 afterEach(() => {
@@ -96,7 +90,7 @@ describe(TimeSync, () => {
 		it("Never auto-updates state while there are zero subscribers", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
+			const initialDate = setInitialTime("November 5, 2025");
 			const sync = new TimeSync({ initialDate });
 			const initialSnap = sync.getStateSnapshot().date;
 			expect(initialSnap).toEqual(initialDate);
@@ -119,8 +113,7 @@ describe(TimeSync, () => {
 			for (const rate of rates) {
 				// Duplicating all of these calls per iteration to maximize
 				// test isolation
-				const initialDate = initializeTime();
-				const sync = new TimeSync({ initialDate });
+				const sync = new TimeSync();
 				const onUpdate = vi.fn();
 
 				void sync.subscribe({
@@ -159,8 +152,7 @@ describe(TimeSync, () => {
 		});
 
 		it("Lets multiple subscribers subscribe to updates", ({ expect }) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 			const dummyOnUpdate = vi.fn();
 
 			void sync.subscribe({
@@ -180,8 +172,7 @@ describe(TimeSync, () => {
 			expect,
 		}) => {
 			const testCount = 10;
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 
 			// We use .every later in the test, and it automatically skips over
 			// elements that haven't been explicitly initialized with a value
@@ -204,8 +195,7 @@ describe(TimeSync, () => {
 		it("Dispatches updates to all subscribers based on fastest interval specified", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 
 			const hourOnUpdate = vi.fn();
 			void sync.subscribe({
@@ -234,8 +224,7 @@ describe(TimeSync, () => {
 		it("Calls onUpdate callback one time total if callback is registered multiple times for the same time interval", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 			const sharedOnUpdate = vi.fn();
 
 			for (let i = 1; i <= 3; i++) {
@@ -252,8 +241,7 @@ describe(TimeSync, () => {
 		it("Calls onUpdate callback one time total if callback is registered multiple times for different time intervals", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 			const sharedOnUpdate = vi.fn();
 
 			void sync.subscribe({
@@ -279,8 +267,7 @@ describe(TimeSync, () => {
 		it("Calls onUpdate callback one time total if callback is registered multiple times with a mix of redundant/different intervals", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 			const sharedOnUpdate = vi.fn();
 
 			for (let i = 0; i < 10; i++) {
@@ -304,9 +291,7 @@ describe(TimeSync, () => {
 		});
 
 		it("Lets an external system unsubscribe", async ({ expect }) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
-
+			const sync = new TimeSync();
 			const onUpdate = vi.fn();
 			const unsub = sync.subscribe({
 				onUpdate,
@@ -321,9 +306,7 @@ describe(TimeSync, () => {
 		it("Turns unsubscribe callback into no-op if called more than once", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
-
+			const sync = new TimeSync();
 			const onUpdate = vi.fn();
 			const unsub = sync.subscribe({
 				onUpdate,
@@ -352,8 +335,7 @@ describe(TimeSync, () => {
 		it("Does not fully remove an onUpdate callback if multiple systems use it to subscribe, and only one system unsubscribes", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 			const sharedOnUpdate = vi.fn();
 
 			for (let i = 0; i < 10; i++) {
@@ -390,9 +372,7 @@ describe(TimeSync, () => {
 		it("Speeds up interval when new subscriber is added that is faster than all other subscribers", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
-
+			const sync = new TimeSync();
 			const onUpdate1 = vi.fn();
 			void sync.subscribe({
 				onUpdate: onUpdate1,
@@ -424,9 +404,7 @@ describe(TimeSync, () => {
 		it("Slows updates down to the second-fastest interval when the all subscribers for the fastest interval unsubscribe", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
-
+			const sync = new TimeSync();
 			const onUpdate1 = vi.fn();
 			const unsub1 = sync.subscribe({
 				onUpdate: onUpdate1,
@@ -484,9 +462,7 @@ describe(TimeSync, () => {
 		it("Does not completely start next interval over from scratch if fastest subscription is removed halfway through update", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
-
+			const sync = new TimeSync();
 			const onUpdate1 = vi.fn();
 			const unsub1 = sync.subscribe({
 				onUpdate: onUpdate1,
@@ -519,9 +495,7 @@ describe(TimeSync, () => {
 		it("Immediately notifies subscribers if new refresh interval is added that is less than or equal to the time since the last update", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
-
+			const sync = new TimeSync();
 			const onUpdate1 = vi.fn();
 			void sync.subscribe({
 				onUpdate: onUpdate1,
@@ -542,9 +516,7 @@ describe(TimeSync, () => {
 		it("Does not ever dispatch updates if all subscribers specify an update interval of positive infinity", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
-
+			const sync = new TimeSync();
 			const sharedOnUpdate = vi.fn();
 			for (let i = 0; i < 100; i++) {
 				void sync.subscribe({
@@ -572,9 +544,7 @@ describe(TimeSync, () => {
 		it("Rounds up target intervals to custom min interval", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
 			const sync = new TimeSync({
-				initialDate,
 				minimumRefreshIntervalMs: refreshRates.oneHour,
 			});
 
@@ -612,9 +582,7 @@ describe(TimeSync, () => {
 
 	describe("Subscriptions: duplicating function calls", () => {
 		it("Defaults to de-duplicating", async ({ expect }) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
-
+			const sync = new TimeSync();
 			const sharedOnUpdate = vi.fn();
 			for (let i = 0; i < 100; i++) {
 				void sync.subscribe({
@@ -628,9 +596,7 @@ describe(TimeSync, () => {
 		});
 
 		it("Lets user turn on duplication", async ({ expect }) => {
-			const initialDate = initializeTime();
 			const sync = new TimeSync({
-				initialDate,
 				allowDuplicateOnUpdateCalls: true,
 			});
 
@@ -651,7 +617,7 @@ describe(TimeSync, () => {
 		it("Lets external system pull snapshot without subscribing", ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
+			const initialDate = setInitialTime("July 4, 1999");
 			const minimumRefreshIntervalMs = 5_000_000;
 			const sync = new TimeSync({ initialDate, minimumRefreshIntervalMs });
 
@@ -667,7 +633,7 @@ describe(TimeSync, () => {
 		});
 
 		it("Reflects custom initial date if provided", ({ expect }) => {
-			void initializeTime();
+			void setInitialTime("June 8, 1900");
 			const override = new Date("April 1, 1000");
 			const sync = new TimeSync({ initialDate: override });
 
@@ -704,8 +670,7 @@ describe(TimeSync, () => {
 		it("Does not mutate old snapshots when a new update is queued for subscribers", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 			const initialSnap = sync.getStateSnapshot();
 
 			const onUpdate = vi.fn();
@@ -868,8 +833,7 @@ describe(TimeSync, () => {
 
 			// Go from fresh instance to first subscriber
 			for (const i of intervals) {
-				const initialDate = initializeTime();
-				const sync = new TimeSync({ initialDate });
+				const sync = new TimeSync();
 				const initialSnap = sync.getStateSnapshot().date;
 
 				await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
@@ -901,8 +865,7 @@ describe(TimeSync, () => {
 			];
 
 			for (const i of intervals) {
-				const initialDate = initializeTime();
-				const sync = new TimeSync({ initialDate });
+				const sync = new TimeSync();
 
 				// Set up subscription and then immediately revoke it
 				const unsub = sync.subscribe({
@@ -931,9 +894,7 @@ describe(TimeSync, () => {
 
 	describe("Invalidating state", () => {
 		it("Defaults to always changing snapshots", ({ expect }) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
-
+			const sync = new TimeSync();
 			const onUpdate = vi.fn();
 			void sync.subscribe({
 				onUpdate,
@@ -948,9 +909,7 @@ describe(TimeSync, () => {
 		it("Accepts custom staleness threshold for onChange behavior", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
-
+			const sync = new TimeSync();
 			const onUpdate = vi.fn();
 			void sync.subscribe({
 				onUpdate,
@@ -970,9 +929,7 @@ describe(TimeSync, () => {
 		it("Only triggers onChange behavior if threshold has been exceeded", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
-
+			const sync = new TimeSync();
 			const onUpdate = vi.fn();
 			void sync.subscribe({
 				onUpdate,
@@ -996,8 +953,7 @@ describe(TimeSync, () => {
 		});
 
 		it("Defaults to staleness threshold of 0", async ({ expect }) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 			const initialSnap = sync.getStateSnapshot();
 
 			// Advance timers to guarantee that there will be some kind of
@@ -1011,8 +967,7 @@ describe(TimeSync, () => {
 		it("Throws when provided a staleness threshold that is neither a positive integer nor zero", ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 
 			const intervals: readonly number[] = [
 				Number.NaN,
@@ -1036,9 +991,6 @@ describe(TimeSync, () => {
 		it("Throws if notification behavior provided at runtime is not supported", ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
-
 			const junkValues = [
 				"blah",
 				"guh",
@@ -1049,6 +1001,8 @@ describe(TimeSync, () => {
 				"NEVER",
 				" never ",
 			] as unknown as readonly NotificationBehavior[];
+
+			const sync = new TimeSync();
 			for (const jv of junkValues) {
 				expect(() => {
 					void sync.invalidateState({ notificationBehavior: jv });
@@ -1065,8 +1019,7 @@ describe(TimeSync, () => {
 		it("Supports invalidating state without notifying anything", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 			const initialSnap = sync.getStateSnapshot();
 
 			const onUpdate = vi.fn();
@@ -1086,8 +1039,7 @@ describe(TimeSync, () => {
 		it("Will never notify if notifications are disabled every time", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 			const initialSnap = sync.getStateSnapshot();
 
 			const onUpdate = vi.fn();
@@ -1112,9 +1064,7 @@ describe(TimeSync, () => {
 		it("Always dispatches if onChange is used after never", async ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
-
+			const sync = new TimeSync();
 			const onUpdate = vi.fn();
 			void sync.subscribe({
 				onUpdate,
@@ -1134,8 +1084,7 @@ describe(TimeSync, () => {
 		it("Can force-notify subscribers, even if state did not change", ({
 			expect,
 		}) => {
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 			const initialSnap = sync.getStateSnapshot();
 
 			let ejectedDate: Date | undefined;
@@ -1161,8 +1110,7 @@ describe(TimeSync, () => {
 		it("Clears active interval", async ({ expect }) => {
 			const setSpy = vi.spyOn(globalThis, "setInterval");
 			const clearSpy = vi.spyOn(globalThis, "clearInterval");
-			const initialDate = initializeTime();
-			const sync = new TimeSync({ initialDate });
+			const sync = new TimeSync();
 
 			const onUpdate = vi.fn();
 			void sync.subscribe({
