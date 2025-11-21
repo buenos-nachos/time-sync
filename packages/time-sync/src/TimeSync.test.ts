@@ -539,6 +539,33 @@ describe(TimeSync, () => {
 				expect(sharedOnUpdate).not.toHaveBeenCalled();
 			}
 		});
+
+		it("Auto-updates date snapshot if new active subscriber gets added while previous subscribers were all idle", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+			const dummyOnUpdate = vi.fn();
+
+			for (let i = 0; i < 100; i++) {
+				void sync.subscribe({
+					onUpdate: dummyOnUpdate,
+					targetRefreshIntervalMs: refreshRates.idle,
+				});
+			}
+			expect(dummyOnUpdate).not.toHaveBeenCalled();
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
+			expect(dummyOnUpdate).not.toHaveBeenCalled();
+
+			const dateBefore = sync.getStateSnapshot().date;
+			void sync.subscribe({
+				onUpdate: dummyOnUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			const dateAfter = sync.getStateSnapshot().date;
+			expect(dateAfter).not.toEqual(dateBefore);
+		});
 	});
 
 	describe("Subscriptions: custom `minimumRefreshIntervalMs` value", () => {
