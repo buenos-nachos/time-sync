@@ -40,13 +40,15 @@
 			"correctness": {
 				"recommended": true,
 				"noUnusedImports": "error",
-				"noConstantCondition": "error",
-				"noConstantMathMinMaxClamp": "error",
-				"noNestedComponentDefinitions": "error",
-				"noUnusedVariables": "error"
+				"noUnusedVariables": "error",
+				"noNodejsModules": "error",
+				"noUnusedPrivateClassMembers": "error"
 			},
 			"style": {
 				"recommended": true,
+				"noNegationElse": "warn",
+				"noNestedTernary": "warn",
+
 				"noDefaultExport": "error",
 				"noEnum": "error",
 				"noNonNullAssertion": "error",
@@ -55,10 +57,27 @@
 				"useNumericSeparators": "error",
 				"useSingleVarDeclarator": "error",
 				"noParameterAssign": "error",
-				"noNegationElse": "warn",
 				"noSubstr": "error",
 				"noShoutyConstants": "error",
-				"noUnusedTemplateLiteral": "error"
+				"noUnusedTemplateLiteral": "error",
+				"noYodaExpression": "error",
+				"useShorthandFunctionType": "error",
+				"useAtIndex": "error",
+				"useDefaultParameterLast": "error",
+				"useDeprecatedReason": "error",
+				"useExplicitLengthCheck": "error",
+				"useNumberNamespace": "error",
+				"useObjectSpread": "error",
+				"useThrowNewError": "error",
+				"useThrowOnlyError": "error",
+				"useForOf": "error",
+
+				"useConsistentArrayType": {
+					"level": "error",
+					"options": {
+						"syntax": "shorthand"
+					}
+				}
 			},
 			"suspicious": {
 				"recommended": true,
