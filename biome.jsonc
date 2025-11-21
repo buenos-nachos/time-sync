@@ -56,7 +56,8 @@
 			"suspicious": {
 				"recommended": true,
 				"noSkippedTests": "error",
-				"noFocusedTests": "error"
+				"noFocusedTests": "error",
+				"noConsole": "error"
 			}
 		}
 	},
