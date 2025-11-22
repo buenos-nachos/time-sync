@@ -24,6 +24,8 @@ importers:
         specifier: 4.0.8
         version: 4.0.8(@types/node@24.10.0)(happy-dom@20.0.10)(jsdom@27.2.0)
 
+  packages/time-sync: {}
+
 packages:
 
   '@acemir/cssom@0.9.23':
