@@ -6,11 +6,7 @@
 	"license": "AGPL-3.0-only",
 	"author": "Michael Smith <contact@nachos.dev> (https://www.nachos.dev)",
 	"description": "Library for exposing time values as reactive, dependency-injectable state",
-	"keywords": [
-		"typescript",
-		"utility",
-		"ui"
-	],
+	"keywords": ["typescript", "utility", "ui"],
 	"main": "index.js",
 	"sideEffects": false
 }
