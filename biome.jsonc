@@ -72,6 +72,16 @@
 				"useThrowNewError": "error",
 				"useThrowOnlyError": "error",
 				"useForOf": "error",
+				"noParameterProperties": "error",
+				"useGroupedAccessorPairs": "error",
+				"useReadonlyClassProperties": "error",
+
+				"useConsistentMemberAccessibility": {
+					"level": "error",
+					"options": {
+						"accessibility": "noPublic"
+					}
+				},
 
 				"useConsistentArrayType": {
 					"level": "error",

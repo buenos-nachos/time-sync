@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import { ReadonlyDate } from "./ReadonlyDate";
 import {
-	type ConfigurationOptions,
+	type Configuration,
 	type NotificationBehavior,
 	refreshRates,
 	type Snapshot,
@@ -809,7 +809,7 @@ describe(TimeSync, () => {
 			// We have readonly modifiers on the types, but we need to make sure
 			// nothing can break at runtime
 			const snap = sync.getStateSnapshot() as Writeable<Snapshot>;
-			const config = snap.config as Writeable<ConfigurationOptions>;
+			const config = snap.config as Writeable<Configuration>;
 			const copyBeforeMutations = { ...snap, config: { ...config } };
 
 			const mutationSnap: Snapshot = {
