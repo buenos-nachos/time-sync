@@ -191,21 +191,22 @@ interface TimeSyncApi {
 	 * @throws {RangeError} If the provided interval for the
 	 * `stalenessThresholdMs` property is neither a positive integer nor
 	 * positive infinity.
-	 * @returns The latest date state snapshot right after invalidation. Note
-	 * that this snapshot might be the same as before.
+	 * @returns The latest date state right after invalidation. Note that this
+	 * snapshot might be the same as before.
 	 */
-	invalidateState: (options: InvalidateStateOptions) => Snapshot;
+	refreshDate: (options: InvalidateStateOptions) => ReadonlyDate;
 
 	/**
-	 * Resets all internal state in the TimeSync, and handles all cleanup
-	 * processes. Configuration values are retained.
+	 * Resets all internal state in the TimeSync, and handles all cleanup for
+	 * subscriptions and intervals previously set up. Configuration values are
+	 * retained.
 	 *
 	 * This method can be used as a dispose method for a locally-scoped
 	 * TimeSync (a reset TimeSync is safe to garbage-collect without any risks
 	 * of memory leaks). It can also be used to reset a global TimeSync to its
 	 * initial state for certain testing setups.
 	 */
-	resetState: () => void;
+	resetAll: () => void;
 }
 
 type SubscriptionEntry = Readonly<{
@@ -599,7 +600,7 @@ export class TimeSync implements TimeSyncApi {
 		return this.#latestSnapshot;
 	}
 
-	invalidateState(options?: InvalidateStateOptions): Snapshot {
+	refreshDate(options?: InvalidateStateOptions): ReadonlyDate {
 		const { stalenessThresholdMs = 0, notificationBehavior = "onChange" } =
 			options ?? {};
 
@@ -618,7 +619,7 @@ export class TimeSync implements TimeSyncApi {
 
 		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
-			return this.#latestSnapshot;
+			return this.#latestSnapshot.date;
 		}
 
 		const { wasChanged, dateBeforeUpdate } = this.#updateDate();
@@ -641,10 +642,10 @@ export class TimeSync implements TimeSyncApi {
 			}
 		}
 
-		return this.#latestSnapshot;
+		return this.#latestSnapshot.date;
 	}
 
-	resetState(): void {
+	resetAll(): void {
 		clearInterval(this.#intervalId);
 		this.#intervalId = undefined;
 		this.#fastestRefreshInterval = 0;
