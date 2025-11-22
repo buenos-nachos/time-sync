@@ -1,5 +1,5 @@
 {
-	"name": "time-sync",
+	"name": "@buenos-nachos/time-sync",
 	"type": "module",
 	"version": "0.1.0",
 	"packageManager": "pnpm@10.17.0",
