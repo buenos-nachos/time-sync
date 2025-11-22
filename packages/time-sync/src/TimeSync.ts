@@ -203,6 +203,8 @@ type UpdateDateResult = Readonly<{
 	dateBeforeUpdate: ReadonlyDate;
 }>;
 
+/* biome-ignore lint:suspicious/noEmptyBlockStatements -- Need this function to
+   have no logic at runtime. It needs to be empty – by design. */
 function noOp(..._: readonly unknown[]): void {}
 
 const defaultMinimumRefreshIntervalMs = 200;

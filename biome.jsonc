@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.3.4/schema.json",
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
@@ -38,26 +38,67 @@
 			"recommended": true,
 			"a11y": "error",
 			"correctness": {
+				"recommended": true,
 				"noUnusedImports": "error",
-				"noConstantCondition": "error",
-				"noConstantMathMinMaxClamp": "error",
-				"noNestedComponentDefinitions": "error",
-				"noUnusedVariables": "error"
+				"noUnusedVariables": "error",
+				"noNodejsModules": "error",
+				"noUnusedPrivateClassMembers": "error"
 			},
 			"style": {
+				"recommended": true,
+				"noNegationElse": "warn",
+				"noNestedTernary": "warn",
+
 				"noDefaultExport": "error",
 				"noEnum": "error",
 				"noNonNullAssertion": "error",
 				"useConst": "error",
 				"useConsistentCurlyBraces": "error",
 				"useNumericSeparators": "error",
-				"useSingleVarDeclarator": "error"
+				"useSingleVarDeclarator": "error",
+				"noParameterAssign": "error",
+				"noSubstr": "error",
+				"noShoutyConstants": "error",
+				"noUnusedTemplateLiteral": "error",
+				"noYodaExpression": "error",
+				"useShorthandFunctionType": "error",
+				"useAtIndex": "error",
+				"useDefaultParameterLast": "error",
+				"useDeprecatedReason": "error",
+				"useExplicitLengthCheck": "error",
+				"useNumberNamespace": "error",
+				"useObjectSpread": "error",
+				"useThrowNewError": "error",
+				"useThrowOnlyError": "error",
+				"useForOf": "error",
+
+				"useConsistentArrayType": {
+					"level": "error",
+					"options": {
+						"syntax": "shorthand"
+					}
+				}
 			},
 			"suspicious": {
 				"recommended": true,
+				"useGuardForIn": "warn",
+
 				"noSkippedTests": "error",
 				"noFocusedTests": "error",
-				"noConsole": "error"
+				"noConsole": "error",
+				"noAlert": "error",
+				"noApproximativeNumericConstant": "error",
+				"noExplicitAny": "error",
+				"noConstEnum": "error",
+				"noEmptyBlockStatements": "error",
+				"noEvolvingTypes": "error",
+				"noGlobalIsFinite": "error",
+				"noTsIgnore": "error",
+				"noUnassignedVariables": "error",
+				"noVar": "error",
+				"useErrorMessage": "error",
+				"useIsArray": "error",
+				"useNumberToFixedDigitsArgument": "error"
 			}
 		}
 	},

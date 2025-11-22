@@ -11,9 +11,9 @@
 	},
 	"scripts": {
 		"format": "biome format --write .",
-		"format:check": "biome format .",
 		"test": "vitest",
-		"test:watch": "vitest watch"
+		"test:watch": "vitest watch",
+		"validate:ci": "biome check --error-on-warnings ."
 	},
 	"homepage": "https://github.com/buenos-nachos/time-sync",
 	"author": "Michael Smith <contact@nachos.dev> (https://nachos.dev)",

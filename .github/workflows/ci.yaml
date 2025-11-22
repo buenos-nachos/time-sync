@@ -10,8 +10,9 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  lint:
-    name: Lint Code
+  nit:
+    # Lints, formats, checks for typos, and checks import sorting
+    name: Nit Code
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -31,7 +32,7 @@ jobs:
         run: pnpm i
 
       - name: Lint source code
-        run: pnpm run format:check
+        run: pnpm run validate:ci
 
       - name: Check for typos
         uses: crate-ci/typos@v1.39.2
