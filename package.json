@@ -17,7 +17,7 @@
 		"check:lint": "biome check --error-on-warnings .",
 		"check:types": "tsc --noEmit",
 		"format": "biome format --write .",
-		"test": "vitest",
+		"test": "vitest run",
 		"test:watch": "vitest watch"
 	},
 	"homepage": "https://www.github.com/buenos-nachos/time-sync",
