@@ -139,7 +139,7 @@ describe(ReadonlyDate, () => {
 	it("Throws when provided invalid input (instead of failing silently like with native dates)", ({
 		expect,
 	}) => {
-		const invalidDate = new Date(NaN);
+		const invalidDate = new Date(Number.NaN);
 		expect(() => new ReadonlyDate(invalidDate)).toThrow(
 			RangeError("Cannot instantiate ReadonlyDate via invalid date object"),
 		);
@@ -148,7 +148,7 @@ describe(ReadonlyDate, () => {
 		// constructor type signature will let you know when you got something
 		// wrong
 		const invalidNums: readonly number[] = [
-			NaN,
+			Number.NaN,
 			Number.NEGATIVE_INFINITY,
 			-Number.NEGATIVE_INFINITY,
 		];
