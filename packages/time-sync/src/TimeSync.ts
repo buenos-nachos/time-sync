@@ -122,7 +122,7 @@ export type NotificationBehavior = (typeof notificationBehaviors)[number];
  * Options for customizing the behavior of a TimeSync instance's invalidateState
  * method.
  */
-export type InvalidateStateOptions = Readonly<{
+export type RefreshDateOptions = Readonly<{
 	/**
 	 * The amount of time (in milliseconds) that you can tolerate stale dates.
 	 * If the time since the last subscription dispatch and the current time
@@ -194,7 +194,7 @@ interface TimeSyncApi {
 	 * @returns The latest date state right after invalidation. Note that this
 	 * snapshot might be the same as before.
 	 */
-	refreshDate: (options: InvalidateStateOptions) => ReadonlyDate;
+	refreshDate: (options: RefreshDateOptions) => ReadonlyDate;
 
 	/**
 	 * Resets all internal state in the TimeSync, and handles all cleanup for
@@ -600,7 +600,7 @@ export class TimeSync implements TimeSyncApi {
 		return this.#latestSnapshot;
 	}
 
-	refreshDate(options?: InvalidateStateOptions): ReadonlyDate {
+	refreshDate(options?: RefreshDateOptions): ReadonlyDate {
 		const { stalenessThresholdMs = 0, notificationBehavior = "onChange" } =
 			options ?? {};
 
