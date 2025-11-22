@@ -26,7 +26,7 @@ export const refreshRates = Object.freeze({
 /**
  * The set of readonly options that the TimeSync has been configured with.
  */
-export type ConfigurationOptions = Readonly<{
+export type Configuration = Readonly<{
 	/**
 	 * Defaults to false. Indicates whether the TimeSync instance should be
 	 * frozen for Snapshot tests. Highly encouraged that you use this together
@@ -60,10 +60,10 @@ export type ConfigurationOptions = Readonly<{
  * The set of options that can be used to instantiate a TimeSync.
  */
 export type InitOptions = Readonly<
-	ConfigurationOptions & {
+	Configuration & {
 		/**
-		 * The Date object to use when initializing TimeSync to make the constructor
-		 * more pure and deterministic.
+		 * The Date object to use when initializing TimeSync to make the
+		 * constructor more pure and deterministic.
 		 */
 		initialDate: Date;
 	}
@@ -72,8 +72,11 @@ export type InitOptions = Readonly<
 /**
  * The callback to call when a new state update is ready to be dispatched.
  */
-type OnTimeSyncUpdate = (snapshot: ReadonlyDate) => void;
+type OnTimeSyncUpdate = (dateSnapshot: ReadonlyDate) => void;
 
+/**
+ * An object used to initialize a new subscription for TimeSync.
+ */
 export type SubscriptionHandshake = Readonly<{
 	/**
 	 * The maximum update interval that a subscriber needs. A value of
@@ -109,8 +112,16 @@ const notificationBehaviors = [
 	"always",
 ] as const satisfies readonly string[];
 
+/**
+ * The behavior that you tell TimeSync to use when invalidating its internal
+ * state.
+ */
 export type NotificationBehavior = (typeof notificationBehaviors)[number];
 
+/**
+ * Options for customizing the behavior of a TimeSync instance's invalidateState
+ * method.
+ */
 export type InvalidateStateOptions = Readonly<{
 	/**
 	 * The amount of time (in milliseconds) that you can tolerate stale dates.
@@ -146,7 +157,7 @@ export type Snapshot = Readonly<{
 	date: ReadonlyDate;
 	subscriberCount: number;
 	isDisposed: boolean;
-	config: ConfigurationOptions;
+	config: Configuration;
 }>;
 
 interface TimeSyncApi {
@@ -203,8 +214,8 @@ type UpdateDateResult = Readonly<{
 	dateBeforeUpdate: ReadonlyDate;
 }>;
 
-/* biome-ignore lint:suspicious/noEmptyBlockStatements -- Need this function to
-   have no logic at runtime. It needs to be empty – by design. */
+/* biome-ignore lint:suspicious/noEmptyBlockStatements -- Rare case where we do
+   actually want a completely empty function body. */
 function noOp(..._: readonly unknown[]): void {}
 
 const defaultMinimumRefreshIntervalMs = 200;
@@ -244,17 +255,6 @@ const defaultMinimumRefreshIntervalMs = 200;
  * some parts of the screen.)
  */
 export class TimeSync implements TimeSyncApi {
-	#latestSnapshot: Snapshot;
-
-	/**
-	 * Indicates when the last successful state update dispatch was. Can be used
-	 * to track whether there has been a de-sync from invalidating the state.
-	 *
-	 * Once this value has transitioned from null to a date, there should be no
-	 * way for it to transition back to null.
-	 */
-	#lastDispatchDate: ReadonlyDate | null;
-
 	/**
 	 * Stores all refresh intervals actively associated with an onUpdate
 	 * callback (along with their associated unsubscribe callbacks).
@@ -268,7 +268,22 @@ export class TimeSync implements TimeSyncApi {
 	 * Each map value should stay sorted by refresh interval, in ascending
 	 * order.
 	 */
-	#subscriptions: Map<OnTimeSyncUpdate, SubscriptionEntry[]>;
+	readonly #subscriptions: Map<OnTimeSyncUpdate, SubscriptionEntry[]>;
+
+	/**
+	 * The latest public snapshot of TimeSync's internal state. The snapshot
+	 * should always be treated as an immutable value.
+	 */
+	#latestSnapshot: Snapshot;
+
+	/**
+	 * Indicates when the last successful state update dispatch was. Can be used
+	 * to track whether there has been a de-sync from invalidating the state.
+	 *
+	 * Once this value has transitioned from null to a date, there should be no
+	 * way for it to transition back to null.
+	 */
+	#lastDispatchDate: ReadonlyDate | null;
 
 	/**
 	 * A cached version of the fastest interval currently registered with
@@ -366,7 +381,7 @@ export class TimeSync implements TimeSyncApi {
 	 * don't have many situations where we can lose the `this` context, but this
 	 * is one of them.
 	 */
-	#onTick = (): void => {
+	readonly #onTick = (): void => {
 		const { isDisposed, config } = this.#latestSnapshot;
 		if (isDisposed || config.freezeUpdates) {
 			// Defensive step to make sure that an invalid tick wasn't started
