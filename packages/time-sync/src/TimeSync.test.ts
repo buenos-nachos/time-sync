@@ -652,7 +652,6 @@ describe(TimeSync, () => {
 			const snap = sync.getStateSnapshot();
 			expect(snap).toEqual<Snapshot>({
 				date: initialDate,
-				isDisposed: false,
 				subscriberCount: 0,
 				config: {
 					freezeUpdates: false,
@@ -782,16 +781,6 @@ describe(TimeSync, () => {
 			expect(frozenSnap.config.freezeUpdates).toBe(true);
 		});
 
-		it("Indicates disposed status", ({ expect }) => {
-			const sync = new TimeSync();
-			const oldSnap = sync.getStateSnapshot();
-			expect(oldSnap.isDisposed).toBe(false);
-
-			sync.dispose();
-			const newSnap = sync.getStateSnapshot();
-			expect(newSnap.isDisposed).toBe(true);
-		});
-
 		it("Indicates deduplicated functions status", ({ expect }) => {
 			const normalSync = new TimeSync({ allowDuplicateOnUpdateCalls: false });
 			const normalSnap = normalSync.getStateSnapshot();
@@ -814,7 +803,6 @@ describe(TimeSync, () => {
 
 			const mutationSnap: Snapshot = {
 				date: new ReadonlyDate("April 1, 1970"),
-				isDisposed: true,
 				subscriberCount: Number.POSITIVE_INFINITY,
 				config: {
 					freezeUpdates: true,
@@ -826,9 +814,6 @@ describe(TimeSync, () => {
 			const mutations: readonly (() => void)[] = [
 				() => {
 					snap.date = mutationSnap.date;
-				},
-				() => {
-					snap.isDisposed = mutationSnap.isDisposed;
 				},
 				() => {
 					config.freezeUpdates = mutationSnap.config.freezeUpdates;
@@ -1117,7 +1102,7 @@ describe(TimeSync, () => {
 		});
 	});
 
-	describe("Disposing of a TimeSync instance", () => {
+	describe("Resetting a TimeSync instance", () => {
 		it("Clears active interval", async ({ expect }) => {
 			const setSpy = vi.spyOn(globalThis, "setInterval");
 			const clearSpy = vi.spyOn(globalThis, "clearInterval");
@@ -1137,7 +1122,7 @@ describe(TimeSync, () => {
 			// the number of set calls hasn't changed from before the disposal
 			// step, we're good
 			expect(setSpy).toHaveBeenCalledTimes(1);
-			sync.dispose();
+			sync.resetState();
 			expect(clearSpy).toHaveBeenCalled();
 			expect(setSpy).toHaveBeenCalledTimes(1);
 
@@ -1159,35 +1144,12 @@ describe(TimeSync, () => {
 			const oldSnap = sync.getStateSnapshot();
 			expect(oldSnap.subscriberCount).toBe(100);
 
-			sync.dispose();
+			sync.resetState();
 			const newSnap = sync.getStateSnapshot();
-			expect(newSnap.isDisposed).toBe(true);
 			expect(newSnap.subscriberCount).toBe(0);
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			expect(sharedOnUpdate).not.toHaveBeenCalled();
-		});
-
-		it("Turns future subscriptions into no-ops", async ({ expect }) => {
-			const sync = new TimeSync();
-			sync.dispose();
-
-			const onUpdate = vi.fn();
-			const unsub = sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneMinute,
-			});
-
-			const snap1 = sync.getStateSnapshot();
-			expect(snap1.subscriberCount).toBe(0);
-
-			await vi.advanceTimersByTimeAsync(2 * refreshRates.oneMinute);
-			expect(onUpdate).not.toHaveBeenCalled();
-
-			// Doing unsub assertion just to be extra safe
-			unsub();
-			const snap2 = sync.getStateSnapshot();
-			expect(snap2.subscriberCount).toBe(0);
 		});
 	});
 

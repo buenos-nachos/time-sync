@@ -156,7 +156,6 @@ export type InvalidateStateOptions = Readonly<{
 export type Snapshot = Readonly<{
 	date: ReadonlyDate;
 	subscriberCount: number;
-	isDisposed: boolean;
 	config: Configuration;
 }>;
 
@@ -198,10 +197,15 @@ interface TimeSyncApi {
 	invalidateState: (options: InvalidateStateOptions) => Snapshot;
 
 	/**
-	 * Cleans up the TimeSync instance and renders it inert for all other
-	 * operations.
+	 * Resets all internal state in the TimeSync, and handles all cleanup
+	 * processes. Configuration values are retained.
+	 *
+	 * This method can be used as a dispose method for a locally-scoped
+	 * TimeSync (a reset TimeSync is safe to garbage-collect without any risks
+	 * of memory leaks). It can also be used to reset a global TimeSync to its
+	 * initial state for certain testing setups.
 	 */
-	dispose: () => void;
+	resetState: () => void;
 }
 
 type SubscriptionEntry = Readonly<{
@@ -327,7 +331,6 @@ export class TimeSync implements TimeSyncApi {
 
 		this.#latestSnapshot = Object.freeze({
 			subscriberCount: 0,
-			isDisposed: false,
 			date: initialDate ? new ReadonlyDate(initialDate) : new ReadonlyDate(),
 			config: Object.freeze({
 				freezeUpdates,
@@ -343,21 +346,21 @@ export class TimeSync implements TimeSyncApi {
 		// can't magically change between updates and cause subscribers to
 		// receive different values (e.g., one of the subscribers calls the
 		// invalidate method)
-		const { isDisposed, date, config } = this.#latestSnapshot;
+		const { date, config } = this.#latestSnapshot;
 
 		// We still need to let the logic go through if the current fastest
 		// interval is Infinity, so that we can support letting any arbitrary
 		// consumer invalidate the date immediately
 		const subscriptionsPaused =
-			isDisposed || config.freezeUpdates || this.#subscriptions.size === 0;
+			config.freezeUpdates || this.#subscriptions.size === 0;
 		if (subscriptionsPaused) {
 			return;
 		}
 
 		// While this is a super niche use case, we're actually safe if a
-		// subscriber disposes of the whole TimeSync instance. Once the Map is
-		// cleared, the map's iterator will automatically break the loop. So
-		// there's no risk of continuing to dispatch values after cleanup.
+		// subscriber resets the state of the whole TimeSync instance. Once the
+		// Map is cleared, the map's iterator will automatically break the loop.
+		// So there's no risk of continuing to dispatch values after cleanup.
 		if (config.allowDuplicateOnUpdateCalls) {
 			for (const [onUpdate, subs] of this.#subscriptions) {
 				for (const _ of subs) {
@@ -382,8 +385,8 @@ export class TimeSync implements TimeSyncApi {
 	 * is one of them.
 	 */
 	readonly #onTick = (): void => {
-		const { isDisposed, config } = this.#latestSnapshot;
-		if (isDisposed || config.freezeUpdates) {
+		const { config } = this.#latestSnapshot;
+		if (config.freezeUpdates) {
 			// Defensive step to make sure that an invalid tick wasn't started
 			clearInterval(this.#intervalId);
 			this.#intervalId = undefined;
@@ -405,11 +408,9 @@ export class TimeSync implements TimeSyncApi {
 
 	#onFastestIntervalChange(): void {
 		const fastest = this.#fastestRefreshInterval;
-		const { isDisposed, date, config } = this.#latestSnapshot;
+		const { date, config } = this.#latestSnapshot;
 		const updatesShouldStop =
-			isDisposed ||
-			config.freezeUpdates ||
-			fastest === Number.POSITIVE_INFINITY;
+			config.freezeUpdates || fastest === Number.POSITIVE_INFINITY;
 		if (updatesShouldStop) {
 			clearInterval(this.#intervalId);
 			this.#intervalId = undefined;
@@ -445,7 +446,7 @@ export class TimeSync implements TimeSyncApi {
 			clearInterval(this.#intervalId);
 
 			// Need to set up interval before ticking in the tiny, tiny chance
-			// that ticking would cause the TimeSync instance to be disposed. We
+			// that ticking would cause the TimeSync instance to be reset. We
 			// don't want to start a new interval right after we've lost our
 			// ability to do cleanup. The timer won't start getting processed
 			// until the function leaves scope anyway
@@ -455,8 +456,8 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	#updateFastestInterval(): void {
-		const { isDisposed, config } = this.#latestSnapshot;
-		if (isDisposed || config.freezeUpdates) {
+		const { config } = this.#latestSnapshot;
+		if (config.freezeUpdates) {
 			this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 			return;
 		}
@@ -483,8 +484,8 @@ export class TimeSync implements TimeSyncApi {
 	 * Attempts to update the current Date snapshot.
 	 */
 	#updateDate(): UpdateDateResult {
-		const { isDisposed, config, date: dateBeforeUpdate } = this.#latestSnapshot;
-		if (isDisposed || config.freezeUpdates) {
+		const { config, date: dateBeforeUpdate } = this.#latestSnapshot;
+		if (config.freezeUpdates) {
 			return { dateBeforeUpdate, wasChanged: false };
 		}
 
@@ -497,8 +498,8 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	subscribe(sh: SubscriptionHandshake): () => void {
-		const { isDisposed, config } = this.#latestSnapshot;
-		if (isDisposed || config.freezeUpdates) {
+		const { config } = this.#latestSnapshot;
+		if (config.freezeUpdates) {
 			return noOp;
 		}
 
@@ -615,8 +616,8 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		const { isDisposed, config } = this.#latestSnapshot;
-		if (isDisposed || config.freezeUpdates) {
+		const { config } = this.#latestSnapshot;
+		if (config.freezeUpdates) {
 			return this.#latestSnapshot;
 		}
 
@@ -643,15 +644,10 @@ export class TimeSync implements TimeSyncApi {
 		return this.#latestSnapshot;
 	}
 
-	dispose(): void {
-		const { isDisposed } = this.#latestSnapshot;
-		if (isDisposed) {
-			return;
-		}
-
-		this.#fastestRefreshInterval = 0;
+	resetState(): void {
 		clearInterval(this.#intervalId);
 		this.#intervalId = undefined;
+		this.#fastestRefreshInterval = 0;
 
 		for (const entries of this.#subscriptions.values()) {
 			for (const e of entries) {
@@ -663,7 +659,6 @@ export class TimeSync implements TimeSyncApi {
 		this.#latestSnapshot = Object.freeze({
 			...this.#latestSnapshot,
 			subscriberCount: 0,
-			isDisposed: true,
 		});
 	}
 }
