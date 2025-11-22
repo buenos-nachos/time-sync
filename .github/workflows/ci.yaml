@@ -31,7 +31,7 @@ jobs:
         run: pnpm i
 
       - name: Lint source code
-        run: pnpm run format:check
+        run: pnpm run validate:ci
 
       - name: Check for typos
         uses: crate-ci/typos@v1.39.2
