@@ -236,47 +236,15 @@ export class ReadonlyDate extends Date implements ReadonlyDateApi {
 	// afterwards, which always corresponds to Date.getTime.
 	////////////////////////////////////////////////////////////////////////////
 
-	setDate(_date: number): number {
+	override setDate(_date: number): number {
 		return super.getTime();
 	}
 
-	setFullYear(_year: number, _month?: number, _date?: number): number {
+	override setFullYear(_year: number, _month?: number, _date?: number): number {
 		return super.getTime();
 	}
 
-	setHours(_hours: number, _min?: number, _sec?: number, _ms?: number): number {
-		return super.getTime();
-	}
-
-	setMilliseconds(_ms: number): number {
-		return super.getTime();
-	}
-
-	setMinutes(_min: number, _sec?: number, _ms?: number): number {
-		return super.getTime();
-	}
-
-	setMonth(_month: number, _date?: number): number {
-		return super.getTime();
-	}
-
-	setSeconds(_sec: number, _ms?: number): number {
-		return super.getTime();
-	}
-
-	setTime(_time: number): number {
-		return super.getTime();
-	}
-
-	setUTCDate(_date: number): number {
-		return super.getTime();
-	}
-
-	setUTCFullYear(_year: number, _month?: number, _date?: number): number {
-		return super.getTime();
-	}
-
-	setUTCHours(
+	override setHours(
 		_hours: number,
 		_min?: number,
 		_sec?: number,
@@ -285,19 +253,60 @@ export class ReadonlyDate extends Date implements ReadonlyDateApi {
 		return super.getTime();
 	}
 
-	setUTCMilliseconds(_ms: number): number {
+	override setMilliseconds(_ms: number): number {
 		return super.getTime();
 	}
 
-	setUTCMinutes(_min: number, _sec?: number, _ms?: number): number {
+	override setMinutes(_min: number, _sec?: number, _ms?: number): number {
 		return super.getTime();
 	}
 
-	setUTCMonth(_month: number, _date?: number): number {
+	override setMonth(_month: number, _date?: number): number {
 		return super.getTime();
 	}
 
-	setUTCSeconds(_sec: number, _ms?: number): number {
+	override setSeconds(_sec: number, _ms?: number): number {
+		return super.getTime();
+	}
+
+	override setTime(_time: number): number {
+		return super.getTime();
+	}
+
+	override setUTCDate(_date: number): number {
+		return super.getTime();
+	}
+
+	override setUTCFullYear(
+		_year: number,
+		_month?: number,
+		_date?: number,
+	): number {
+		return super.getTime();
+	}
+
+	override setUTCHours(
+		_hours: number,
+		_min?: number,
+		_sec?: number,
+		_ms?: number,
+	): number {
+		return super.getTime();
+	}
+
+	override setUTCMilliseconds(_ms: number): number {
+		return super.getTime();
+	}
+
+	override setUTCMinutes(_min: number, _sec?: number, _ms?: number): number {
+		return super.getTime();
+	}
+
+	override setUTCMonth(_month: number, _date?: number): number {
+		return super.getTime();
+	}
+
+	override setUTCSeconds(_sec: number, _ms?: number): number {
 		return super.getTime();
 	}
 }
