@@ -18,7 +18,8 @@
 		"attributePosition": "auto",
 		"bracketSpacing": true,
 		"expand": "auto",
-		"useEditorconfig": false
+		"useEditorconfig": false,
+		"includes": ["**", "!./dist/**", "!./node_modules/**"]
 	},
 	"javascript": {
 		"formatter": {
