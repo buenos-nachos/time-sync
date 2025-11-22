@@ -3,36 +3,35 @@
 	"compilerOptions": {
 		"target": "ES2020",
 		"module": "ES2022",
-		"strict": true,
-		"allowSyntheticDefaultImports": true,
-		"allowUnreachableCode": false,
-		"noUncheckedIndexedAccess": true,
-		"allowUnusedLabels": false,
-		"skipLibCheck": true,
-		"checkJs": true,
-		"noUnusedLocals": true,
-		"noImplicitReturns": true,
+		"types": ["node"],
+		"lib": ["DOM", "DOM.Iterable", "ES2022"],
+		"moduleResolution": "bundler",
+
 		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true,
-		"erasableSyntaxOnly": true,
+		"allowSyntheticDefaultImports": false,
+		"skipLibCheck": true,
+		"allowJs": false,
+		"checkJs": false,
+		"resolveJsonModule": true,
+		"moduleDetection": "force",
+		"isolatedModules": true,
+		"verbatimModuleSyntax": true,
+		"noEmit": false,
 
 		"composite": true,
 		"declaration": true,
 		"declarationMap": true,
-		"emitDeclarationOnly": true,
 		"incremental": true,
-		"isolatedModules": true,
 
-		"types": ["node"],
-		"lib": ["DOM", "DOM.Iterable", "ES2022"],
-		"moduleResolution": "Bundler",
-		"noEmit": false,
-
-		"noUnusedParameters": true,
-		"resolveJsonModule": true
-	},
-	"include": [
-		"packages/time-sync/src/**/*",
-		"packages/time-sync-react/src/**/*"
-	]
+		"strict": true,
+		"noImplicitOverride": true,
+		"allowUnreachableCode": false,
+		"noUncheckedIndexedAccess": true,
+		"allowUnusedLabels": false,
+		"noUnusedLocals": true,
+		"noImplicitReturns": true,
+		"forceConsistentCasingInFileNames": true,
+		"erasableSyntaxOnly": true,
+		"noUnusedParameters": true
+	}
 }
