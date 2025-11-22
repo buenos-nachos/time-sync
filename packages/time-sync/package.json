@@ -1,12 +1,14 @@
 {
-	"name": "core",
-	"version": "1.0.0",
-	"description": "",
-	"main": "index.js",
-	"keywords": [],
-	"author": "",
-	"license": "ISC",
+	"name": "time-sync",
+	"type": "module",
+	"version": "0.1.0",
 	"packageManager": "pnpm@10.17.0",
+	"license": "AGPL-3.0-only",
+	"author": "Michael Smith <contact@nachos.dev> (https://www.nachos.dev)",
+	"description": "Library for exposing time values as reactive, dependency-injectable state",
+	"keywords": ["typescript", "utility", "ui"],
+	"main": "index.js",
+	"sideEffects": false,
 	"devDependencies": {
 		"@types/node": "^24.10.0"
 	}
