@@ -723,7 +723,7 @@ describe(TimeSync, () => {
 			const initialSnap = sync.getStateSnapshot();
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
-			sync.invalidateState({ notificationBehavior: "always" });
+			void sync.refreshDate({ notificationBehavior: "always" });
 			const newSnap = sync.getStateSnapshot();
 			expect(newSnap).not.toEqual(initialSnap);
 		});
@@ -921,7 +921,7 @@ describe(TimeSync, () => {
 			});
 
 			expect(onUpdate).not.toHaveBeenCalled();
-			sync.invalidateState();
+			void sync.refreshDate();
 			expect(onUpdate).toHaveBeenCalledTimes(1);
 		});
 
@@ -938,7 +938,7 @@ describe(TimeSync, () => {
 			expect(onUpdate).not.toHaveBeenCalled();
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			expect(onUpdate).not.toHaveBeenCalled();
-			sync.invalidateState({
+			void sync.refreshDate({
 				notificationBehavior: "onChange",
 				stalenessThresholdMs: refreshRates.oneMinute,
 			});
@@ -956,7 +956,7 @@ describe(TimeSync, () => {
 			});
 
 			expect(onUpdate).not.toHaveBeenCalled();
-			sync.invalidateState({
+			void sync.refreshDate({
 				notificationBehavior: "onChange",
 				stalenessThresholdMs: refreshRates.oneMinute,
 			});
@@ -964,7 +964,7 @@ describe(TimeSync, () => {
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			expect(onUpdate).not.toHaveBeenCalled();
-			sync.invalidateState({
+			void sync.refreshDate({
 				notificationBehavior: "onChange",
 				stalenessThresholdMs: refreshRates.oneMinute,
 			});
@@ -978,7 +978,7 @@ describe(TimeSync, () => {
 			// Advance timers to guarantee that there will be some kind of
 			// difference in the dates
 			await vi.advanceTimersByTimeAsync(5000);
-			sync.invalidateState({ notificationBehavior: "onChange" });
+			void sync.refreshDate({ notificationBehavior: "onChange" });
 			const newSnap = sync.getStateSnapshot();
 			expect(newSnap).not.toEqual(initialSnap);
 		});
@@ -997,7 +997,7 @@ describe(TimeSync, () => {
 			];
 			for (const i of intervals) {
 				expect(() => {
-					void sync.invalidateState({
+					void sync.refreshDate({
 						notificationBehavior: "onChange",
 						stalenessThresholdMs: i,
 					});
@@ -1024,7 +1024,7 @@ describe(TimeSync, () => {
 			const sync = new TimeSync();
 			for (const jv of junkValues) {
 				expect(() => {
-					void sync.invalidateState({ notificationBehavior: jv });
+					void sync.refreshDate({ notificationBehavior: jv });
 				}).toThrow(
 					new RangeError(
 						`Received notification behavior of "${jv}", which is not supported`,
@@ -1048,7 +1048,7 @@ describe(TimeSync, () => {
 			});
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			sync.invalidateState({ notificationBehavior: "never" });
+			void sync.refreshDate({ notificationBehavior: "never" });
 			expect(onUpdate).not.toHaveBeenCalled();
 
 			const newSnap = sync.getStateSnapshot();
@@ -1069,7 +1069,7 @@ describe(TimeSync, () => {
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			for (let i = 0; i < 100; i++) {
-				sync.invalidateState({ notificationBehavior: "never" });
+				void sync.refreshDate({ notificationBehavior: "never" });
 			}
 			expect(onUpdate).not.toHaveBeenCalled();
 
@@ -1093,7 +1093,7 @@ describe(TimeSync, () => {
 				targetRefreshIntervalMs: refreshRates.oneHour,
 			});
 
-			sync.invalidateState({ notificationBehavior: "always" });
+			void sync.refreshDate({ notificationBehavior: "always" });
 			expect(onUpdate).toHaveBeenCalledTimes(1);
 
 			const newSnap = sync.getStateSnapshot();
@@ -1122,7 +1122,7 @@ describe(TimeSync, () => {
 			// the number of set calls hasn't changed from before the disposal
 			// step, we're good
 			expect(setSpy).toHaveBeenCalledTimes(1);
-			sync.resetState();
+			sync.resetAll();
 			expect(clearSpy).toHaveBeenCalled();
 			expect(setSpy).toHaveBeenCalledTimes(1);
 
@@ -1144,7 +1144,7 @@ describe(TimeSync, () => {
 			const oldSnap = sync.getStateSnapshot();
 			expect(oldSnap.subscriberCount).toBe(100);
 
-			sync.resetState();
+			sync.resetAll();
 			const newSnap = sync.getStateSnapshot();
 			expect(newSnap.subscriberCount).toBe(0);
 
@@ -1188,11 +1188,16 @@ describe(TimeSync, () => {
 				targetRefreshIntervalMs: refreshRates.oneMinute,
 			});
 
-			void sync.invalidateState({
+			const dateBefore = sync.getStateSnapshot().date;
+			const dateAfterFromRefresh = sync.refreshDate({
 				notificationBehavior: "always",
 				stalenessThresholdMs: 0,
 			});
+			const dateAfterFromSnap = sync.getStateSnapshot().date;
+
 			expect(onUpdate).not.toHaveBeenCalled();
+			expect(dateBefore).toEqual(dateAfterFromSnap);
+			expect(dateAfterFromRefresh).toEqual(dateAfterFromSnap);
 		});
 	});
 });
