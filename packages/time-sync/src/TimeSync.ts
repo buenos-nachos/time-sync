@@ -378,12 +378,12 @@ export class TimeSync implements TimeSyncApi {
 		const { wasChanged } = this.#updateDate();
 		const timeSinceLastBroadcast =
 			this.#lastDispatchDate === null
-				? Number.POSITIVE_INFINITY
+				? 0
 				: this.#latestSnapshot.date.getTime() -
 					this.#lastDispatchDate.getTime();
 
-		const hasPendingBroadcast = timeSinceLastBroadcast !== 0;
-		if (wasChanged || hasPendingBroadcast) {
+		const hasPendingBroadcast = wasChanged || timeSinceLastBroadcast !== 0;
+		if (hasPendingBroadcast) {
 			this.#notifyAllSubscriptions();
 		}
 	};
