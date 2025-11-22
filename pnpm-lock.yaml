@@ -15,11 +15,16 @@ importers:
         specifier: ^24.10.0
         version: 24.10.0
       happy-dom:
-        specifier: ^20.0.10
+        specifier: 20.0.10
         version: 20.0.10
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
       vitest:
-        specifier: ^4.0.8
+        specifier: 4.0.8
         version: 4.0.8(@types/node@24.10.0)(happy-dom@20.0.10)(jsdom@27.2.0)
+
+  packages/time-sync: {}
 
 packages:
 
@@ -642,6 +647,11 @@ packages:
   tr46@6.0.0:
     resolution: {integrity: sha512-bLVMLPtstlZ4iMQHpFHTR7GAGj2jxi8Dg0s2h2MafAE4uSWF98FC/3MomU51iQAMf8/qDUbKWf5GxuvvVcXEhw==}
     engines: {node: '>=20'}
+
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
@@ -1326,6 +1336,8 @@ snapshots:
     dependencies:
       punycode: 2.3.1
     optional: true
+
+  typescript@5.9.3: {}
 
   undici-types@6.21.0: {}
 
