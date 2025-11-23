@@ -18,7 +18,7 @@ Library for centralizing time values into reactive, dependency-injectable state.
 
 ### In active development
 
-- Add bindings for traditional, client-rendered React
+1. Add bindings for traditional, client-rendered React
 
 ### Want to implement (roughly ordered by priority)
 
@@ -31,7 +31,7 @@ Library for centralizing time values into reactive, dependency-injectable state.
 
 1. Add support for `Temporal` objects (need to wait for browser implementations to stabilize and user adoption to be much higher)
 
-### Considering
+### Considering (unordered)
 
 - Add bindings for Svelte
 - Add bindings for Vue
