@@ -106,6 +106,7 @@ const unsubscribe3 = sync.subscribe({
 });
 
 const unsubscribe4 = sync.subscribe({
+	// If a new subscription is added that
 	targetRefreshIntervalMs: refreshRates.oneSecond,
 
 	// If the same function (by reference) is added by multiple subscribers,
@@ -119,11 +120,6 @@ const unsubscribe4 = sync.subscribe({
 ## Documentation
 
 All documentation can be found [in the `docs` directory](./docs).
-
-<!-- prettier-ignore-start -->
-> [!NOTE]
-> Because this project is in its early stages, there is a bigger risk of breaking API changes. Other documentation (such as how-to guides and explanations) will become available once the project has stabilized.
-<!-- prettier-ignore-end -->
 
 ## Design goals
 
