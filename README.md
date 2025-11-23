@@ -4,7 +4,15 @@ Library for centralizing time values into reactive, dependency-injectable state.
 
 ## Design goals
 
-By design, TimeSync helps you keep different systems in sync – as long as they are all on the same device. It is an explicit non-goal to
+### Goals
+
+- Help synchronize state and processes on the same system
+- Provide limited support for server-side rendering (just enough to avoid hydration mismatches and similar issues, but no deep synchronization)
+
+### Non-goals
+
+- Help synchronize state across multiple client devices (which introduces time zone issues)
+- Help synchronize state across multiple the server and client for extended periods of time
 
 ## Roadmap
 
@@ -18,7 +26,10 @@ By design, TimeSync helps you keep different systems in sync – as long as the
 2. Add support for server-side rendering to React bindings
 3. Add bindings for Solid.js
 4. Improve support for mixing multiple frameworks together
-5. Add support for `Temporal` objects (once the browser implementations have stabilized and browser adoption is much higher)
+
+### Want to implement (blocked)
+
+1. Add support for `Temporal` objects (need to wait for browser implementations to stabilize and user adoption to be much higher)
 
 ### Considering
 
