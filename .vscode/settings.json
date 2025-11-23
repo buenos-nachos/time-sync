@@ -1,0 +1,23 @@
+{
+	"editor.rulers": [80],
+
+	"[jsonc]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[typescript]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[typescriptreact]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[json]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+
+	// @todo - 2025-11-22 - Use Biome once it supports markdown
+	"[markdown]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.wordWrap": "bounded",
+		"editor.wordWrapColumn": 80
+	}
+}
