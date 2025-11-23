@@ -77,7 +77,7 @@ type OnTimeSyncUpdate = (dateSnapshot: ReadonlyDate) => void;
 /**
  * An object used to initialize a new subscription for TimeSync.
  */
-export type SubscriptionHandshake = Readonly<{
+export type SubscriptionOptions = Readonly<{
 	/**
 	 * The maximum update interval that a subscriber needs. A value of
 	 * Number.POSITIVE_INFINITY indicates that the subscriber does not strictly
@@ -106,28 +106,22 @@ export type SubscriptionHandshake = Readonly<{
 	onUpdate: OnTimeSyncUpdate;
 }>;
 
-const notificationBehaviors = [
-	"onChange",
-	"never",
-	"always",
-] as const satisfies readonly string[];
-
 /**
- * The behavior that you tell TimeSync to use when invalidating its internal
- * state.
+ * Values for advancing a TimeSync's internal date.
  */
-export type NotificationBehavior = (typeof notificationBehaviors)[number];
+export type AdvanceTimeOptions = Readonly<{
+	/**
+	 * The amount to advance the TimeSync by.
+	 */
+	byMs: number;
 
-/**
- * Options for customizing the behavior of a TimeSync instance's invalidateState
- * method.
- */
-export type RefreshDateOptions = Readonly<{
 	/**
 	 * The amount of time (in milliseconds) that you can tolerate stale dates.
-	 * If the time since the last subscription dispatch and the current time
-	 * does not exceed this value, the state will not be changed. Defaults to
-	 * `0` if not specified (always invalidates the date snapshot).
+	 * If the delta between the TimeSync's current date and the new date that
+	 * would be flushed does not meet the threshold, no subscribers are
+	 * notified.
+	 *
+	 * Defaults to `0` if not specified (always invalidates the date snapshot).
 	 *
 	 * By definition, date state becomes stale the moment that it gets stored in
 	 * a TimeSync instance (even if the execution context never changes, some
@@ -137,16 +131,6 @@ export type RefreshDateOptions = Readonly<{
 	 * behavior handle the next dispatch.
 	 */
 	stalenessThresholdMs?: number;
-
-	/**
-	 * Lets you define how subscribers should be notified when an invalidation
-	 * happens. Defaults to "onChange" if not specified.
-	 *
-	 * `onChange` - Only notify subscribers if the data snapshot changed.
-	 * `never` - Never notify subscribers, regardless of any state changes.
-	 * `always` - Notify subscribers, even if the date didn't change.
-	 */
-	notificationBehavior?: NotificationBehavior;
 }>;
 
 /**
@@ -173,7 +157,7 @@ interface TimeSyncApi {
 	 * @returns An unsubscribe callback. Calling the callback more than once
 	 * results in a no-op.
 	 */
-	subscribe: (handshake: SubscriptionHandshake) => () => void;
+	subscribe: (options: SubscriptionOptions) => () => void;
 
 	/**
 	 * Allows an external system to pull an immutable snapshot of some of the
@@ -185,16 +169,20 @@ interface TimeSyncApi {
 	getStateSnapshot: () => Snapshot;
 
 	/**
-	 * Immediately tries to refresh TimeSync's internal state snapshot with
-	 * fresh data like the latest date.
+	 * Attempts to advance the TimeSync's internal date by a specific number
+	 * of milliseconds. If the date is updated, all subscribers will be
+	 * notified.
 	 *
-	 * @throws {RangeError} If the provided interval for the
-	 * `stalenessThresholdMs` property is neither a positive integer nor
-	 * positive infinity.
-	 * @returns The latest date state right after invalidation. Note that this
-	 * snapshot might be the same as before.
+	 * The method lets you pass in a custom staleness threshold for determining
+	 * whether the date that would be produced is different enough from the date
+	 * currently in the TimeSync. If the new date would not be different enough,
+	 * the TimeSync does not notify any subscribers, but will still add
+	 * information about the date to the state snapshot.
+	 *
+	 * @throws {RangeError} If the advance amount is not a positive integer or 0.
+	 * @throws {RangeError} If the custom staleness is not a positive integer.
 	 */
-	refreshDate: (options: RefreshDateOptions) => ReadonlyDate;
+	advanceTime: (options: AdvanceTimeOptions) => void;
 
 	/**
 	 * Resets all internal state in the TimeSync, and handles all cleanup for
@@ -202,9 +190,9 @@ interface TimeSyncApi {
 	 * retained.
 	 *
 	 * This method can be used as a dispose method for a locally-scoped
-	 * TimeSync (a reset TimeSync is safe to garbage-collect without any risks
-	 * of memory leaks). It can also be used to reset a global TimeSync to its
-	 * initial state for certain testing setups.
+	 * TimeSync (a TimeSync with no subscribers is safe to garbage-collect
+	 * without any risks of memory leaks). It can also be used to reset a global
+	 * TimeSync to its initial state for certain testing setups.
 	 */
 	resetAll: () => void;
 }
@@ -212,11 +200,6 @@ interface TimeSyncApi {
 type SubscriptionEntry = Readonly<{
 	targetInterval: number;
 	unsubscribe: () => void;
-}>;
-
-type UpdateDateResult = Readonly<{
-	wasChanged: boolean;
-	dateBeforeUpdate: ReadonlyDate;
 }>;
 
 /* biome-ignore lint:suspicious/noEmptyBlockStatements -- Rare case where we do
@@ -282,15 +265,6 @@ export class TimeSync implements TimeSyncApi {
 	#latestSnapshot: Snapshot;
 
 	/**
-	 * Indicates when the last successful state update dispatch was. Can be used
-	 * to track whether there has been a de-sync from invalidating the state.
-	 *
-	 * Once this value has transitioned from null to a date, there should be no
-	 * way for it to transition back to null.
-	 */
-	#lastDispatchDate: ReadonlyDate | null;
-
-	/**
 	 * A cached version of the fastest interval currently registered with
 	 * TimeSync. Should always be derived from #subscriptions
 	 */
@@ -328,7 +302,6 @@ export class TimeSync implements TimeSyncApi {
 		this.#subscriptions = new Map();
 		this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 		this.#intervalId = undefined;
-		this.#lastDispatchDate = null;
 
 		this.#latestSnapshot = Object.freeze({
 			subscriberCount: 0,
@@ -373,8 +346,6 @@ export class TimeSync implements TimeSyncApi {
 				onUpdate(date);
 			}
 		}
-
-		this.#lastDispatchDate = date;
 	}
 
 	/**
@@ -394,15 +365,8 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		const { wasChanged } = this.#updateDate();
-		const timeSinceLastBroadcast =
-			this.#lastDispatchDate === null
-				? 0
-				: this.#latestSnapshot.date.getTime() -
-					this.#lastDispatchDate.getTime();
-
-		const hasPendingBroadcast = wasChanged || timeSinceLastBroadcast !== 0;
-		if (hasPendingBroadcast) {
+		const wasChanged = this.#updateDate();
+		if (wasChanged) {
 			this.#notifyAllSubscriptions();
 		}
 	};
@@ -425,7 +389,7 @@ export class TimeSync implements TimeSyncApi {
 		clearInterval(this.#intervalId);
 
 		if (timeBeforeNextUpdate <= 0) {
-			const { wasChanged } = this.#updateDate();
+			const wasChanged = this.#updateDate();
 			if (wasChanged) {
 				this.#notifyAllSubscriptions();
 			}
@@ -484,10 +448,10 @@ export class TimeSync implements TimeSyncApi {
 	/**
 	 * Attempts to update the current Date snapshot.
 	 */
-	#updateDate(): UpdateDateResult {
-		const { config, date: dateBeforeUpdate } = this.#latestSnapshot;
+	#updateDate(): boolean {
+		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
-			return { dateBeforeUpdate, wasChanged: false };
+			return false;
 		}
 
 		this.#latestSnapshot = Object.freeze({
@@ -495,10 +459,10 @@ export class TimeSync implements TimeSyncApi {
 			date: new ReadonlyDate(),
 		});
 
-		return { dateBeforeUpdate, wasChanged: true };
+		return true;
 	}
 
-	subscribe(sh: SubscriptionHandshake): () => void {
+	subscribe(sh: SubscriptionOptions): () => void {
 		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
 			return noOp;
@@ -600,49 +564,40 @@ export class TimeSync implements TimeSyncApi {
 		return this.#latestSnapshot;
 	}
 
-	refreshDate(options?: RefreshDateOptions): ReadonlyDate {
-		const { stalenessThresholdMs = 0, notificationBehavior = "onChange" } =
-			options ?? {};
+	advanceTime(options: AdvanceTimeOptions): void {
+		const { byMs } = options;
+		let { stalenessThresholdMs } = options;
 
+		const isIntervalValid = Number.isInteger(byMs) && byMs >= 0;
+		if (!isIntervalValid) {
+			throw new RangeError(
+				`Advance amounts must be a positive integer or 0 (received ${byMs} ms)`,
+			);
+		}
 		const isStaleValid =
-			Number.isInteger(stalenessThresholdMs) && stalenessThresholdMs >= 0;
+			typeof stalenessThresholdMs === "undefined" ||
+			(Number.isInteger(stalenessThresholdMs) && stalenessThresholdMs > 0);
 		if (!isStaleValid) {
 			throw new RangeError(
-				`Minimum refresh interval must be a positive integer (received ${stalenessThresholdMs} ms)`,
-			);
-		}
-		if (!notificationBehaviors.includes(notificationBehavior)) {
-			throw new RangeError(
-				`Received notification behavior of "${notificationBehavior}", which is not supported`,
+				`Custom refresh intervals must be a positive integer (received ${stalenessThresholdMs} ms)`,
 			);
 		}
 
-		const { config } = this.#latestSnapshot;
+		stalenessThresholdMs = 0;
+		const { config, date: oldDate } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
-			return this.#latestSnapshot.date;
+			return;
 		}
 
-		const { wasChanged, dateBeforeUpdate } = this.#updateDate();
-		switch (notificationBehavior) {
-			case "never": {
-				break;
-			}
-			case "always": {
-				this.#notifyAllSubscriptions();
-				break;
-			}
-			case "onChange": {
-				const meetsThreshold =
-					this.#latestSnapshot.date.getTime() - dateBeforeUpdate.getTime() >=
-					stalenessThresholdMs;
-				if (wasChanged && meetsThreshold) {
-					this.#notifyAllSubscriptions();
-				}
-				break;
-			}
-		}
+		const actualCurrentTime = new ReadonlyDate();
+		const newDateCandidate = new ReadonlyDate(oldDate.getTime() + byMs);
 
-		return this.#latestSnapshot.date;
+		const canDispatch =
+			newDateCandidate.getTime() <= actualCurrentTime.getTime() &&
+			newDateCandidate.getTime() - oldDate.getTime() >= stalenessThresholdMs;
+		if (canDispatch) {
+			this.#updateDate();
+		}
 	}
 
 	resetAll(): void {
