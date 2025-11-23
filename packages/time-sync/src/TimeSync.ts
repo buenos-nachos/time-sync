@@ -139,8 +139,10 @@ export type AdvanceTimeOptions = Readonly<{
  */
 export type Snapshot = Readonly<{
 	// This property is a little clunky, but we need something like it for the
-	// React bindings
-	lastAdvanceValue: ReadonlyDate | null;
+	// React bindings. It specifically has to be a Date; if we store a numeric
+	// value, we would have to re-derive a new date from the number each time we
+	// need to use it, which would blow up React's useSyncExternalStore
+	lastAdvanceTarget: ReadonlyDate | null;
 	date: ReadonlyDate;
 	subscriberCount: number;
 	config: Configuration;
@@ -308,7 +310,7 @@ export class TimeSync implements TimeSyncApi {
 
 		this.#latestSnapshot = Object.freeze({
 			subscriberCount: 0,
-			lastAdvanceValue: null,
+			lastAdvanceTarget: null,
 			date: initialDate ? new ReadonlyDate(initialDate) : new ReadonlyDate(),
 			config: Object.freeze({
 				freezeUpdates,
@@ -575,7 +577,7 @@ export class TimeSync implements TimeSyncApi {
 		const isIntervalValid = Number.isInteger(spanMs) && spanMs >= 0;
 		if (!isIntervalValid) {
 			throw new RangeError(
-				`Advance amounts must be a positive integer or 0 (received ${stalenessThresholdMs} ms)`,
+				`Advance amounts must be a positive integer or 0 (received ${spanMs} ms)`,
 			);
 		}
 		const isStaleValid =
@@ -605,7 +607,7 @@ export class TimeSync implements TimeSyncApi {
 
 		this.#latestSnapshot = Object.freeze({
 			...this.#latestSnapshot,
-			lastAdvanceValue: newDateCandidate,
+			lastAdvanceTarget: newDateCandidate,
 		});
 	}
 
