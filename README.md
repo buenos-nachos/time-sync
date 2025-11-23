@@ -16,7 +16,7 @@ In other words, the goal of `time-sync` is to make time more obvious and less ma
 - 🔄 **Keep things in sync** – `time-sync` ensures that different systems on one device can't ever get out of sync with each other.
 - 📸 **No more snapshot flakes** – `time-sync` makes it easy to freeze the time to a specific value to ensure that your snapshot tests stay deterministic. The upcoming UI framework bindings will have out-of-the-box support for platforms like Storybook.
 - 🏝️ **Astro islands** – All `time-sync` packages aim to support Astro's island architecture out of the box. This includes mixing `.astro` files with UI frameworks that have official `time-sync` packages.
-- 📦 **As few dependencies as possible** – The vanilla version of `time-sync` has zero runtime dependencies. Each package for binding it to a framwork aims to have only that framework as a dependency.
+- 📦 **As few dependencies as possible** – The vanilla version of `time-sync` has zero runtime dependencies. Each package for binding it to a framework aims to have only that framework as a dependency.
 
 ### Coming soon
 
@@ -131,7 +131,7 @@ const snap = sync.getStateSnapshot();
 
 // This lets you manually invalidate the sync by advancing it to a certain time
 // (as long as that new time doesn't exceed the actual system time). If the
-// advance succeeeds, all subscribers will be notified, and then the next update
+// advance succeeds, all subscribers will be notified, and then the next update
 // proceeds as normal.
 sync.advanceTime(refreshRates.fiveSeconds);
 ```
