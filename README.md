@@ -21,10 +21,10 @@ Library for centralizing time values into reactive, dependency-injectable state.
 
 ### Want to implement (roughly ordered by priority)
 
-1. Add support for mixing React bindings with client-side Astro files
-2. Add support for server-side rendering to React bindings
+1. Add support for mixing React bindings with Astro islands
+2. Add support for React bindings with Next.js (Pages Router and App Router)
 3. Add bindings for Solid.js
-4. Improve support for mixing multiple frameworks together
+4. Improve support for mixing bindings for multiple frameworks together
 
 ### Want to implement (blocked)
 
