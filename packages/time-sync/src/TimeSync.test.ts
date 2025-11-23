@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import { ReadonlyDate } from "./ReadonlyDate";
 import {
 	type Configuration,
-	type NotificationBehavior,
 	refreshRates,
 	type Snapshot,
 	TimeSync,
@@ -653,6 +652,7 @@ describe(TimeSync, () => {
 			expect(snap).toEqual<Snapshot>({
 				date: initialDate,
 				subscriberCount: 0,
+				lastAdvanceValue: null,
 				config: {
 					freezeUpdates: false,
 					minimumRefreshIntervalMs,
@@ -716,14 +716,14 @@ describe(TimeSync, () => {
 			expect(newSnap).not.toEqual(initialSnap);
 		});
 
-		it("Does not mutate old snapshot when TimeSync state is invalidated", async ({
+		it("Does not mutate old snapshot when TimeSync state is set to new value", async ({
 			expect,
 		}) => {
 			const sync = new TimeSync();
 			const initialSnap = sync.getStateSnapshot();
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
-			void sync.refreshDate({ notificationBehavior: "always" });
+			sync.advanceTime({ spanMs: refreshRates.oneHour });
 			const newSnap = sync.getStateSnapshot();
 			expect(newSnap).not.toEqual(initialSnap);
 		});
@@ -911,7 +911,7 @@ describe(TimeSync, () => {
 		});
 	});
 
-	describe("Invalidating state", () => {
+	describe("Advancing the date", () => {
 		it("Defaults to always changing snapshots", ({ expect }) => {
 			const sync = new TimeSync();
 			const onUpdate = vi.fn();
@@ -1119,7 +1119,7 @@ describe(TimeSync, () => {
 			// Trying to tie the test to a specific number of calls felt like
 			// tying it to implementation details too much. So, instead we're
 			// going to assume that if the clear was called at least once, and
-			// the number of set calls hasn't changed from before the disposal
+			// the number of set calls hasn't changed from before the reset
 			// step, we're good
 			expect(setSpy).toHaveBeenCalledTimes(1);
 			sync.resetAll();
@@ -1180,7 +1180,7 @@ describe(TimeSync, () => {
 			expect(snap.date).toEqual(initialDate);
 		});
 
-		it("Turns state invalidations into no-ops", ({ expect }) => {
+		it("Silently prevents attempts to advance time", async ({ expect }) => {
 			const sync = new TimeSync({ freezeUpdates: true });
 			const onUpdate = vi.fn();
 			void sync.subscribe({
@@ -1188,16 +1188,13 @@ describe(TimeSync, () => {
 				targetRefreshIntervalMs: refreshRates.oneMinute,
 			});
 
-			const dateBefore = sync.getStateSnapshot().date;
-			const dateAfterFromRefresh = sync.refreshDate({
-				notificationBehavior: "always",
-				stalenessThresholdMs: 0,
-			});
-			const dateAfterFromSnap = sync.getStateSnapshot().date;
+			const snapBefore = sync.getStateSnapshot();
+			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+			sync.advanceTime({ spanMs: refreshRates.oneSecond });
 
+			const snapAfter = sync.getStateSnapshot();
 			expect(onUpdate).not.toHaveBeenCalled();
-			expect(dateBefore).toEqual(dateAfterFromSnap);
-			expect(dateAfterFromRefresh).toEqual(dateAfterFromSnap);
+			expect(snapBefore).toEqual(snapAfter);
 		});
 	});
 });
