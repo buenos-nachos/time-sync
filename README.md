@@ -1,6 +1,11 @@
 # time-sync
 
-[![AGPL-3 License](https://img.shields.io/github/license/buenos-nachos/time-sync.svg?color=slateblue)](https://github.com/buenos-nachos/time-sync/blob/main/LICENSE)
+<!-- prettier-ignore-start -->
+[![AGPL-3 License](https://img.shields.io/github/license/buenos-nachos/time-sync.svg?color=slateblue)](https://github.com/buenos-nachos/time-sync/blob/main/LICENSE) 
+[![CI/CD](https://github.com/buenos-nachos/time-sync/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/buenos-nachos/time-sync/actions/workflows/ci.yaml)
+<!-- prettier-ignore-end -->
+
+[!time-sync logo](./images/banner.png)
 
 `time-sync` is a set of packages designed to make it foolproof to work with time values on a single device. This can be multiple UI components on a single client device, or a series of UI snapshot tests being run in a platform like Storybook. While `time-sync` is mostly intended for UIs, the vanilla version also has zero dependencies and can be used for stateful servers. The packages force you as a developer to specify when and how time should be updated, while also centralizing updates to a single place.
 
@@ -14,7 +19,7 @@ See [the motiviation section](#motivation) for more information.
 
 - 🔄 **Keep things in sync** – `time-sync` ensures that different systems on one device can't ever get out of sync with each other.
 - 📸 **No more snapshot flakes** – `time-sync` makes it easy to freeze the time to a specific value to ensure that your snapshot tests stay deterministic.
-- 🏝️ **Astro islands** – All `time-sync` packages aim to support Astro's island architecture out of the box. This includes mixing `.astro` files with frameworks that have official bindings.
+- 🏝️ **Astro islands** – All `time-sync` packages aim to support Astro's island architecture out of the box. This includes mixing `.astro` files with UI frameworks that have official `time-sync` packages.
 - 📦 **As few dependencies as possible** – The vanilla version of `time-sync` has zero runtime dependencies. Each package for binding it to a framwork aims to have only that framework as a dependency.
 
 ### Coming soon
@@ -32,7 +37,10 @@ See [the motiviation section](#motivation) for more information.
 
 All documentation can be found [in the `docs` directory](./docs).
 
-> [!NOTE] Because this project is in its early stages, there is a bigger risk of breaking API changes. Other documentation (such as how-to guides and explanations) will become available once the project has stabilized.
+<!-- prettier-ignore-start -->
+> [!NOTE]
+> Because this project is in its early stages, there is a bigger risk of breaking API changes. Other documentation (such as how-to guides and explanations) will become available once the project has stabilized.
+<!-- prettier-ignore-end -->
 
 ## Motivation
 
@@ -63,8 +71,9 @@ You can find [the contributing guide here](./CONTRIBUTING.md).
 2. Add bindings for Solid.js
 3. Improve support for mixing bindings for multiple frameworks together in Astro
 4. Improve open-source contribution and development experience
-5. Beef up documentation once packages seem to be more stable (add explanations, how-to guides, etc.)
-6. Add support for using React and Solid.js bindings in popular meta-frameworks that use Server-Side Rendering (TanStack Start, Solid Start, React Router v7, Next.js App Router)
+5. Research updating the React bindings to support React Native
+6. Beef up documentation once packages seem to be more stable (add explanations, how-to guides, etc.)
+7. Add support for using React and Solid.js bindings in popular meta-frameworks that use Server-Side Rendering (TanStack Start, Solid Start, React Router v7, Next.js App Router)
 
 ### Want to implement (blocked)
 
