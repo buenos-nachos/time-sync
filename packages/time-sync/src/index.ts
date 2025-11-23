@@ -6,6 +6,6 @@ export {
 	type InitOptions,
 	refreshRates,
 	type Snapshot,
-	type SubscriptionOptions as SubscriptionHandshake,
+	type SubscriptionOptions,
 	TimeSync,
 } from "./TimeSync";
