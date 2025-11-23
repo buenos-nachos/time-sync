@@ -107,33 +107,6 @@ export type SubscriptionOptions = Readonly<{
 }>;
 
 /**
- * Values for advancing a TimeSync's internal date.
- */
-export type AdvanceTimeOptions = Readonly<{
-	/**
-	 * The amount to advance the TimeSync by.
-	 */
-	byMs: number;
-
-	/**
-	 * The amount of time (in milliseconds) that you can tolerate stale dates.
-	 * If the delta between the TimeSync's current date and the new date that
-	 * would be flushed does not meet the threshold, no subscribers are
-	 * notified.
-	 *
-	 * Defaults to `0` if not specified (always invalidates the date snapshot).
-	 *
-	 * By definition, date state becomes stale the moment that it gets stored in
-	 * a TimeSync instance (even if the execution context never changes, some
-	 * time needs to elapse between the date being created, and it being
-	 * stored). Specifying this value lets you protect against over-notifying
-	 * subscribers if you can afford to rely on having the default subscription
-	 * behavior handle the next dispatch.
-	 */
-	stalenessThresholdMs?: number;
-}>;
-
-/**
  * A complete snapshot of the user-relevant internal state from TimeSync. This
  * value is treated as immutable at both runtime and compile time.
  */
@@ -169,7 +142,18 @@ interface TimeSyncApi {
 	getStateSnapshot: () => Snapshot;
 
 	/**
-	 * Attempts to advance the TimeSync's internal date by a specific number
+	 * Attempts to advance the TimeSync's internal date. If no argument is
+	 * passed in, the method tries to update the TimeSync with the current
+	 * system time.
+	 *
+	 * If a specific amount is provided, that value will be used instead. Any
+	 * custom values that would cause the new date to exceed the current system
+	 * time will cause the current system time to be used instead.
+	 *
+	 * If the
+	 *
+	 *
+	 *  by a specific number
 	 * of milliseconds. If the date is updated, all subscribers will be
 	 * notified.
 	 *
@@ -179,10 +163,9 @@ interface TimeSyncApi {
 	 * the TimeSync does not notify any subscribers, but will still add
 	 * information about the date to the state snapshot.
 	 *
-	 * @throws {RangeError} If the advance amount is not a positive integer or 0.
-	 * @throws {RangeError} If the custom staleness is not a positive integer.
+	 * @throws {RangeError} If the advance amount is not a positive integer.
 	 */
-	advanceTime: (options: AdvanceTimeOptions) => void;
+	advanceTime: (byMs?: number) => void;
 
 	/**
 	 * Resets all internal state in the TimeSync, and handles all cleanup for
@@ -356,7 +339,7 @@ export class TimeSync implements TimeSyncApi {
 	 * don't have many situations where we can lose the `this` context, but this
 	 * is one of them.
 	 */
-	readonly #onTick = (): void => {
+	readonly #tick = (): void => {
 		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
 			// Defensive step to make sure that an invalid tick wasn't started
@@ -393,7 +376,7 @@ export class TimeSync implements TimeSyncApi {
 			if (wasChanged) {
 				this.#notifyAllSubscriptions();
 			}
-			this.#intervalId = setInterval(this.#onTick, fastest);
+			this.#intervalId = setInterval(this.#tick, fastest);
 			return;
 		}
 
@@ -401,7 +384,7 @@ export class TimeSync implements TimeSyncApi {
 		// getting added, but there's still the small chance that the fastest
 		// interval could change right after an update got flushed
 		if (timeBeforeNextUpdate === fastest) {
-			this.#intervalId = setInterval(this.#onTick, timeBeforeNextUpdate);
+			this.#intervalId = setInterval(this.#tick, timeBeforeNextUpdate);
 			return;
 		}
 
@@ -415,8 +398,8 @@ export class TimeSync implements TimeSyncApi {
 			// don't want to start a new interval right after we've lost our
 			// ability to do cleanup. The timer won't start getting processed
 			// until the function leaves scope anyway
-			this.#intervalId = setInterval(this.#onTick, fastest);
-			this.#onTick();
+			this.#intervalId = setInterval(this.#tick, fastest);
+			this.#tick();
 		}, timeBeforeNextUpdate);
 	}
 
@@ -564,39 +547,40 @@ export class TimeSync implements TimeSyncApi {
 		return this.#latestSnapshot;
 	}
 
-	advanceTime(options: AdvanceTimeOptions): void {
-		const { byMs } = options;
-		let { stalenessThresholdMs } = options;
-
-		const isIntervalValid = Number.isInteger(byMs) && byMs >= 0;
+	advanceTime(byMs?: number): void {
+		const isIntervalValid =
+			typeof byMs === "undefined" || (Number.isInteger(byMs) && byMs > 0);
 		if (!isIntervalValid) {
 			throw new RangeError(
 				`Advance amounts must be a positive integer or 0 (received ${byMs} ms)`,
 			);
 		}
-		const isStaleValid =
-			typeof stalenessThresholdMs === "undefined" ||
-			(Number.isInteger(stalenessThresholdMs) && stalenessThresholdMs > 0);
-		if (!isStaleValid) {
-			throw new RangeError(
-				`Custom refresh intervals must be a positive integer (received ${stalenessThresholdMs} ms)`,
-			);
-		}
 
-		stalenessThresholdMs = 0;
 		const { config, date: oldDate } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
 			return;
 		}
 
 		const actualCurrentTime = new ReadonlyDate();
-		const newDateCandidate = new ReadonlyDate(oldDate.getTime() + byMs);
+		let comparisonDate = actualCurrentTime;
+		if (byMs !== undefined) {
+			const candidate = new ReadonlyDate(oldDate.getTime() + byMs);
+			if (candidate.getTime() < actualCurrentTime.getTime()) {
+				comparisonDate = candidate;
+			}
+		}
 
-		const canDispatch =
-			newDateCandidate.getTime() <= actualCurrentTime.getTime() &&
-			newDateCandidate.getTime() - oldDate.getTime() >= stalenessThresholdMs;
-		if (canDispatch) {
-			this.#updateDate();
+		const shouldChange = oldDate.getTime() !== comparisonDate.getTime();
+		if (!shouldChange) {
+			return;
+		}
+
+		clearInterval(this.#intervalId);
+		this.#intervalId = undefined;
+		this.#tick();
+
+		if (this.#fastestRefreshInterval !== Number.POSITIVE_INFINITY) {
+			setInterval(this.#tick, this.#fastestRefreshInterval);
 		}
 	}
 
