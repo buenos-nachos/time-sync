@@ -138,11 +138,6 @@ export type AdvanceTimeOptions = Readonly<{
  * value is treated as immutable at both runtime and compile time.
  */
 export type Snapshot = Readonly<{
-	// This property is a little clunky, but we need something like it for the
-	// React bindings. It specifically has to be a Date; if we store a numeric
-	// value, we would have to re-derive a new date from the number each time we
-	// need to use it, which would blow up React's useSyncExternalStore
-	lastAdvanceTarget: ReadonlyDate | null;
 	date: ReadonlyDate;
 	subscriberCount: number;
 	config: Configuration;
@@ -310,7 +305,6 @@ export class TimeSync implements TimeSyncApi {
 
 		this.#latestSnapshot = Object.freeze({
 			subscriberCount: 0,
-			lastAdvanceTarget: null,
 			date: initialDate ? new ReadonlyDate(initialDate) : new ReadonlyDate(),
 			config: Object.freeze({
 				freezeUpdates,
@@ -604,11 +598,6 @@ export class TimeSync implements TimeSyncApi {
 		if (canDispatch) {
 			this.#updateDate();
 		}
-
-		this.#latestSnapshot = Object.freeze({
-			...this.#latestSnapshot,
-			lastAdvanceTarget: newDateCandidate,
-		});
 	}
 
 	resetAll(): void {

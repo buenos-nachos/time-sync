@@ -652,7 +652,6 @@ describe(TimeSync, () => {
 			expect(snap).toEqual<Snapshot>({
 				date: initialDate,
 				subscriberCount: 0,
-				lastAdvanceTarget: null,
 				config: {
 					freezeUpdates: false,
 					minimumRefreshIntervalMs,
@@ -804,7 +803,6 @@ describe(TimeSync, () => {
 			const mutationSource: Snapshot = {
 				date: new ReadonlyDate("April 1, 1970"),
 				subscriberCount: Number.POSITIVE_INFINITY,
-				lastAdvanceTarget: new ReadonlyDate("December 25, 1994"),
 				config: {
 					freezeUpdates: true,
 					minimumRefreshIntervalMs: Number.POSITIVE_INFINITY,
@@ -815,9 +813,6 @@ describe(TimeSync, () => {
 			const mutations: readonly (() => void)[] = [
 				() => {
 					snap.date = mutationSource.date;
-				},
-				() => {
-					snap.lastAdvanceTarget = mutationSource.lastAdvanceTarget;
 				},
 				() => {
 					snap.subscriberCount = mutationSource.subscriberCount;
@@ -1045,30 +1040,6 @@ describe(TimeSync, () => {
 
 			expect(onUpdate).not.toHaveBeenCalled();
 			expect(diff).toBe(0);
-		});
-
-		it("Always updates the snapshot's lastAdvanceTarget, regardless of whether the advance operation succeeded", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-
-			// Test update that succeeds
-			const snapBeforeSuccess = sync.getStateSnapshot().date;
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			sync.advanceTime({ byMs: refreshRates.oneMinute });
-			const snapAfterSuccess = sync.getStateSnapshot().date;
-			const diff1 = snapAfterSuccess.getTime() - snapBeforeSuccess.getTime();
-			expect(diff1).toBe(refreshRates.oneMinute);
-
-			// Test update that gets skipped
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			sync.advanceTime({
-				byMs: refreshRates.oneMinute,
-				stalenessThresholdMs: refreshRates.oneHour,
-			});
-			const snapAfterFailure = sync.getStateSnapshot().date;
-			const diff2 = snapAfterFailure.getTime() - snapAfterSuccess.getTime();
-			expect(diff2).toBe(refreshRates.oneMinute);
 		});
 	});
 
