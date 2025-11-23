@@ -11,8 +11,7 @@ Library for centralizing time values into reactive, dependency-injectable state.
 
 ### Non-goals
 
-- Help synchronize state across multiple client devices (which introduces time zone issues)
-- Help synchronize state across multiple the server and client for extended periods of time
+- Help synchronize state across multiple devices (no multiplayer support, no extended communication between client and server)
 
 ## Roadmap
 
