@@ -723,7 +723,7 @@ describe(TimeSync, () => {
 			const initialSnap = sync.getStateSnapshot();
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
-			sync.advanceTime({ spanMs: refreshRates.oneHour });
+			sync.advanceTime({ byMs: refreshRates.oneHour });
 			const newSnap = sync.getStateSnapshot();
 			expect(newSnap).not.toEqual(initialSnap);
 		});
@@ -923,7 +923,7 @@ describe(TimeSync, () => {
 
 			const snapBefore = sync.getStateSnapshot().date;
 			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
-			sync.advanceTime({ spanMs: refreshRates.oneSecond });
+			sync.advanceTime({ byMs: refreshRates.oneSecond });
 
 			const snapAfter = sync.getStateSnapshot().date;
 			const diff = snapAfter.getTime() - snapBefore.getTime();
@@ -940,7 +940,7 @@ describe(TimeSync, () => {
 			});
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			sync.advanceTime({ spanMs: refreshRates.oneMinute });
+			sync.advanceTime({ byMs: refreshRates.oneMinute });
 			expect(onUpdate).toHaveBeenCalledTimes(1);
 		});
 
@@ -957,7 +957,7 @@ describe(TimeSync, () => {
 			];
 			for (const i of invalidSpans) {
 				expect(() => {
-					sync.advanceTime({ spanMs: i });
+					sync.advanceTime({ byMs: i });
 				}).toThrow(
 					new RangeError(
 						`Advance amounts must be a positive integer or 0 (received ${i} ms)`,
@@ -974,7 +974,7 @@ describe(TimeSync, () => {
 			for (const i of invalidIntervals) {
 				expect(() => {
 					sync.advanceTime({
-						spanMs: refreshRates.oneSecond,
+						byMs: refreshRates.oneSecond,
 						stalenessThresholdMs: i,
 					});
 				}).toThrow(
@@ -1000,7 +1000,7 @@ describe(TimeSync, () => {
 			// positives
 			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
 			sync.advanceTime({
-				spanMs: refreshRates.oneMinute,
+				byMs: refreshRates.oneMinute,
 				stalenessThresholdMs: refreshRates.oneHour,
 			});
 			expect(onUpdate).not.toHaveBeenCalled();
@@ -1019,7 +1019,7 @@ describe(TimeSync, () => {
 
 			const snapBefore = sync.getStateSnapshot().date;
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			sync.advanceTime({ spanMs: refreshRates.oneMinute });
+			sync.advanceTime({ byMs: refreshRates.oneMinute });
 
 			const snapAfter = sync.getStateSnapshot().date;
 			const diff = snapAfter.getTime() - snapBefore.getTime();
@@ -1039,7 +1039,7 @@ describe(TimeSync, () => {
 			});
 
 			const snapBefore = sync.getStateSnapshot().date;
-			sync.advanceTime({ spanMs: refreshRates.oneHour });
+			sync.advanceTime({ byMs: refreshRates.oneHour });
 			const snapAfter = sync.getStateSnapshot().date;
 			const diff = snapAfter.getTime() - snapBefore.getTime();
 
@@ -1055,7 +1055,7 @@ describe(TimeSync, () => {
 			// Test update that succeeds
 			const snapBeforeSuccess = sync.getStateSnapshot().date;
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			sync.advanceTime({ spanMs: refreshRates.oneMinute });
+			sync.advanceTime({ byMs: refreshRates.oneMinute });
 			const snapAfterSuccess = sync.getStateSnapshot().date;
 			const diff1 = snapAfterSuccess.getTime() - snapBeforeSuccess.getTime();
 			expect(diff1).toBe(refreshRates.oneMinute);
@@ -1063,7 +1063,7 @@ describe(TimeSync, () => {
 			// Test update that gets skipped
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			sync.advanceTime({
-				spanMs: refreshRates.oneMinute,
+				byMs: refreshRates.oneMinute,
 				stalenessThresholdMs: refreshRates.oneHour,
 			});
 			const snapAfterFailure = sync.getStateSnapshot().date;
@@ -1160,7 +1160,7 @@ describe(TimeSync, () => {
 
 			const snapBefore = sync.getStateSnapshot();
 			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
-			sync.advanceTime({ spanMs: refreshRates.oneSecond });
+			sync.advanceTime({ byMs: refreshRates.oneSecond });
 
 			const snapAfter = sync.getStateSnapshot();
 			expect(onUpdate).not.toHaveBeenCalled();

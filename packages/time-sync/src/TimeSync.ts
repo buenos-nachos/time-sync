@@ -113,7 +113,7 @@ export type AdvanceTimeOptions = Readonly<{
 	/**
 	 * The amount to advance the TimeSync by.
 	 */
-	spanMs: number;
+	byMs: number;
 
 	/**
 	 * The amount of time (in milliseconds) that you can tolerate stale dates.
@@ -571,13 +571,13 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	advanceTime(options: AdvanceTimeOptions): void {
-		const { spanMs } = options;
+		const { byMs } = options;
 		let { stalenessThresholdMs } = options;
 
-		const isIntervalValid = Number.isInteger(spanMs) && spanMs >= 0;
+		const isIntervalValid = Number.isInteger(byMs) && byMs >= 0;
 		if (!isIntervalValid) {
 			throw new RangeError(
-				`Advance amounts must be a positive integer or 0 (received ${spanMs} ms)`,
+				`Advance amounts must be a positive integer or 0 (received ${byMs} ms)`,
 			);
 		}
 		const isStaleValid =
@@ -596,7 +596,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		const actualCurrentTime = new ReadonlyDate();
-		const newDateCandidate = new ReadonlyDate(oldDate.getTime() + spanMs);
+		const newDateCandidate = new ReadonlyDate(oldDate.getTime() + byMs);
 
 		const canDispatch =
 			newDateCandidate.getTime() <= actualCurrentTime.getTime() &&
