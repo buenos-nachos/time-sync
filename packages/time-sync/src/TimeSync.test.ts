@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import { ReadonlyDate } from "./ReadonlyDate";
 import {
 	type Configuration,
-	type NotificationBehavior,
 	refreshRates,
 	type Snapshot,
 	TimeSync,
@@ -716,14 +715,14 @@ describe(TimeSync, () => {
 			expect(newSnap).not.toEqual(initialSnap);
 		});
 
-		it("Does not mutate old snapshot when TimeSync state is invalidated", async ({
+		it("Does not mutate old snapshot when TimeSync state is set to new value", async ({
 			expect,
 		}) => {
 			const sync = new TimeSync();
 			const initialSnap = sync.getStateSnapshot();
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
-			void sync.refreshDate({ notificationBehavior: "always" });
+			sync.advanceTime({ byMs: refreshRates.oneHour });
 			const newSnap = sync.getStateSnapshot();
 			expect(newSnap).not.toEqual(initialSnap);
 		});
@@ -801,7 +800,7 @@ describe(TimeSync, () => {
 			const config = snap.config as Writeable<Configuration>;
 			const copyBeforeMutations = { ...snap, config: { ...config } };
 
-			const mutationSnap: Snapshot = {
+			const mutationSource: Snapshot = {
 				date: new ReadonlyDate("April 1, 1970"),
 				subscriberCount: Number.POSITIVE_INFINITY,
 				config: {
@@ -813,21 +812,21 @@ describe(TimeSync, () => {
 
 			const mutations: readonly (() => void)[] = [
 				() => {
-					snap.date = mutationSnap.date;
+					snap.date = mutationSource.date;
 				},
 				() => {
-					config.freezeUpdates = mutationSnap.config.freezeUpdates;
+					snap.subscriberCount = mutationSource.subscriberCount;
 				},
 				() => {
-					snap.subscriberCount = mutationSnap.subscriberCount;
+					config.freezeUpdates = mutationSource.config.freezeUpdates;
 				},
 				() => {
 					config.minimumRefreshIntervalMs =
-						mutationSnap.config.minimumRefreshIntervalMs;
+						mutationSource.config.minimumRefreshIntervalMs;
 				},
 				() => {
 					config.allowDuplicateOnUpdateCalls =
-						mutationSnap.config.allowDuplicateOnUpdateCalls;
+						mutationSource.config.allowDuplicateOnUpdateCalls;
 				},
 			];
 			for (const m of mutations) {
@@ -911,194 +910,136 @@ describe(TimeSync, () => {
 		});
 	});
 
-	describe("Invalidating state", () => {
-		it("Defaults to always changing snapshots", ({ expect }) => {
-			const sync = new TimeSync();
-			const onUpdate = vi.fn();
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneHour,
-			});
-
-			expect(onUpdate).not.toHaveBeenCalled();
-			void sync.refreshDate();
-			expect(onUpdate).toHaveBeenCalledTimes(1);
-		});
-
-		it("Accepts custom staleness threshold for onChange behavior", async ({
+	describe("Advancing the date", () => {
+		it("Lets external system advance the TimeSync's internal date", async ({
 			expect,
 		}) => {
 			const sync = new TimeSync();
-			const onUpdate = vi.fn();
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneHour,
-			});
 
-			expect(onUpdate).not.toHaveBeenCalled();
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(onUpdate).not.toHaveBeenCalled();
-			void sync.refreshDate({
-				notificationBehavior: "onChange",
-				stalenessThresholdMs: refreshRates.oneMinute,
-			});
-			expect(onUpdate).toHaveBeenCalledTimes(1);
+			const snapBefore = sync.getStateSnapshot().date;
+			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+			sync.advanceTime({ byMs: refreshRates.oneSecond });
+
+			const snapAfter = sync.getStateSnapshot().date;
+			const diff = snapAfter.getTime() - snapBefore.getTime();
+			expect(diff).toBe(refreshRates.oneSecond);
 		});
 
-		it("Only triggers onChange behavior if threshold was met", async ({
-			expect,
-		}) => {
+		it("Notifies subscribers when advance succeeds", async ({ expect }) => {
 			const sync = new TimeSync();
+
 			const onUpdate = vi.fn();
 			void sync.subscribe({
 				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneHour,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
 			});
-
-			expect(onUpdate).not.toHaveBeenCalled();
-			void sync.refreshDate({
-				notificationBehavior: "onChange",
-				stalenessThresholdMs: refreshRates.oneMinute,
-			});
-			expect(onUpdate).not.toHaveBeenCalled();
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(onUpdate).not.toHaveBeenCalled();
-			void sync.refreshDate({
-				notificationBehavior: "onChange",
-				stalenessThresholdMs: refreshRates.oneMinute,
-			});
+			sync.advanceTime({ byMs: refreshRates.oneMinute });
 			expect(onUpdate).toHaveBeenCalledTimes(1);
 		});
 
-		it("Defaults to staleness threshold of 0", async ({ expect }) => {
-			const sync = new TimeSync();
-			const initialSnap = sync.getStateSnapshot();
-
-			// Advance timers to guarantee that there will be some kind of
-			// difference in the dates
-			await vi.advanceTimersByTimeAsync(5000);
-			void sync.refreshDate({ notificationBehavior: "onChange" });
-			const newSnap = sync.getStateSnapshot();
-			expect(newSnap).not.toEqual(initialSnap);
-		});
-
-		it("Throws when provided a staleness threshold that is neither a positive integer nor zero", ({
+		it("Throws if advance amount is not an integer greater than or equal to 0", ({
 			expect,
 		}) => {
 			const sync = new TimeSync();
 
-			const intervals: readonly number[] = [
+			const invalidSpans: readonly number[] = [
 				Number.NaN,
 				Number.NEGATIVE_INFINITY,
-				Number.POSITIVE_INFINITY,
 				-42,
 				470.53,
 			];
-			for (const i of intervals) {
+			for (const i of invalidSpans) {
 				expect(() => {
-					void sync.refreshDate({
-						notificationBehavior: "onChange",
-						stalenessThresholdMs: i,
-					});
-				}).toThrow(RangeError);
-			}
-		});
-
-		// Doing this to provide more runtime guarantees of correctness, instead
-		// of praying that the type system does everything for us
-		it("Throws if notification behavior provided at runtime is not supported", ({
-			expect,
-		}) => {
-			const junkValues = [
-				"blah",
-				"guh",
-				"huh",
-				"what",
-				"onchange",
-				"ALWAYS",
-				"NEVER",
-				" never ",
-			] as unknown as readonly NotificationBehavior[];
-
-			const sync = new TimeSync();
-			for (const jv of junkValues) {
-				expect(() => {
-					void sync.refreshDate({ notificationBehavior: jv });
+					sync.advanceTime({ byMs: i });
 				}).toThrow(
 					new RangeError(
-						`Received notification behavior of "${jv}", which is not supported`,
+						`Advance amounts must be a positive integer or 0 (received ${i} ms)`,
 					),
 				);
 			}
-
-			expect.hasAssertions();
 		});
 
-		it("Supports invalidating state without notifying anything", async ({
+		it("Throws if custom staleness threshold is not an integer greater than 0", ({
 			expect,
 		}) => {
 			const sync = new TimeSync();
-			const initialSnap = sync.getStateSnapshot();
 
-			const onUpdate = vi.fn();
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneHour,
-			});
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			void sync.refreshDate({ notificationBehavior: "never" });
-			expect(onUpdate).not.toHaveBeenCalled();
-
-			const newSnap = sync.getStateSnapshot();
-			expect(newSnap).not.toEqual(initialSnap);
-		});
-
-		it("Will never notify if notifications are disabled every time", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-			const initialSnap = sync.getStateSnapshot();
-
-			const onUpdate = vi.fn();
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneHour,
-			});
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			for (let i = 0; i < 100; i++) {
-				void sync.refreshDate({ notificationBehavior: "never" });
+			for (const i of invalidIntervals) {
+				expect(() => {
+					sync.advanceTime({
+						byMs: refreshRates.oneSecond,
+						stalenessThresholdMs: i,
+					});
+				}).toThrow(
+					new RangeError(
+						`Custom refresh intervals must be a positive integer (received ${i} ms)`,
+					),
+				);
 			}
-			expect(onUpdate).not.toHaveBeenCalled();
-
-			const newSnap = sync.getStateSnapshot();
-			expect(newSnap).not.toEqual(initialSnap);
 		});
 
-		it("Can force-notify subscribers, even if state did not change", ({
+		it("Prevents operation from going through if new date would not meet custom staleness threshold", async ({
 			expect,
 		}) => {
 			const sync = new TimeSync();
-			const initialSnap = sync.getStateSnapshot();
+			const onUpdate = vi.fn();
 
-			let ejectedDate: Date | undefined;
-			const onUpdate = vi.fn((d: Date) => {
-				ejectedDate = d;
+			sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
 			});
+
+			// Need to advance the time by some amount to cut down on false
+			// positives
+			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+			sync.advanceTime({
+				byMs: refreshRates.oneMinute,
+				stalenessThresholdMs: refreshRates.oneHour,
+			});
+			expect(onUpdate).not.toHaveBeenCalled();
+		});
+
+		it("Allows operation if new date would meet custom staleness threshold", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+			const onUpdate = vi.fn();
+
+			sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			const snapBefore = sync.getStateSnapshot().date;
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			sync.advanceTime({ byMs: refreshRates.oneMinute });
+
+			const snapAfter = sync.getStateSnapshot().date;
+			const diff = snapAfter.getTime() - snapBefore.getTime();
+			expect(diff).toBe(refreshRates.oneMinute);
+			expect(onUpdate).toHaveBeenCalled();
+		});
+
+		it("Prevents operation if new date would exceed actual system time", ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+			const onUpdate = vi.fn();
 
 			void sync.subscribe({
 				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneHour,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
 			});
 
-			void sync.refreshDate({ notificationBehavior: "always" });
-			expect(onUpdate).toHaveBeenCalledTimes(1);
+			const snapBefore = sync.getStateSnapshot().date;
+			sync.advanceTime({ byMs: refreshRates.oneHour });
+			const snapAfter = sync.getStateSnapshot().date;
+			const diff = snapAfter.getTime() - snapBefore.getTime();
 
-			const newSnap = sync.getStateSnapshot();
-			expect(newSnap).not.toEqual(initialSnap);
-			expect(newSnap.date).toEqual(ejectedDate);
+			expect(onUpdate).not.toHaveBeenCalled();
+			expect(diff).toBe(0);
 		});
 	});
 
@@ -1119,7 +1060,7 @@ describe(TimeSync, () => {
 			// Trying to tie the test to a specific number of calls felt like
 			// tying it to implementation details too much. So, instead we're
 			// going to assume that if the clear was called at least once, and
-			// the number of set calls hasn't changed from before the disposal
+			// the number of set calls hasn't changed from before the reset
 			// step, we're good
 			expect(setSpy).toHaveBeenCalledTimes(1);
 			sync.resetAll();
@@ -1180,7 +1121,7 @@ describe(TimeSync, () => {
 			expect(snap.date).toEqual(initialDate);
 		});
 
-		it("Turns state invalidations into no-ops", ({ expect }) => {
+		it("Silently prevents attempts to advance time", async ({ expect }) => {
 			const sync = new TimeSync({ freezeUpdates: true });
 			const onUpdate = vi.fn();
 			void sync.subscribe({
@@ -1188,16 +1129,13 @@ describe(TimeSync, () => {
 				targetRefreshIntervalMs: refreshRates.oneMinute,
 			});
 
-			const dateBefore = sync.getStateSnapshot().date;
-			const dateAfterFromRefresh = sync.refreshDate({
-				notificationBehavior: "always",
-				stalenessThresholdMs: 0,
-			});
-			const dateAfterFromSnap = sync.getStateSnapshot().date;
+			const snapBefore = sync.getStateSnapshot();
+			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+			sync.advanceTime({ byMs: refreshRates.oneSecond });
 
+			const snapAfter = sync.getStateSnapshot();
 			expect(onUpdate).not.toHaveBeenCalled();
-			expect(dateBefore).toEqual(dateAfterFromSnap);
-			expect(dateAfterFromRefresh).toEqual(dateAfterFromSnap);
+			expect(snapBefore).toEqual(snapAfter);
 		});
 	});
 });
