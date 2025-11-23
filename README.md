@@ -13,23 +13,34 @@ See [the motiviation section](#motivation) for more information.
 ### Available now
 
 - 🔄 **Keep things in sync** – `time-sync` ensures that different systems on one device can't ever get out of sync with each other.
-- 📸 **Stop your snapshot tests from flaking** –
+- 📸 **No more snapshot flakes** – `time-sync` makes it easy to freeze the time to a specific value to ensure that your snapshot tests stay deterministic.
+- 🏝️ **Astro islands** – All `time-sync` packages aim to support Astro's island architecture out of the box. This includes mixing `.astro` files with frameworks that have official bindings.
 - 📦 **As few dependencies as possible** – The vanilla version of `time-sync` has zero runtime dependencies. Each package for binding it to a framwork aims to have only that framework as a dependency.
 
 ### Coming soon
 
-- 🏝️ **Islands support** – All versions of `time-sync` aim to support islands architecture out of the box (like the version used by Astro)
-- 🖥️ **Bindings for popular UI frameworks** – `time-sync` will be launching bindings for React in the next few weeks. Solid.js bindings will launch soon after. Other frameworks may be added based on demand.
+- 🖥️ **Bindings for popular UI frameworks** – `time-sync` will be launching bindings for React in the next few weeks. Solid.js bindings will launch soon after. Other frameworks may be added based on demand/interest.
 - 💿 **Mix and match UI frameworks** – The React and Solid.js packages are being designed so that they can be used together in a single Astro project. Any future framework bindings will aim to have the same support.
 
 ## Quick start
+
+### Installation
+
+### Usage
+
+## Documentation
+
+All documentation can be found [in the `docs` directory](./docs).
+
+> [!NOTE] Because this project is in its early stages, there is a bigger risk of breaking API changes. Other documentation (such as how-to guides and explanations) will become available once the project has stabilized.
 
 ## Motivation
 
 ### Design goals
 
-- Help synchronize state and processes on the same system
-- Provide limited support for server-side rendering (just enough to avoid hydration mismatches and similar issues, but no deep synchronization).
+- Help synchronize state and processes on the same system.
+- Make it easy to stop snapshot tests without having to lean on platform-specific tools and hacks.
+- Provide limited support for server-side rendering (just enough to avoid hydration mismatches and similar issues as a one-time initialization).
 - Provide limited support for stateful servers that need the vanilla JavaScript version of TimeSync to keep updates in sync.
 
 ### Design non-goals
