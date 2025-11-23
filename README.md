@@ -56,18 +56,14 @@ yarn add -E @buenos-nachos/time-sync @buenos-nachos/time-sync-react
 ### Usage
 
 <!-- prettier-ignore-start -->
-> [!CAUTION]
+> [!WARNING]
 > While the `TimeSync` class is designed to be instantiated any number of times (especially for testing), it is HIGHLY recommended that each device only ever have one instance at a time. Treat it how you would a global Redux store. 
 <!-- prettier-ignore-end -->
 
 Once the vanilla `time-sync` package has been installed, you can get started like so:
 
 ```ts
-import {
-	type ReadonlyDate,
-	refreshRates,
-	TimeSync,
-} from "@buenos-nachos/time-sync";
+import { refreshRates, TimeSync } from "@buenos-nachos/time-sync";
 
 // TimeSync tries to have sensible defaults, but an options object can be passed
 // to the constructor to configure behavior.
@@ -97,7 +93,7 @@ const unsubscribe2 = sync.subscribe({
 // start over from scratch as long as there is an active subscriber.
 unsubscribe2();
 
-function displayYear(date: ReadonlyDate): void {
+function displayYear(date: Date): void {
 	console.log(`The year is ${newDate.getYear()}`);
 }
 
@@ -112,9 +108,10 @@ const unsubscribe3 = sync.subscribe({
 const unsubscribe4 = sync.subscribe({
 	targetRefreshIntervalMs: refreshRates.oneSecond,
 
-	// If the same function (by reference) is added to by multiple subscribers,
-	// TimeSync will automatically de-duplicate the function calls. This can be
-	// turned off when configuring the instance.
+	// If the same function (by reference) is added by multiple subscribers,
+	// TimeSync will automatically de-duplicate the function calls when
+	// dispatching updates. This behavior can be turned off when configuring
+	// the instance.
 	onUpdate: displayYear,
 });
 ```
