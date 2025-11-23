@@ -5,7 +5,7 @@
 [![CI/CD](https://github.com/buenos-nachos/time-sync/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/buenos-nachos/time-sync/actions/workflows/ci.yaml)
 <!-- prettier-ignore-end -->
 
-[!time-sync logo](./images/banner.png)
+[time-sync logo](./images/banner.png)
 
 `time-sync` is a set of packages designed to make it foolproof to work with time values on a single device. This can be multiple UI components on a single client device, or a series of UI snapshot tests being run in a platform like Storybook. While `time-sync` is mostly intended for UIs, the vanilla version also has zero dependencies and can be used for stateful servers. The packages force you as a developer to specify when and how time should be updated, while also centralizing updates to a single place.
 
