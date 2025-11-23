@@ -177,7 +177,7 @@ interface TimeSyncApi {
 	 * without any risks of memory leaks). It can also be used to reset a global
 	 * TimeSync to its initial state for certain testing setups.
 	 */
-	resetAll: () => void;
+	clearAll: () => void;
 }
 
 type SubscriptionEntry = Readonly<{
@@ -588,7 +588,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 	}
 
-	resetAll(): void {
+	clearAll(): void {
 		clearInterval(this.#intervalId);
 		this.#intervalId = undefined;
 		this.#fastestRefreshInterval = 0;

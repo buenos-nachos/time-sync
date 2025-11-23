@@ -21,16 +21,6 @@ function setInitialTime(dateString: string): ReadonlyDate {
 	return sourceDate;
 }
 
-beforeEach(() => {
-	// Date doesn't actually matter. Just choosing a personally meaningful one
-	vi.useFakeTimers({ now: new Date("October 27, 2025") });
-});
-
-afterEach(() => {
-	vi.useRealTimers();
-	vi.restoreAllMocks();
-});
-
 /**
  * Unfortunately, because the tests make extensive use of vi's mocking, these
  * tests are a bad candidate for concurrent running. There's a very high risk of
@@ -64,6 +54,16 @@ afterEach(() => {
  * serial tests for now.
  */
 describe(TimeSync, () => {
+	beforeEach(() => {
+		// Date doesn't actually matter. Just choosing personally meaningful one
+		vi.useFakeTimers({ now: new Date("October 27, 2025") });
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+	});
+
 	describe("General initialization", () => {
 		it("Lets users specify custom initial date", ({ expect }) => {
 			const dates: readonly Date[] = [
@@ -166,6 +166,45 @@ describe(TimeSync, () => {
 
 			const snap = sync.getStateSnapshot();
 			expect(snap.subscriberCount).toBe(2);
+		});
+
+		it("Always dispatches updates in the order that callbacks were first registered", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+			const callOrder: number[] = [];
+
+			const onUpdate1 = vi.fn(() => {
+				callOrder.push(1);
+			});
+			void sync.subscribe({
+				onUpdate: onUpdate1,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			const onUpdate2 = vi.fn(() => {
+				callOrder.push(2);
+			});
+			void sync.subscribe({
+				onUpdate: onUpdate2,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			// Register callbacks that was already registered, to make sure that
+			// doesn't change dispatch order
+			void sync.subscribe({
+				onUpdate: onUpdate2,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+			void sync.subscribe({
+				onUpdate: onUpdate1,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(onUpdate1).toHaveBeenCalledTimes(1);
+			expect(onUpdate2).toHaveBeenCalledTimes(1);
+			expect(callOrder).toEqual([1, 2]);
 		});
 
 		it("Dispatches the same date object (by reference) to all subscribers on update", async ({
@@ -967,7 +1006,16 @@ describe(TimeSync, () => {
 		});
 
 		it("Does not notify if advance would do nothing", async ({ expect }) => {
-			expect.hasAssertions();
+			const sync = new TimeSync();
+
+			const onUpdate = vi.fn();
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneHour,
+			});
+
+			sync.advanceTime(refreshRates.oneMinute);
+			expect(onUpdate).not.toHaveBeenCalled();
 		});
 
 		it("Throws if advance amount is not an integer greater than 0", ({
@@ -1009,13 +1057,34 @@ describe(TimeSync, () => {
 		it("Restarts active interval if subsctibers were notified", async ({
 			expect,
 		}) => {
-			expect.hasAssertions();
+			const sync = new TimeSync();
+
+			const onUpdate = vi.fn();
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.thirtySeconds);
+			sync.advanceTime();
+			expect(onUpdate).toHaveBeenCalledTimes(1);
+
+			await vi.advanceTimersByTime(refreshRates.thirtySeconds);
+			expect(onUpdate).toHaveBeenCalledTimes(1);
 		});
 
 		it("Falls back to current system time if new date would exceed it", async ({
 			expect,
 		}) => {
-			expect.hasAssertions();
+			const sync = new TimeSync();
+			const snapBefore = sync.getStateSnapshot().date;
+
+			await vi.advanceTimersByTimeAsync(refreshRates.thirtySeconds);
+			sync.advanceTime(refreshRates.oneMinute);
+
+			const snapAfter = sync.getStateSnapshot().date;
+			const diff = snapAfter.getTime() - snapBefore.getTime();
+			expect(diff).toBe(refreshRates.thirtySeconds);
 		});
 	});
 
@@ -1039,7 +1108,7 @@ describe(TimeSync, () => {
 			// the number of set calls hasn't changed from before the reset
 			// step, we're good
 			expect(setSpy).toHaveBeenCalledTimes(1);
-			sync.resetAll();
+			sync.clearAll();
 			expect(clearSpy).toHaveBeenCalled();
 			expect(setSpy).toHaveBeenCalledTimes(1);
 
@@ -1061,7 +1130,7 @@ describe(TimeSync, () => {
 			const oldSnap = sync.getStateSnapshot();
 			expect(oldSnap.subscriberCount).toBe(100);
 
-			sync.resetAll();
+			sync.clearAll();
 			const newSnap = sync.getStateSnapshot();
 			expect(newSnap.subscriberCount).toBe(0);
 
@@ -1112,6 +1181,59 @@ describe(TimeSync, () => {
 			const snapAfter = sync.getStateSnapshot();
 			expect(onUpdate).not.toHaveBeenCalled();
 			expect(snapBefore).toEqual(snapAfter);
+		});
+	});
+
+	describe("Nuanced interactions", () => {
+		it("It always updates public snapshot state before update round", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+			const snapBefore = sync.getStateSnapshot().date;
+
+			let dateFromUpdate = snapBefore;
+			const onUpdate = vi.fn((newDate) => {
+				dateFromUpdate = newDate;
+			});
+			void sync.subscribe({
+				onUpdate: onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(snapBefore).not.toEqual(dateFromUpdate);
+			const diff = dateFromUpdate.getTime() - snapBefore.getTime();
+			expect(diff).toBe(refreshRates.oneMinute);
+		});
+
+		it("Stops dispatching to remaining subscribers the moment one resets all state", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+
+			const onUpdate1 = vi.fn(() => {
+				sync.clearAll();
+			});
+			void sync.subscribe({
+				onUpdate: onUpdate1,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			const onUpdate2 = vi.fn();
+			void sync.subscribe({
+				onUpdate: onUpdate2,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(onUpdate1).toHaveBeenCalledTimes(1);
+			expect(onUpdate2).not.toHaveBeenCalled();
+		});
+
+		it.only("Sends to new subscribers if they get added in the middle of a new update", async ({
+			expect,
+		}) => {
+			expect.hasAssertions();
 		});
 	});
 });
