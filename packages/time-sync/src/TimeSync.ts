@@ -339,7 +339,7 @@ export class TimeSync implements TimeSyncApi {
 	 * don't have many situations where we can lose the `this` context, but this
 	 * is one of them.
 	 */
-	readonly #tick = (): void => {
+	readonly #onTick = (): void => {
 		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
 			// Defensive step to make sure that an invalid tick wasn't started
@@ -348,7 +348,7 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		const wasChanged = this.#updateDate();
+		const wasChanged = this.#setDate(new ReadonlyDate());
 		if (wasChanged) {
 			this.#notifyAllSubscriptions();
 		}
@@ -372,11 +372,11 @@ export class TimeSync implements TimeSyncApi {
 		clearInterval(this.#intervalId);
 
 		if (timeBeforeNextUpdate <= 0) {
-			const wasChanged = this.#updateDate();
+			const wasChanged = this.#setDate(new ReadonlyDate());
 			if (wasChanged) {
 				this.#notifyAllSubscriptions();
 			}
-			this.#intervalId = setInterval(this.#tick, fastest);
+			this.#intervalId = setInterval(this.#onTick, fastest);
 			return;
 		}
 
@@ -384,7 +384,7 @@ export class TimeSync implements TimeSyncApi {
 		// getting added, but there's still the small chance that the fastest
 		// interval could change right after an update got flushed
 		if (timeBeforeNextUpdate === fastest) {
-			this.#intervalId = setInterval(this.#tick, timeBeforeNextUpdate);
+			this.#intervalId = setInterval(this.#onTick, timeBeforeNextUpdate);
 			return;
 		}
 
@@ -398,8 +398,8 @@ export class TimeSync implements TimeSyncApi {
 			// don't want to start a new interval right after we've lost our
 			// ability to do cleanup. The timer won't start getting processed
 			// until the function leaves scope anyway
-			this.#intervalId = setInterval(this.#tick, fastest);
-			this.#tick();
+			this.#intervalId = setInterval(this.#onTick, fastest);
+			this.#onTick();
 		}, timeBeforeNextUpdate);
 	}
 
@@ -431,7 +431,7 @@ export class TimeSync implements TimeSyncApi {
 	/**
 	 * Attempts to update the current Date snapshot.
 	 */
-	#updateDate(): boolean {
+	#setDate(newDate: ReadonlyDate): boolean {
 		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
 			return false;
@@ -439,7 +439,7 @@ export class TimeSync implements TimeSyncApi {
 
 		this.#latestSnapshot = Object.freeze({
 			...this.#latestSnapshot,
-			date: new ReadonlyDate(),
+			date: newDate,
 		});
 
 		return true;
@@ -537,7 +537,7 @@ export class TimeSync implements TimeSyncApi {
 			(fastestBefore === Number.POSITIVE_INFINITY &&
 				this.#fastestRefreshInterval !== fastestBefore);
 		if (shouldUpdateDate) {
-			this.#updateDate();
+			this.#setDate(new ReadonlyDate());
 		}
 
 		return unsubscribe;
@@ -562,25 +562,29 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		const actualCurrentTime = new ReadonlyDate();
-		let comparisonDate = actualCurrentTime;
+		let dateToDispatch = actualCurrentTime;
 		if (byMs !== undefined) {
 			const candidate = new ReadonlyDate(oldDate.getTime() + byMs);
 			if (candidate.getTime() < actualCurrentTime.getTime()) {
-				comparisonDate = candidate;
+				dateToDispatch = candidate;
 			}
 		}
 
-		const shouldChange = oldDate.getTime() !== comparisonDate.getTime();
+		const shouldChange = oldDate.getTime() !== dateToDispatch.getTime();
 		if (!shouldChange) {
 			return;
 		}
 
 		clearInterval(this.#intervalId);
 		this.#intervalId = undefined;
-		this.#tick();
+
+		const wasChanged = this.#setDate(dateToDispatch);
+		if (wasChanged) {
+			this.#notifyAllSubscriptions();
+		}
 
 		if (this.#fastestRefreshInterval !== Number.POSITIVE_INFINITY) {
-			setInterval(this.#tick, this.#fastestRefreshInterval);
+			setInterval(this.#onTick, this.#fastestRefreshInterval);
 		}
 	}
 

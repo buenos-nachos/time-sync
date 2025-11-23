@@ -928,7 +928,28 @@ describe(TimeSync, () => {
 		it("Defaults to advancing the time to the current system time", async ({
 			expect,
 		}) => {
-			expect.hasAssertions();
+			const sync = new TimeSync();
+			const snapBefore = sync.getStateSnapshot().date;
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
+			sync.advanceTime();
+
+			const currentTime = new ReadonlyDate();
+			const snapAfter = sync.getStateSnapshot().date;
+			expect(snapAfter).toEqual(currentTime);
+			expect(snapBefore).not.toEqual(snapAfter);
+		});
+
+		it("Can advance even if there are no subscribers", async ({ expect }) => {
+			const sync = new TimeSync();
+			const snapBefore = sync.getStateSnapshot().date;
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
+			sync.advanceTime(refreshRates.thirtySeconds);
+
+			const snapAfter = sync.getStateSnapshot().date;
+			const diff = snapAfter.getTime() - snapBefore.getTime();
+			expect(diff).toBe(refreshRates.thirtySeconds);
 		});
 
 		it("Notifies subscribers when advance succeeds", async ({ expect }) => {
