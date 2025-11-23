@@ -14,13 +14,13 @@ In other words, the goal of `time-sync` is to make time more obvious and less ma
 ## Features
 
 - 🔄 **Keep things in sync** – `time-sync` ensures that different systems on one device can't ever get out of sync with each other.
+- 📸 **No more snapshot flakes** – `time-sync` makes it easy to freeze the time to a specific value to ensure that your snapshot tests stay deterministic. The upcoming UI framework bindings will have out-of-the-box support for platforms like Storybook.
 - 🏝️ **Astro islands** – All `time-sync` packages aim to support Astro's island architecture out of the box. This includes mixing `.astro` files with UI frameworks that have official `time-sync` packages.
 - 📦 **As few dependencies as possible** – The vanilla version of `time-sync` has zero runtime dependencies. Each package for binding it to a framwork aims to have only that framework as a dependency.
 
 ### Coming soon
 
 - 🖥️ **Bindings for popular UI frameworks** – `time-sync` will be launching bindings for React in the next few weeks. Solid.js bindings will launch soon after. Other frameworks may be added based on demand/interest.
-- 📸 **No more snapshot flakes** – `time-sync` makes it easy to freeze the time to a specific value to ensure that your snapshot tests stay deterministic.
 - 💿 **Mix and match UI frameworks** – The React and Solid.js packages are being designed so that they can be used together in a single Astro project. Any future framework bindings will aim to have the same support.
 
 ## Quick start
@@ -63,11 +63,18 @@ yarn add -E @buenos-nachos/time-sync @buenos-nachos/time-sync-react
 Once the vanilla `time-sync` package has been installed, you can get started like so:
 
 ```ts
-import { refreshRates, TimeSync } from "@buenos-nachos/time-sync";
+// Setup file
+import { TimeSync } from "@buenos-nachos/time-sync";
 
 // TimeSync tries to have sensible defaults, but an options object can be passed
 // to the constructor to configure behavior.
-const sync = new TimeSync();
+export const sync = new TimeSync();
+```
+
+```ts
+// Consuming file
+import { refreshRates } from "@buenos-nachos/time-sync";
+import { sync } from "./setupFile";
 
 const unsubscribe1 = sync.subscribe({
 	// refreshRates contains a set of commonly-used intervals, but any positive
@@ -89,8 +96,9 @@ const unsubscribe2 = sync.subscribe({
 
 // Once a subscriber leaves, TimeSync automatically re-calculates the fastest
 // interval. Let's say that this happens 45 seconds after the last update.
-// Subscriber 1 will be updated in 4 minutes and 15 seconds; the timer does not
-// start over from scratch as long as there is an active subscriber.
+// Subscriber 1 will be updated in 4 minutes and 15 seconds, rather than in
+// five minutes. The timer does not start over from scratch as long as there is
+// an active subscriber.
 unsubscribe2();
 
 function displayYear(date: Date): void {
@@ -106,7 +114,9 @@ const unsubscribe3 = sync.subscribe({
 });
 
 const unsubscribe4 = sync.subscribe({
-	// If a new subscription is added that
+	// If a new subscription is added that has an interval less than or equal to
+	// the elapsed time since the last update, all subscribers will be notified
+	// immediately, and then the update cycle will resume as normal.
 	targetRefreshIntervalMs: refreshRates.oneSecond,
 
 	// If the same function (by reference) is added by multiple subscribers,
@@ -115,6 +125,15 @@ const unsubscribe4 = sync.subscribe({
 	// the instance.
 	onUpdate: displayYear,
 });
+
+// This lets you pull an immutable snapshot of the TimeSync's inner state
+const snap = sync.getStateSnapshot();
+
+// This lets you manually invalidate the sync by advancing it to a certain time
+// (as long as that new time doesn't exceed the actual system time). If the
+// advance succeeeds, all subscribers will be notified, and then the next update
+// proceeds as normal.
+sync.advanceTime(refreshRates.fiveSeconds);
 ```
 
 ## Documentation
