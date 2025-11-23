@@ -11,27 +11,113 @@
 
 In other words, the goal of `time-sync` is to make time more obvious and less magical.
 
-See [the motiviation section](#motivation) for more information.
-
 ## Features
 
-### Available now
-
 - 🔄 **Keep things in sync** – `time-sync` ensures that different systems on one device can't ever get out of sync with each other.
-- 📸 **No more snapshot flakes** – `time-sync` makes it easy to freeze the time to a specific value to ensure that your snapshot tests stay deterministic.
 - 🏝️ **Astro islands** – All `time-sync` packages aim to support Astro's island architecture out of the box. This includes mixing `.astro` files with UI frameworks that have official `time-sync` packages.
 - 📦 **As few dependencies as possible** – The vanilla version of `time-sync` has zero runtime dependencies. Each package for binding it to a framwork aims to have only that framework as a dependency.
 
 ### Coming soon
 
 - 🖥️ **Bindings for popular UI frameworks** – `time-sync` will be launching bindings for React in the next few weeks. Solid.js bindings will launch soon after. Other frameworks may be added based on demand/interest.
+- 📸 **No more snapshot flakes** – `time-sync` makes it easy to freeze the time to a specific value to ensure that your snapshot tests stay deterministic.
 - 💿 **Mix and match UI frameworks** – The React and Solid.js packages are being designed so that they can be used together in a single Astro project. Any future framework bindings will aim to have the same support.
 
 ## Quick start
 
 ### Installation
 
+You can get started with the vanilla package like so. It is required for interfacing with all other `time-sync` packages.
+
+```bash
+// PNPM
+pnpm i -E @buenos-nachos/time-sync
+
+// NPM
+npm i -E @buenos-nachos/time-sync
+
+// Yarn
+yarn add -E @buenos-nachos/time-sync
+```
+
+Other packages can be installed in a similar way. For example, the React package is installed like this:
+
+```bash
+// PNPM
+pnpm i -E @buenos-nachos/time-sync @buenos-nachos/time-sync-react
+
+// NPM
+npm i -E @buenos-nachos/time-sync @buenos-nachos/time-sync-react
+
+// Yarn
+yarn add -E @buenos-nachos/time-sync @buenos-nachos/time-sync-react
+```
+
 ### Usage
+
+<!-- prettier-ignore-start -->
+> [!CAUTION]
+> While the `TimeSync` class is designed to be instantiated any number of times (especially for testing), it is HIGHLY recommended that each device only ever have one instance at a time. Treat it how you would a global Redux store. 
+<!-- prettier-ignore-end -->
+
+Once the vanilla `time-sync` package has been installed, you can get started like so:
+
+```ts
+import {
+	type ReadonlyDate,
+	refreshRates,
+	TimeSync,
+} from "@buenos-nachos/time-sync";
+
+// TimeSync tries to have sensible defaults, but an options object can be passed
+// to the constructor to configure behavior.
+const sync = new TimeSync();
+
+const unsubscribe1 = sync.subscribe({
+	// refreshRates contains a set of commonly-used intervals, but any positive
+	// integer can be used as well
+	targetRefreshIntervalMs: refreshRates.fiveMinutes,
+	onUpdate: (newDate) => {
+		console.log(`The new date is ${newDate.toDateString()}`);
+	},
+});
+
+// All subscribers are automatically updated by the fastest interval currently
+// active among all subscriptions
+const unsubscribe2 = sync.subscribe({
+	targetRefreshIntervalMs: refreshRates.oneMinute,
+	onUpdate: (newDate) => {
+		console.log(`The seconds is now ${newDate.getSeconds()}`);
+	},
+});
+
+// Once a subscriber leaves, TimeSync automatically re-calculates the fastest
+// interval. Let's say that this happens 45 seconds after the last update.
+// Subscriber 1 will be updated in 4 minutes and 15 seconds; the timer does not
+// start over from scratch as long as there is an active subscriber.
+unsubscribe2();
+
+function displayYear(date: ReadonlyDate): void {
+	console.log(`The year is ${newDate.getYear()}`);
+}
+
+const unsubscribe3 = sync.subscribe({
+	// This lets a subscriber "passively" subscribe to the TimeSync. It does not
+	// trigger updates on its own, but it can be notified when other subscribers
+	// change so that it can be "kept in the loop".
+	targetRefreshIntervalMs: refreshRates.idle,
+	onUpdate: displayYear,
+});
+
+const unsubscribe4 = sync.subscribe({
+	targetRefreshIntervalMs: refreshRates.oneSecond,
+
+	// If the same function (by reference) is added to by multiple subscribers,
+	// TimeSync will automatically de-duplicate the function calls. This can be
+	// turned off when configuring the instance.
+	onUpdate: displayYear,
+});
+```
 
 ## Documentation
 
@@ -42,16 +128,16 @@ All documentation can be found [in the `docs` directory](./docs).
 > Because this project is in its early stages, there is a bigger risk of breaking API changes. Other documentation (such as how-to guides and explanations) will become available once the project has stabilized.
 <!-- prettier-ignore-end -->
 
-## Motivation
-
-### Design goals
+## Design goals
 
 - Help synchronize state and processes on the same system.
 - Make it easy to stop snapshot tests without having to lean on platform-specific tools and hacks.
 - Provide limited support for server-side rendering (just enough to avoid hydration mismatches and similar issues as a one-time initialization).
 - Provide limited support for stateful servers that need the vanilla JavaScript version of TimeSync to keep updates in sync.
 
-### Design non-goals
+### Non-goals
+
+These items have been deemed fully out of scope for this project, and will never be added to this repo.
 
 - Help synchronize state across multiple devices (no multiplayer support, no extended communication between client and server)
 
