@@ -366,16 +366,12 @@ export class TimeSync implements TimeSyncApi {
 		 * the iterator protocol in the off chance that subscriptions add new
 		 * subscriptions. We need to make infinite loops impossible. If new
 		 * subscriptions get added, they'll just have to wait until the next
-		 * update round
+		 * update round.
 		 *
 		 * 2. The trade off of the serialization is that we do lose the ability
 		 * to auto-break the loops if one of the subscribers ends up resetting
 		 * all state, because we'll still have local copies of entries. We need
-		 * to check on each iteration to see if we should continue
-		 *
-		 * While this is a super niche use case, we're actually safe if a
-		 * subscriber resets the state of the whole TimeSync instance. Once the
-		 * Map is cleared, the map's iterator will automatically break the loop.
+		 * to check on each iteration to see if we should continue.
 		 */
 		if (config.allowDuplicateOnUpdateCalls) {
 			const entries = [...this.#subscriptions];
