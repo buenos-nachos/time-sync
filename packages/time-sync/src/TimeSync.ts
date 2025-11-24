@@ -565,33 +565,7 @@ export class TimeSync implements TimeSyncApi {
 			subscriberCount: this.#latestSnapshot.subscriberCount + 1,
 		});
 
-		const fastestBefore = this.#fastestRefreshInterval;
 		this.#updateFastestInterval();
-
-		/**
-		 * To keep TimeSync easier to reason about, we don't kick off any
-		 * intervals until you start using it – the constructor does not have
-		 * any side effects aside from input validation.
-		 *
-		 * But we still need to handle two things, since we don't have a way of
-		 * tracking them otherwise right now:
-		 *
-		 * 1. We don't know how much time will have elapsed between the class
-		 *    being instantiated, and the first subscriber being added
-		 * 2. We don't know how much time will have elapsed between an active
-		 *    subscriber getting added and when the last subscription got added,
-		 *    if all the previous subscribers are idle.
-		 *
-		 * Just updating the snapshot to be on the safe side.
-		 */
-		const shouldUpdateDate =
-			this.#latestSnapshot.subscriberCount === 1 ||
-			(fastestBefore === Number.POSITIVE_INFINITY &&
-				this.#fastestRefreshInterval !== fastestBefore);
-		if (shouldUpdateDate) {
-			void this.#setSnapshot({ date: new ReadonlyDate() });
-		}
-
 		return unsubscribe;
 	}
 
@@ -636,7 +610,10 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		if (this.#fastestRefreshInterval !== Number.POSITIVE_INFINITY) {
-			setInterval(this.#onTick, this.#fastestRefreshInterval);
+			this.#intervalId = setInterval(
+				this.#onTick,
+				this.#fastestRefreshInterval,
+			);
 		}
 	}
 
