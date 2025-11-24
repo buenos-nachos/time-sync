@@ -128,12 +128,6 @@ const unsubscribe4 = sync.subscribe({
 
 // This lets you pull an immutable snapshot of the TimeSync's inner state
 const snap = sync.getStateSnapshot();
-
-// This lets you manually invalidate the sync by advancing it to a certain time
-// (as long as that new time doesn't exceed the actual system time). If the
-// advance succeeds, all subscribers will be notified, and then the next update
-// proceeds as normal.
-sync.advanceTime(refreshRates.fiveSeconds);
 ```
 
 ## Documentation
