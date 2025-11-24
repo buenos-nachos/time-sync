@@ -314,20 +314,45 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		// While this is a super niche use case, we're actually safe if a
-		// subscriber resets the state of the whole TimeSync instance. Once the
-		// Map is cleared, the map's iterator will automatically break the loop.
-		// So there's no risk of continuing to dispatch values after cleanup.
+		/**
+		 * Two things for both paths:
+		 * 1. We need to make sure that we do one-time serializations of the map
+		 * entries into an array instead of constantly pulling from the map via
+		 * the iterator protocol in the off chance that subscriptions add new
+		 * subscriptions. We need to make infinite loops impossible. If new
+		 * subscriptions get added, they'll just have to wait until the next
+		 * update round
+		 *
+		 * 2. The trade off of the serialization is that we do lose the ability
+		 * to auto-break the loops if one of the subscribers ends up resetting
+		 * all state, because we'll still have local copies of entries. We need
+		 * to check on each iteration to see if we should continue
+		 *
+		 * While this is a super niche use case, we're actually safe if a
+		 * subscriber resets the state of the whole TimeSync instance. Once the
+		 * Map is cleared, the map's iterator will automatically break the loop.
+		 */
 		if (config.allowDuplicateOnUpdateCalls) {
-			for (const [onUpdate, subs] of this.#subscriptions) {
+			const entries = [...this.#subscriptions];
+			outer: for (const [onUpdate, subs] of entries) {
 				for (const _ of subs) {
+					const wasCleared = this.#subscriptions.size === 0;
+					if (wasCleared) {
+						break outer;
+					}
 					onUpdate(date);
 				}
 			}
-		} else {
-			for (const onUpdate of this.#subscriptions.keys()) {
-				onUpdate(date);
+			return;
+		}
+
+		const funcs = [...this.#subscriptions.keys()];
+		for (const onUpdate of funcs) {
+			const wasCleared = this.#subscriptions.size === 0;
+			if (wasCleared) {
+				break;
 			}
+			onUpdate(date);
 		}
 	}
 

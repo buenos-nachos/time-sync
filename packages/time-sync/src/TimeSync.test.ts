@@ -1230,10 +1230,31 @@ describe(TimeSync, () => {
 			expect(onUpdate2).not.toHaveBeenCalled();
 		});
 
-		it.only("Sends to new subscribers if they get added in the middle of a new update", async ({
+		it("Skips over new subscribers if they get added in the middle of an update round", async ({
 			expect,
 		}) => {
-			expect.hasAssertions();
+			const sync = new TimeSync();
+
+			const onUpdate = vi.fn(() => {
+				// Adding this check in the off chance that the logic is broken.
+				// Don't want to cause infinite loops in the test environment
+				if (onUpdate.mock.calls.length > 1) {
+					return;
+				}
+
+				void sync.subscribe({
+					onUpdate,
+					targetRefreshIntervalMs: refreshRates.oneMinute,
+				});
+			});
+
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(onUpdate).toHaveBeenCalledTimes(1);
 		});
 	});
 });
