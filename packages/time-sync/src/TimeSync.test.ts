@@ -1069,8 +1069,11 @@ describe(TimeSync, () => {
 			sync.advanceTime();
 			expect(onUpdate).toHaveBeenCalledTimes(1);
 
-			await vi.advanceTimersByTime(refreshRates.thirtySeconds);
+			await vi.advanceTimersByTimeAsync(refreshRates.thirtySeconds);
 			expect(onUpdate).toHaveBeenCalledTimes(1);
+
+			await vi.advanceTimersByTimeAsync(refreshRates.thirtySeconds);
+			expect(onUpdate).toHaveBeenCalledTimes(2);
 		});
 
 		it("Falls back to current system time if new date would exceed it", async ({
