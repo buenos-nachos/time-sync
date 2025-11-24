@@ -754,18 +754,6 @@ describe(TimeSync, () => {
 			expect(newSnap).not.toEqual(initialSnap);
 		});
 
-		it("Does not mutate old snapshot when TimeSync state is set to new value", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-			const initialSnap = sync.getStateSnapshot();
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
-			sync.advanceTime(refreshRates.oneHour);
-			const newSnap = sync.getStateSnapshot();
-			expect(newSnap).not.toEqual(initialSnap);
-		});
-
 		it("Does not mutate old snapshots when new subscription is added or removed", ({
 			expect,
 		}) => {
@@ -876,148 +864,6 @@ describe(TimeSync, () => {
 		});
 	});
 
-	describe("Advancing the date", () => {
-		it("Lets external system advance the TimeSync's internal date", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-
-			const snapBefore = sync.getStateSnapshot().date;
-			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
-			sync.advanceTime(refreshRates.oneSecond);
-
-			const snapAfter = sync.getStateSnapshot().date;
-			const diff = snapAfter.getTime() - snapBefore.getTime();
-			expect(diff).toBe(refreshRates.oneSecond);
-		});
-
-		it("Defaults to advancing the time to the current system time", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-			const snapBefore = sync.getStateSnapshot().date;
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
-			sync.advanceTime();
-
-			const currentTime = new ReadonlyDate();
-			const snapAfter = sync.getStateSnapshot().date;
-			expect(snapAfter).toEqual(currentTime);
-			expect(snapBefore).not.toEqual(snapAfter);
-		});
-
-		it("Can advance even if there are no subscribers", async ({ expect }) => {
-			const sync = new TimeSync();
-			const snapBefore = sync.getStateSnapshot().date;
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
-			sync.advanceTime(refreshRates.thirtySeconds);
-
-			const snapAfter = sync.getStateSnapshot().date;
-			const diff = snapAfter.getTime() - snapBefore.getTime();
-			expect(diff).toBe(refreshRates.thirtySeconds);
-		});
-
-		it("Notifies subscribers when advance succeeds", async ({ expect }) => {
-			const sync = new TimeSync();
-
-			const onUpdate = vi.fn();
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneHour,
-			});
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			sync.advanceTime(refreshRates.oneMinute);
-			expect(onUpdate).toHaveBeenCalledTimes(1);
-		});
-
-		it("Does not notify if advance would do nothing", async ({ expect }) => {
-			const sync = new TimeSync();
-
-			const onUpdate = vi.fn();
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneHour,
-			});
-
-			sync.advanceTime(refreshRates.oneMinute);
-			expect(onUpdate).not.toHaveBeenCalled();
-		});
-
-		it("Throws if advance amount is not an integer greater than 0", ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-
-			for (const i of invalidIntervals) {
-				expect(() => {
-					sync.advanceTime(i);
-				}).toThrow(
-					new RangeError(
-						`Advance amounts must be a positive integer or 0 (received ${i} ms)`,
-					),
-				);
-			}
-		});
-
-		it("Prevents operation if new date would exceed actual system time", ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-			const onUpdate = vi.fn();
-
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneMinute,
-			});
-
-			const snapBefore = sync.getStateSnapshot().date;
-			sync.advanceTime(refreshRates.oneHour);
-			const snapAfter = sync.getStateSnapshot().date;
-			const diff = snapAfter.getTime() - snapBefore.getTime();
-
-			expect(onUpdate).not.toHaveBeenCalled();
-			expect(diff).toBe(0);
-		});
-
-		it("Restarts active interval if subsctibers were notified", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-
-			const onUpdate = vi.fn();
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneMinute,
-			});
-
-			await vi.advanceTimersByTimeAsync(refreshRates.thirtySeconds);
-			sync.advanceTime();
-			expect(onUpdate).toHaveBeenCalledTimes(1);
-
-			await vi.advanceTimersByTimeAsync(refreshRates.thirtySeconds);
-			expect(onUpdate).toHaveBeenCalledTimes(1);
-
-			await vi.advanceTimersByTimeAsync(refreshRates.thirtySeconds);
-			expect(onUpdate).toHaveBeenCalledTimes(2);
-		});
-
-		it("Falls back to current system time if new date would exceed it", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-			const snapBefore = sync.getStateSnapshot().date;
-
-			await vi.advanceTimersByTimeAsync(refreshRates.thirtySeconds);
-			sync.advanceTime(refreshRates.oneMinute);
-
-			const snapAfter = sync.getStateSnapshot().date;
-			const diff = snapAfter.getTime() - snapBefore.getTime();
-			expect(diff).toBe(refreshRates.thirtySeconds);
-		});
-	});
-
 	describe("Resetting a TimeSync instance", () => {
 		it("Clears active interval", async ({ expect }) => {
 			const setSpy = vi.spyOn(globalThis, "setInterval");
@@ -1094,23 +940,6 @@ describe(TimeSync, () => {
 			const snap = sync.getStateSnapshot();
 			expect(snap.subscriberCount).toBe(0);
 			expect(snap.date).toEqual(initialDate);
-		});
-
-		it("Silently prevents attempts to advance time", async ({ expect }) => {
-			const sync = new TimeSync({ freezeUpdates: true });
-			const onUpdate = vi.fn();
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneMinute,
-			});
-
-			const snapBefore = sync.getStateSnapshot();
-			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
-			sync.advanceTime(refreshRates.oneSecond);
-
-			const snapAfter = sync.getStateSnapshot();
-			expect(onUpdate).not.toHaveBeenCalled();
-			expect(snapBefore).toEqual(snapAfter);
 		});
 	});
 

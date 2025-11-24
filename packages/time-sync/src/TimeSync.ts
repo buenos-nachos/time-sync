@@ -167,22 +167,6 @@ interface TimeSyncApi {
 	getStateSnapshot: () => Snapshot;
 
 	/**
-	 * Attempts to advance the TimeSync's internal date. If no argument is
-	 * passed in, the method tries to update the TimeSync with the current
-	 * system time.
-	 *
-	 * If a specific amount is provided, that value will be used instead. Any
-	 * custom values that would cause the new date to exceed the current system
-	 * time will cause the current system time to be used instead.
-	 *
-	 * If the date is updated, all subscribers will be notified and the
-	 * interval for the next update round will start over from scratch.
-	 *
-	 * @throws {RangeError} If the advance amount is not a positive integer.
-	 */
-	advanceTime: (byMs?: number) => void;
-
-	/**
 	 * Resets all internal state in the TimeSync, and handles all cleanup for
 	 * subscriptions and intervals previously set up. Configuration values are
 	 * retained.
@@ -567,50 +551,6 @@ export class TimeSync implements TimeSyncApi {
 
 	getStateSnapshot(): Snapshot {
 		return this.#latestSnapshot;
-	}
-
-	advanceTime(byMs?: number): void {
-		const isIntervalValid =
-			typeof byMs === "undefined" || (Number.isInteger(byMs) && byMs > 0);
-		if (!isIntervalValid) {
-			throw new RangeError(
-				`Advance amounts must be a positive integer or 0 (received ${byMs} ms)`,
-			);
-		}
-
-		const { config, date: oldDate } = this.#latestSnapshot;
-		if (config.freezeUpdates) {
-			return;
-		}
-
-		const actualCurrentTime = new ReadonlyDate();
-		let dateToDispatch = actualCurrentTime;
-		if (byMs !== undefined) {
-			const candidate = new ReadonlyDate(oldDate.getTime() + byMs);
-			if (candidate.getTime() < actualCurrentTime.getTime()) {
-				dateToDispatch = candidate;
-			}
-		}
-
-		const shouldChange = oldDate.getTime() !== dateToDispatch.getTime();
-		if (!shouldChange) {
-			return;
-		}
-
-		clearInterval(this.#intervalId);
-		this.#intervalId = undefined;
-
-		const wasChanged = this.#setSnapshot({ date: dateToDispatch });
-		if (wasChanged) {
-			this.#notifyAllSubscriptions();
-		}
-
-		if (this.#fastestRefreshInterval !== Number.POSITIVE_INFINITY) {
-			this.#intervalId = setInterval(
-				this.#onTick,
-				this.#fastestRefreshInterval,
-			);
-		}
 	}
 
 	clearAll(): void {
