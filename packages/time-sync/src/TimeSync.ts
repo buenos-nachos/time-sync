@@ -358,12 +358,12 @@ export class TimeSync implements TimeSyncApi {
 		 * to check on each iteration to see if we should continue.
 		 */
 		if (config.allowDuplicateOnUpdateCalls) {
-			// Not super happy about this, but because each subcription array is
-			// mutable, we have to make an immutable copy of the count of each
-			// sub before starting any dispatches. If we wait until the inner
-			// loop to store the length of the subs before iterating over them,
-			// that's too late. It's possible that a subscription could cause
-			// data to be pushed to an array for a different interval
+			// Not super happy about this, but because each subscription array
+			// is mutable, we have to make an immutable copy of the count of
+			// each sub before starting any dispatches. If we wait until the
+			// inner loop to store the length of the subs before iterating over
+			// them, that's too late. It's possible that a subscription could
+			// cause data to be pushed to an array for a different interval
 			const entries = Array.from(
 				this.#subscriptions,
 				([onUpdate, subs]) => [onUpdate, subs.length] as const,
