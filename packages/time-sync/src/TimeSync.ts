@@ -72,7 +72,7 @@ export type InitOptions = Readonly<
 		 *  Defaults to false.
 		 */
 		// Duplicated property to override the LSP comment
-		freezeUpdate: boolean;
+		freezeUpdates: boolean;
 
 		/**
 		 * The Date object to use when initializing TimeSync to make the
@@ -358,9 +358,18 @@ export class TimeSync implements TimeSyncApi {
 		 * to check on each iteration to see if we should continue.
 		 */
 		if (config.allowDuplicateOnUpdateCalls) {
-			const entries = [...this.#subscriptions];
-			outer: for (const [onUpdate, subs] of entries) {
-				for (const _ of subs) {
+			// Not super happy about this, but because each subcription array is
+			// mutable, we have to make an immutable copy of the count of each
+			// sub before starting any dispatches. If we track the length of the
+			// subs before iterating over them, that's too late, because it's
+			// possible that a subscription could cause data to be pushed to an
+			// array for a different interval
+			const entries = Array.from(
+				this.#subscriptions,
+				([onUpdate, subs]) => [onUpdate, subs.length] as const,
+			);
+			outer: for (const [onUpdate, subCount] of entries) {
+				for (let i = 0; i < subCount; i++) {
 					const wasCleared = this.#subscriptions.size === 0;
 					if (wasCleared) {
 						break outer;
