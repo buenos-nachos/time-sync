@@ -297,6 +297,30 @@ export class TimeSync implements TimeSyncApi {
 		});
 	}
 
+	#setSnapshot(update: Partial<Snapshot>): boolean {
+		const { date, subscriberCount, config } = this.#latestSnapshot;
+		if (config.freezeUpdates) {
+			return false;
+		}
+
+		// Avoiding both direct property assignment or spread syntax because
+		// Object.freeze causes weird TypeScript LSP issues around assignability
+		// where trying to rename a property. If you rename a property on a
+		// type, it WON'T rename the runtime properties. Object.freeze
+		// introduces an extra type boundary that break the linking
+		const updated: Snapshot = {
+			// Always reject any new configs because trying to remove them at
+			// the type level isn't worth it for an internal implementation
+			// detail
+			config,
+			date: update.date ?? date,
+			subscriberCount: update.subscriberCount ?? subscriberCount,
+		};
+
+		this.#latestSnapshot = Object.freeze(updated);
+		return true;
+	}
+
 	#notifyAllSubscriptions(): void {
 		// It's more important that we copy the date object into a separate
 		// variable here than normal, because need make sure the `this` context
@@ -373,7 +397,7 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		const wasChanged = this.#setDate(new ReadonlyDate());
+		const wasChanged = this.#setSnapshot({ date: new ReadonlyDate() });
 		if (wasChanged) {
 			this.#notifyAllSubscriptions();
 		}
@@ -397,7 +421,7 @@ export class TimeSync implements TimeSyncApi {
 		clearInterval(this.#intervalId);
 
 		if (timeBeforeNextUpdate <= 0) {
-			const wasChanged = this.#setDate(new ReadonlyDate());
+			const wasChanged = this.#setSnapshot({ date: new ReadonlyDate() });
 			if (wasChanged) {
 				this.#notifyAllSubscriptions();
 			}
@@ -453,23 +477,6 @@ export class TimeSync implements TimeSyncApi {
 		}
 	}
 
-	/**
-	 * Attempts to update the current Date snapshot.
-	 */
-	#setDate(newDate: ReadonlyDate): boolean {
-		const { config } = this.#latestSnapshot;
-		if (config.freezeUpdates) {
-			return false;
-		}
-
-		this.#latestSnapshot = Object.freeze({
-			...this.#latestSnapshot,
-			date: newDate,
-		});
-
-		return true;
-	}
-
 	subscribe(sh: SubscriptionOptions): () => void {
 		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
@@ -514,8 +521,7 @@ export class TimeSync implements TimeSyncApi {
 			}
 			this.#updateFastestInterval();
 
-			this.#latestSnapshot = Object.freeze({
-				...this.#latestSnapshot,
+			void this.#setSnapshot({
 				subscriberCount: Math.max(0, this.#latestSnapshot.subscriberCount - 1),
 			});
 			unsubscribed = true;
@@ -533,8 +539,8 @@ export class TimeSync implements TimeSyncApi {
 		);
 		entries.push({ unsubscribe, targetInterval });
 		entries.sort((e1, e2) => e1.targetInterval - e2.targetInterval);
-		this.#latestSnapshot = Object.freeze({
-			...this.#latestSnapshot,
+
+		void this.#setSnapshot({
 			subscriberCount: this.#latestSnapshot.subscriberCount + 1,
 		});
 
@@ -562,7 +568,7 @@ export class TimeSync implements TimeSyncApi {
 			(fastestBefore === Number.POSITIVE_INFINITY &&
 				this.#fastestRefreshInterval !== fastestBefore);
 		if (shouldUpdateDate) {
-			this.#setDate(new ReadonlyDate());
+			void this.#setSnapshot({ date: new ReadonlyDate() });
 		}
 
 		return unsubscribe;
@@ -603,7 +609,7 @@ export class TimeSync implements TimeSyncApi {
 		clearInterval(this.#intervalId);
 		this.#intervalId = undefined;
 
-		const wasChanged = this.#setDate(dateToDispatch);
+		const wasChanged = this.#setSnapshot({ date: dateToDispatch });
 		if (wasChanged) {
 			this.#notifyAllSubscriptions();
 		}
@@ -625,9 +631,6 @@ export class TimeSync implements TimeSyncApi {
 		}
 		this.#subscriptions.clear();
 
-		this.#latestSnapshot = Object.freeze({
-			...this.#latestSnapshot,
-			subscriberCount: 0,
-		});
+		void this.#setSnapshot({ subscriberCount: 0 });
 	}
 }
