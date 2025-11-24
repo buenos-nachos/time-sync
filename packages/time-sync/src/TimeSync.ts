@@ -28,15 +28,16 @@ export const refreshRates = Object.freeze({
  */
 export type Configuration = Readonly<{
 	/**
-	 * Defaults to false. Indicates whether the TimeSync instance should be
-	 * frozen for Snapshot tests. Highly encouraged that you use this together
-	 * with `initialDate`.
+	 * Indicates whether the TimeSync instance should be frozen for Snapshot
+	 * tests.
+	 *
+	 * Defaults to false.
 	 */
 	freezeUpdates: boolean;
 
 	/**
 	 * The minimum refresh interval (in milliseconds) to use when dispatching
-	 * interval-based state updates. Defaults to 200ms.
+	 * interval-based state updates.
 	 *
 	 * If a value smaller than this is specified when trying to set up a new
 	 * subscription, this minimum will be used instead.
@@ -44,6 +45,8 @@ export type Configuration = Readonly<{
 	 * It is highly recommended that you only modify this value if you have a
 	 * good reason. Updating this value to be too low and make the event loop
 	 * get really hot and really tank performance elsewhere in an application.
+	 *
+	 * Defaults to 200ms.
 	 */
 	minimumRefreshIntervalMs: number;
 
@@ -62,6 +65,16 @@ export type Configuration = Readonly<{
 export type InitOptions = Readonly<
 	Configuration & {
 		/**
+		 * Indicates whether the TimeSync instance should be frozen for snapshot
+		 * tests. Highly encouraged that you use this together with
+		 * `initialDate`.
+		 *
+		 *  Defaults to false.
+		 */
+		// Duplicated property to override the LSP comment
+		freezeUpdate: boolean;
+
+		/**
 		 * The Date object to use when initializing TimeSync to make the
 		 * constructor more pure and deterministic.
 		 */
@@ -72,7 +85,7 @@ export type InitOptions = Readonly<
 /**
  * The callback to call when a new state update is ready to be dispatched.
  */
-type OnTimeSyncUpdate = (dateSnapshot: ReadonlyDate) => void;
+export type OnTimeSyncUpdate = (dateSnapshot: ReadonlyDate) => void;
 
 /**
  * An object used to initialize a new subscription for TimeSync.
@@ -107,39 +120,24 @@ export type SubscriptionOptions = Readonly<{
 }>;
 
 /**
- * Values for advancing a TimeSync's internal date.
- */
-export type AdvanceTimeOptions = Readonly<{
-	/**
-	 * The amount to advance the TimeSync by.
-	 */
-	byMs: number;
-
-	/**
-	 * The amount of time (in milliseconds) that you can tolerate stale dates.
-	 * If the delta between the TimeSync's current date and the new date that
-	 * would be flushed does not meet the threshold, no subscribers are
-	 * notified.
-	 *
-	 * Defaults to `0` if not specified (always invalidates the date snapshot).
-	 *
-	 * By definition, date state becomes stale the moment that it gets stored in
-	 * a TimeSync instance (even if the execution context never changes, some
-	 * time needs to elapse between the date being created, and it being
-	 * stored). Specifying this value lets you protect against over-notifying
-	 * subscribers if you can afford to rely on having the default subscription
-	 * behavior handle the next dispatch.
-	 */
-	stalenessThresholdMs?: number;
-}>;
-
-/**
  * A complete snapshot of the user-relevant internal state from TimeSync. This
  * value is treated as immutable at both runtime and compile time.
  */
 export type Snapshot = Readonly<{
+	/**
+	 * The date that was last dispatched to all subscribers.
+	 */
 	date: ReadonlyDate;
+
+	/**
+	 * The number of subscribers registered with TimeSync.
+	 */
 	subscriberCount: number;
+
+	/**
+	 * The configuration options used when instantiating the TimeSync instance.
+	 * The value is guaranteed to be stable for the entire lifetime of TimeSync.
+	 */
 	config: Configuration;
 }>;
 
@@ -169,20 +167,20 @@ interface TimeSyncApi {
 	getStateSnapshot: () => Snapshot;
 
 	/**
-	 * Attempts to advance the TimeSync's internal date by a specific number
-	 * of milliseconds. If the date is updated, all subscribers will be
-	 * notified.
+	 * Attempts to advance the TimeSync's internal date. If no argument is
+	 * passed in, the method tries to update the TimeSync with the current
+	 * system time.
 	 *
-	 * The method lets you pass in a custom staleness threshold for determining
-	 * whether the date that would be produced is different enough from the date
-	 * currently in the TimeSync. If the new date would not be different enough,
-	 * the TimeSync does not notify any subscribers, but will still add
-	 * information about the date to the state snapshot.
+	 * If a specific amount is provided, that value will be used instead. Any
+	 * custom values that would cause the new date to exceed the current system
+	 * time will cause the current system time to be used instead.
 	 *
-	 * @throws {RangeError} If the advance amount is not a positive integer or 0.
-	 * @throws {RangeError} If the custom staleness is not a positive integer.
+	 * If the date is updated, all subscribers will be notified and the
+	 * interval for the next update round will start over from scratch.
+	 *
+	 * @throws {RangeError} If the advance amount is not a positive integer.
 	 */
-	advanceTime: (options: AdvanceTimeOptions) => void;
+	advanceTime: (byMs?: number) => void;
 
 	/**
 	 * Resets all internal state in the TimeSync, and handles all cleanup for
@@ -194,7 +192,7 @@ interface TimeSyncApi {
 	 * without any risks of memory leaks). It can also be used to reset a global
 	 * TimeSync to its initial state for certain testing setups.
 	 */
-	resetAll: () => void;
+	clearAll: () => void;
 }
 
 type SubscriptionEntry = Readonly<{
@@ -225,17 +223,18 @@ const defaultMinimumRefreshIntervalMs = 200;
  * 2. Dates are a type of object that are far more read-heavy than write-heavy,
  *    so the risks of breaking are generally lower
  * 3. If a user really needs a mutable version of the date, they can make a
- *    mutable copy first via `const copy = new Date(readonlyDate)`
+ *    mutable copy first via `const mutable = readonlyDate.toNativeDate()`
  *
  * The one case when turning off the readonly behavior would be good would be
  * if you're on a server that really needs to watch its garbage collection
- * output, and you the overhead from the readonly date's proxy is causing too
- * much pressure on resources. In that case, you could switch to native dates,
- * but you'd still need a LOT of trigger discipline to avoid mutations.
+ * output, and you the overhead from the readonly date is causing too much
+ * pressure on resources. In that case, you could switch to native dates, but
+ * you'd still need a LOT of trigger discipline to avoid mutations, especially
+ * if you rely on outside libraries.
  */
 /**
  * TimeSync provides a centralized authority for working with time values in a
- * more structured way, where all dependents for the time values must stay in
+ * more structured way. It ensures all dependents for the time values stay in
  * sync with each other.
  *
  * (e.g., In a React codebase, you want multiple components that rely on time
@@ -278,7 +277,9 @@ export class TimeSync implements TimeSyncApi {
 	 * setInterval for everything, we have fewer IDs to juggle, and less risk of
 	 * things getting out of sync.
 	 *
-	 * Type defined like this to support client and server behavior.
+	 * Type defined like this to support client and server behavior. Node.js
+	 * uses its own custom timeout type, but Deno, Bun, and the browser all use
+	 * the number type.
 	 */
 	#intervalId: NodeJS.Timeout | number | undefined;
 
@@ -303,7 +304,9 @@ export class TimeSync implements TimeSyncApi {
 		this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 		this.#intervalId = undefined;
 
-		this.#latestSnapshot = Object.freeze({
+		// Not defined inline to avoid wonkiness that Object.freeze introduces
+		// when you rename a property on a frozen object
+		const initialSnapshot: Snapshot = {
 			subscriberCount: 0,
 			date: initialDate ? new ReadonlyDate(initialDate) : new ReadonlyDate(),
 			config: Object.freeze({
@@ -311,7 +314,32 @@ export class TimeSync implements TimeSyncApi {
 				minimumRefreshIntervalMs,
 				allowDuplicateOnUpdateCalls,
 			}),
-		});
+		};
+		this.#latestSnapshot = Object.freeze(initialSnapshot);
+	}
+
+	#setSnapshot(update: Partial<Snapshot>): boolean {
+		const { date, subscriberCount, config } = this.#latestSnapshot;
+		if (config.freezeUpdates) {
+			return false;
+		}
+
+		// Avoiding both direct property assignment or spread syntax because
+		// Object.freeze causes weird TypeScript LSP issues around assignability
+		// where trying to rename a property. If you rename a property on a
+		// type, it WON'T rename the runtime properties. Object.freeze
+		// introduces an extra type boundary that break the linking
+		const updated: Snapshot = {
+			// Always reject any new configs because trying to remove them at
+			// the type level isn't worth it for an internal implementation
+			// detail
+			config,
+			date: update.date ?? date,
+			subscriberCount: update.subscriberCount ?? subscriberCount,
+		};
+
+		this.#latestSnapshot = Object.freeze(updated);
+		return true;
 	}
 
 	#notifyAllSubscriptions(): void {
@@ -331,20 +359,41 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		// While this is a super niche use case, we're actually safe if a
-		// subscriber resets the state of the whole TimeSync instance. Once the
-		// Map is cleared, the map's iterator will automatically break the loop.
-		// So there's no risk of continuing to dispatch values after cleanup.
+		/**
+		 * Two things for both paths:
+		 * 1. We need to make sure that we do one-time serializations of the map
+		 * entries into an array instead of constantly pulling from the map via
+		 * the iterator protocol in the off chance that subscriptions add new
+		 * subscriptions. We need to make infinite loops impossible. If new
+		 * subscriptions get added, they'll just have to wait until the next
+		 * update round.
+		 *
+		 * 2. The trade off of the serialization is that we do lose the ability
+		 * to auto-break the loops if one of the subscribers ends up resetting
+		 * all state, because we'll still have local copies of entries. We need
+		 * to check on each iteration to see if we should continue.
+		 */
 		if (config.allowDuplicateOnUpdateCalls) {
-			for (const [onUpdate, subs] of this.#subscriptions) {
+			const entries = [...this.#subscriptions];
+			outer: for (const [onUpdate, subs] of entries) {
 				for (const _ of subs) {
+					const wasCleared = this.#subscriptions.size === 0;
+					if (wasCleared) {
+						break outer;
+					}
 					onUpdate(date);
 				}
 			}
-		} else {
-			for (const onUpdate of this.#subscriptions.keys()) {
-				onUpdate(date);
+			return;
+		}
+
+		const funcs = [...this.#subscriptions.keys()];
+		for (const onUpdate of funcs) {
+			const wasCleared = this.#subscriptions.size === 0;
+			if (wasCleared) {
+				break;
 			}
+			onUpdate(date);
 		}
 	}
 
@@ -357,15 +406,15 @@ export class TimeSync implements TimeSyncApi {
 	 * is one of them.
 	 */
 	readonly #onTick = (): void => {
+		// Defensive step to make sure that an invalid tick wasn't started
 		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
-			// Defensive step to make sure that an invalid tick wasn't started
 			clearInterval(this.#intervalId);
 			this.#intervalId = undefined;
 			return;
 		}
 
-		const wasChanged = this.#updateDate();
+		const wasChanged = this.#setSnapshot({ date: new ReadonlyDate() });
 		if (wasChanged) {
 			this.#notifyAllSubscriptions();
 		}
@@ -389,7 +438,7 @@ export class TimeSync implements TimeSyncApi {
 		clearInterval(this.#intervalId);
 
 		if (timeBeforeNextUpdate <= 0) {
-			const wasChanged = this.#updateDate();
+			const wasChanged = this.#setSnapshot({ date: new ReadonlyDate() });
 			if (wasChanged) {
 				this.#notifyAllSubscriptions();
 			}
@@ -445,23 +494,6 @@ export class TimeSync implements TimeSyncApi {
 		}
 	}
 
-	/**
-	 * Attempts to update the current Date snapshot.
-	 */
-	#updateDate(): boolean {
-		const { config } = this.#latestSnapshot;
-		if (config.freezeUpdates) {
-			return false;
-		}
-
-		this.#latestSnapshot = Object.freeze({
-			...this.#latestSnapshot,
-			date: new ReadonlyDate(),
-		});
-
-		return true;
-	}
-
 	subscribe(sh: SubscriptionOptions): () => void {
 		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
@@ -506,8 +538,7 @@ export class TimeSync implements TimeSyncApi {
 			}
 			this.#updateFastestInterval();
 
-			this.#latestSnapshot = Object.freeze({
-				...this.#latestSnapshot,
+			void this.#setSnapshot({
 				subscriberCount: Math.max(0, this.#latestSnapshot.subscriberCount - 1),
 			});
 			unsubscribed = true;
@@ -525,38 +556,12 @@ export class TimeSync implements TimeSyncApi {
 		);
 		entries.push({ unsubscribe, targetInterval });
 		entries.sort((e1, e2) => e1.targetInterval - e2.targetInterval);
-		this.#latestSnapshot = Object.freeze({
-			...this.#latestSnapshot,
+
+		void this.#setSnapshot({
 			subscriberCount: this.#latestSnapshot.subscriberCount + 1,
 		});
 
-		const fastestBefore = this.#fastestRefreshInterval;
 		this.#updateFastestInterval();
-
-		/**
-		 * To keep TimeSync easier to reason about, we don't kick off any
-		 * intervals until you start using it – the constructor does not have
-		 * any side effects aside from input validation.
-		 *
-		 * But we still need to handle two things, since we don't have a way of
-		 * tracking them otherwise right now:
-		 *
-		 * 1. We don't know how much time will have elapsed between the class
-		 *    being instantiated, and the first subscriber being added
-		 * 2. We don't know how much time will have elapsed between an active
-		 *    subscriber getting added and when the last subscription got added,
-		 *    if all the previous subscribers are idle.
-		 *
-		 * Just updating the snapshot to be on the safe side.
-		 */
-		const shouldUpdateDate =
-			this.#latestSnapshot.subscriberCount === 1 ||
-			(fastestBefore === Number.POSITIVE_INFINITY &&
-				this.#fastestRefreshInterval !== fastestBefore);
-		if (shouldUpdateDate) {
-			this.#updateDate();
-		}
-
 		return unsubscribe;
 	}
 
@@ -564,43 +569,51 @@ export class TimeSync implements TimeSyncApi {
 		return this.#latestSnapshot;
 	}
 
-	advanceTime(options: AdvanceTimeOptions): void {
-		const { byMs } = options;
-		let { stalenessThresholdMs } = options;
-
-		const isIntervalValid = Number.isInteger(byMs) && byMs >= 0;
+	advanceTime(byMs?: number): void {
+		const isIntervalValid =
+			typeof byMs === "undefined" || (Number.isInteger(byMs) && byMs > 0);
 		if (!isIntervalValid) {
 			throw new RangeError(
 				`Advance amounts must be a positive integer or 0 (received ${byMs} ms)`,
 			);
 		}
-		const isStaleValid =
-			typeof stalenessThresholdMs === "undefined" ||
-			(Number.isInteger(stalenessThresholdMs) && stalenessThresholdMs > 0);
-		if (!isStaleValid) {
-			throw new RangeError(
-				`Custom refresh intervals must be a positive integer (received ${stalenessThresholdMs} ms)`,
-			);
-		}
 
-		stalenessThresholdMs = 0;
 		const { config, date: oldDate } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
 			return;
 		}
 
 		const actualCurrentTime = new ReadonlyDate();
-		const newDateCandidate = new ReadonlyDate(oldDate.getTime() + byMs);
+		let dateToDispatch = actualCurrentTime;
+		if (byMs !== undefined) {
+			const candidate = new ReadonlyDate(oldDate.getTime() + byMs);
+			if (candidate.getTime() < actualCurrentTime.getTime()) {
+				dateToDispatch = candidate;
+			}
+		}
 
-		const canDispatch =
-			newDateCandidate.getTime() <= actualCurrentTime.getTime() &&
-			newDateCandidate.getTime() - oldDate.getTime() >= stalenessThresholdMs;
-		if (canDispatch) {
-			this.#updateDate();
+		const shouldChange = oldDate.getTime() !== dateToDispatch.getTime();
+		if (!shouldChange) {
+			return;
+		}
+
+		clearInterval(this.#intervalId);
+		this.#intervalId = undefined;
+
+		const wasChanged = this.#setSnapshot({ date: dateToDispatch });
+		if (wasChanged) {
+			this.#notifyAllSubscriptions();
+		}
+
+		if (this.#fastestRefreshInterval !== Number.POSITIVE_INFINITY) {
+			this.#intervalId = setInterval(
+				this.#onTick,
+				this.#fastestRefreshInterval,
+			);
 		}
 	}
 
-	resetAll(): void {
+	clearAll(): void {
 		clearInterval(this.#intervalId);
 		this.#intervalId = undefined;
 		this.#fastestRefreshInterval = 0;
@@ -612,9 +625,6 @@ export class TimeSync implements TimeSyncApi {
 		}
 		this.#subscriptions.clear();
 
-		this.#latestSnapshot = Object.freeze({
-			...this.#latestSnapshot,
-			subscriberCount: 0,
-		});
+		void this.#setSnapshot({ subscriberCount: 0 });
 	}
 }
