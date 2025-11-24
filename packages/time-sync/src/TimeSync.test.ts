@@ -992,28 +992,50 @@ describe(TimeSync, () => {
 		it("Skips over new subscribers if they get added in the middle of an update round", async ({
 			expect,
 		}) => {
-			const sync = new TimeSync();
+			const dupeOptions: readonly boolean[] = [false, true];
+			for (const d of dupeOptions) {
+				const sync = new TimeSync({ allowDuplicateOnUpdateCalls: d });
+				const onUpdate = vi.fn(() => {
+					// Adding this check in the off chance that the logic is broken.
+					// Don't want to cause infinite loops in the test environment
+					if (onUpdate.mock.calls.length > 1) {
+						return;
+					}
 
-			const onUpdate = vi.fn(() => {
-				// Adding this check in the off chance that the logic is broken.
-				// Don't want to cause infinite loops in the test environment
-				if (onUpdate.mock.calls.length > 1) {
-					return;
-				}
+					void sync.subscribe({
+						onUpdate,
+						targetRefreshIntervalMs: refreshRates.oneMinute,
+					});
+				});
 
 				void sync.subscribe({
 					onUpdate,
 					targetRefreshIntervalMs: refreshRates.oneMinute,
 				});
+
+				await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+				expect(onUpdate).toHaveBeenCalledTimes(1);
+			}
+		});
+
+		it("Provides easy-ish way to create a TimeSync copy from an existing instance", ({
+			expect,
+		}) => {
+			const sync1 = new TimeSync({
+				initialDate: new ReadonlyDate("September 1, 1374"),
+				allowDuplicateOnUpdateCalls: true,
+				freezeUpdates: true,
+				minimumRefreshIntervalMs: refreshRates.oneHour,
 			});
 
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneMinute,
+			const snap1 = sync1.getStateSnapshot();
+			const sync2 = new TimeSync({
+				...snap1.config,
+				initialDate: snap1.date,
 			});
 
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(onUpdate).toHaveBeenCalledTimes(1);
+			const snap2 = sync2.getStateSnapshot();
+			expect(snap2).toEqual(snap1);
 		});
 	});
 });
