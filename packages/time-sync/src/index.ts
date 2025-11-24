@@ -3,6 +3,7 @@ export { ReadonlyDate } from "./ReadonlyDate";
 export {
 	type Configuration,
 	type InitOptions,
+	type OnTimeSyncUpdate,
 	refreshRates,
 	type Snapshot,
 	type SubscriptionOptions,

@@ -28,15 +28,16 @@ export const refreshRates = Object.freeze({
  */
 export type Configuration = Readonly<{
 	/**
-	 * Defaults to false. Indicates whether the TimeSync instance should be
-	 * frozen for Snapshot tests. Highly encouraged that you use this together
-	 * with `initialDate`.
+	 * Indicates whether the TimeSync instance should be frozen for Snapshot
+	 * tests.
+	 *
+	 * Defaults to false.
 	 */
 	freezeUpdates: boolean;
 
 	/**
 	 * The minimum refresh interval (in milliseconds) to use when dispatching
-	 * interval-based state updates. Defaults to 200ms.
+	 * interval-based state updates.
 	 *
 	 * If a value smaller than this is specified when trying to set up a new
 	 * subscription, this minimum will be used instead.
@@ -44,6 +45,8 @@ export type Configuration = Readonly<{
 	 * It is highly recommended that you only modify this value if you have a
 	 * good reason. Updating this value to be too low and make the event loop
 	 * get really hot and really tank performance elsewhere in an application.
+	 *
+	 * Defaults to 200ms.
 	 */
 	minimumRefreshIntervalMs: number;
 
@@ -62,6 +65,16 @@ export type Configuration = Readonly<{
 export type InitOptions = Readonly<
 	Configuration & {
 		/**
+		 * Indicates whether the TimeSync instance should be frozen for snapshot
+		 * tests. Highly encouraged that you use this together with
+		 * `initialDate`.
+		 *
+		 *  Defaults to false.
+		 */
+		// Duplicated property to override the LSP comment
+		freezeUpdate: boolean;
+
+		/**
 		 * The Date object to use when initializing TimeSync to make the
 		 * constructor more pure and deterministic.
 		 */
@@ -72,7 +85,7 @@ export type InitOptions = Readonly<
 /**
  * The callback to call when a new state update is ready to be dispatched.
  */
-type OnTimeSyncUpdate = (dateSnapshot: ReadonlyDate) => void;
+export type OnTimeSyncUpdate = (dateSnapshot: ReadonlyDate) => void;
 
 /**
  * An object used to initialize a new subscription for TimeSync.
@@ -111,8 +124,20 @@ export type SubscriptionOptions = Readonly<{
  * value is treated as immutable at both runtime and compile time.
  */
 export type Snapshot = Readonly<{
+	/**
+	 * The date that was last dispatched to all subscribers.
+	 */
 	date: ReadonlyDate;
+
+	/**
+	 * The number of subscribers registered with TimeSync.
+	 */
 	subscriberCount: number;
+
+	/**
+	 * The configuration options used when instantiating the TimeSync instance.
+	 * The value is guaranteed to be stable for the entire lifetime of TimeSync.
+	 */
 	config: Configuration;
 }>;
 
@@ -150,18 +175,8 @@ interface TimeSyncApi {
 	 * custom values that would cause the new date to exceed the current system
 	 * time will cause the current system time to be used instead.
 	 *
-	 * If the
-	 *
-	 *
-	 *  by a specific number
-	 * of milliseconds. If the date is updated, all subscribers will be
-	 * notified.
-	 *
-	 * The method lets you pass in a custom staleness threshold for determining
-	 * whether the date that would be produced is different enough from the date
-	 * currently in the TimeSync. If the new date would not be different enough,
-	 * the TimeSync does not notify any subscribers, but will still add
-	 * information about the date to the state snapshot.
+	 * If the date is updated, all subscribers will be notified and the
+	 * interval for the next update round will start over from scratch.
 	 *
 	 * @throws {RangeError} If the advance amount is not a positive integer.
 	 */
@@ -208,17 +223,18 @@ const defaultMinimumRefreshIntervalMs = 200;
  * 2. Dates are a type of object that are far more read-heavy than write-heavy,
  *    so the risks of breaking are generally lower
  * 3. If a user really needs a mutable version of the date, they can make a
- *    mutable copy first via `const copy = new Date(readonlyDate)`
+ *    mutable copy first via `const mutable = readonlyDate.toNativeDate()`
  *
  * The one case when turning off the readonly behavior would be good would be
  * if you're on a server that really needs to watch its garbage collection
- * output, and you the overhead from the readonly date's proxy is causing too
- * much pressure on resources. In that case, you could switch to native dates,
- * but you'd still need a LOT of trigger discipline to avoid mutations.
+ * output, and you the overhead from the readonly date is causing too much
+ * pressure on resources. In that case, you could switch to native dates, but
+ * you'd still need a LOT of trigger discipline to avoid mutations, especially
+ * if you rely on outside libraries.
  */
 /**
  * TimeSync provides a centralized authority for working with time values in a
- * more structured way, where all dependents for the time values must stay in
+ * more structured way. It ensures all dependents for the time values stay in
  * sync with each other.
  *
  * (e.g., In a React codebase, you want multiple components that rely on time
@@ -261,7 +277,9 @@ export class TimeSync implements TimeSyncApi {
 	 * setInterval for everything, we have fewer IDs to juggle, and less risk of
 	 * things getting out of sync.
 	 *
-	 * Type defined like this to support client and server behavior.
+	 * Type defined like this to support client and server behavior. Node.js
+	 * uses its own custom timeout type, but Deno, Bun, and the browser all use
+	 * the number type.
 	 */
 	#intervalId: NodeJS.Timeout | number | undefined;
 
@@ -286,7 +304,9 @@ export class TimeSync implements TimeSyncApi {
 		this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 		this.#intervalId = undefined;
 
-		this.#latestSnapshot = Object.freeze({
+		// Not defined inline to avoid wonkiness that Object.freeze introduces
+		// when you rename a property on a frozen object
+		const initialSnapshot: Snapshot = {
 			subscriberCount: 0,
 			date: initialDate ? new ReadonlyDate(initialDate) : new ReadonlyDate(),
 			config: Object.freeze({
@@ -294,7 +314,8 @@ export class TimeSync implements TimeSyncApi {
 				minimumRefreshIntervalMs,
 				allowDuplicateOnUpdateCalls,
 			}),
-		});
+		};
+		this.#latestSnapshot = Object.freeze(initialSnapshot);
 	}
 
 	#setSnapshot(update: Partial<Snapshot>): boolean {
@@ -389,9 +410,9 @@ export class TimeSync implements TimeSyncApi {
 	 * is one of them.
 	 */
 	readonly #onTick = (): void => {
+		// Defensive step to make sure that an invalid tick wasn't started
 		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
-			// Defensive step to make sure that an invalid tick wasn't started
 			clearInterval(this.#intervalId);
 			this.#intervalId = undefined;
 			return;
