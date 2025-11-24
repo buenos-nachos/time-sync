@@ -57,7 +57,7 @@ yarn add -E @buenos-nachos/time-sync @buenos-nachos/time-sync-react
 
 <!-- prettier-ignore-start -->
 > [!WARNING]
-> While the `TimeSync` class is designed to be instantiated any number of times (especially for testing), it is HIGHLY recommended that each device only ever have one instance at a time. Treat it how you would a global Redux store. 
+> While the `TimeSync` class is designed to be instantiated any number of times (especially for testing), it is HIGHLY recommended that each device only ever have one instance at a time. Treat it how you would [a global Redux store](https://redux.js.org/style-guide/#only-one-redux-store-per-app).
 <!-- prettier-ignore-end -->
 
 Once the vanilla `time-sync` package has been installed, you can get started like so:
@@ -132,7 +132,12 @@ const snap = sync.getStateSnapshot();
 
 ## Documentation
 
-All documentation can be found [in the `docs` directory](./docs).
+<!-- prettier-ignore-start -->
+> [!NOTE]
+> Because this project is in its early stages, there is a bigger risk of breaking API changes. API reference documentation is on the short-term roadmpa, but other documentation (such as how-to guides and explanations) will only become available once the project has stabilized.
+>
+> It is not planned for any packages to enter v1.0.0 until all major features on the roadmap have been implemented and battle-tested by users.
+<!-- prettier-ignore-end -->
 
 ## Design goals
 
