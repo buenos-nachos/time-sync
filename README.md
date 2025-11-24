@@ -134,7 +134,7 @@ const snap = sync.getStateSnapshot();
 
 <!-- prettier-ignore-start -->
 > [!NOTE]
-> Because this project is in its early stages, there is a bigger risk of breaking API changes. API reference documentation is on the short-term roadmpa, but other documentation (such as how-to guides and explanations) will only become available once the project has stabilized.
+> Because this project is in its early stages, there is a bigger risk of breaking API changes. API reference documentation is on the short-term roadmap, but other documentation (such as how-to guides and explanations) will only become available once the project has stabilized.
 >
 > It is not planned for any packages to enter v1.0.0 until all major features on the roadmap have been implemented and battle-tested by users.
 <!-- prettier-ignore-end -->
