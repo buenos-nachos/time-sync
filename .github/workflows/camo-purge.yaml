@@ -8,6 +8,11 @@ on:
   push:
     branches: [main]
 
+  # Temporary measure to make sure action runs properly. Don't want to wait
+  # until the changes are in main
+  pull_request:
+    branches: [main]
+
 jobs:
   purge-camo:
     name: Purge GitHub Camo Cache
