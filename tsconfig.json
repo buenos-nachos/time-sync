@@ -8,7 +8,7 @@
 		"moduleResolution": "bundler",
 		"outDir": "./dist",
 
-		// Set to true because we'll be using tsup to handle compilation
+		// Set to true because we'll be using tsdown to handle compilation
 		"noEmit": true,
 		"esModuleInterop": true,
 		"allowSyntheticDefaultImports": false,
