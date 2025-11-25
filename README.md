@@ -63,7 +63,7 @@ yarn add -E @buenos-nachos/time-sync @buenos-nachos/time-sync-react
 Once the vanilla `time-sync` package has been installed, you can get started like so:
 
 ```ts
-// Setup file
+// setupFile.ts
 import { TimeSync } from "@buenos-nachos/time-sync";
 
 // TimeSync tries to have sensible defaults, but an options object can be passed
@@ -72,11 +72,11 @@ export const sync = new TimeSync();
 ```
 
 ```ts
-// Consuming file
+// consumingFile.ts
 import { refreshRates } from "@buenos-nachos/time-sync";
 import { sync } from "./setupFile";
 
-// Most interactions with TimeSync are expected to be handled via subscriptions
+// The subscribe method forms the Most interactions with TimeSync are expected to be handled via subscriptions
 const unsubscribe1 = sync.subscribe({
 	// This tells TimeSync to start an interval to dispatch a new update to all
 	// subscribers in five minutes. refreshRates contains a set of
@@ -109,15 +109,24 @@ unsubscribe2();
 
 // The ReadonlyDate class is fully assignable to the native date class, to
 // maximize interoperability with existing JavaScript libraries. Any function
-// that takes a native date as input works with onUpdate out of the box
+// that takes a native date as input works with onUpdate out of the box. The
+// ReadonlyClass also works with
 function displayYear(date: Date): void {
-	console.log(`The year is ${newDate.getYear()}`);
+	// When used with TimeSync's onUpdate property, both of these runtime
+	// checks will evaluate to true
+	if (date instanceof ReadonlyDate) {
+		console.log("Received ReadonlyDate at runtime");
+	}
+	if (date instanceof Date) {
+		console.log(`The year is ${newDate.getYear()}`);
+	}
 }
 
 const unsubscribe3 = sync.subscribe({
 	// This lets a subscriber "passively" subscribe to the TimeSync. It does not
 	// trigger updates on its own, but it can be notified when other subscribers
-	// change so that it can be "kept in the loop".
+	// change so that it can be "kept in the loop". If all subscribers use this
+	// interval, no updates will ever be dispatched.
 	targetRefreshIntervalMs: refreshRates.idle,
 	onUpdate: displayYear,
 });
@@ -127,8 +136,8 @@ const unsubscribe3 = sync.subscribe({
 const unsubscribe4 = sync.subscribe({
 	// If a new subscription is added that has an interval less than or equal to
 	// the elapsed time since the last update, all subscribers will be notified
-	// immediately. Afterwards, a new update round will start with the fastest
-	// interval among all subscribers
+	// immediately. Afterwards, a new subscription cycle will start with the
+	// fastest interval among all subscribers
 	targetRefreshIntervalMs: refreshRates.oneSecond,
 
 	// If the same function (by reference) is added by multiple subscribers,
@@ -138,7 +147,8 @@ const unsubscribe4 = sync.subscribe({
 	onUpdate: displayYear,
 });
 
-// This lets you pull an immutable snapshot of the TimeSync's inner state
+// This lets you pull an immutable snapshot of the TimeSync's inner state. The
+// immutability is enforced at runtime and at the type level.
 const snap = sync.getStateSnapshot();
 ```
 
