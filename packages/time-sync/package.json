@@ -1,12 +1,13 @@
 {
 	"name": "@buenos-nachos/time-sync",
-	"type": "module",
 	"version": "0.1.0",
+	"license": "MIT",
 	"packageManager": "pnpm@10.17.0",
-	"license": "AGPL-3.0-only",
-	"author": "Michael Smith <contact@nachos.dev> (https://www.nachos.dev)",
-	"description": "Library for exposing time values as reactive, dependency-injectable state",
+	"author": "Michael Smith <hello@nachos.dev> (https://www.nachos.dev)",
+	"description": "The base package for the time-sync set of packages.",
 	"keywords": ["typescript", "utility", "ui"],
-	"main": "index.js",
-	"sideEffects": false
+	"sideEffects": false,
+	"main": "./dist/index.js",
+	"module": "./dist/index.mjs",
+	"types": "./dist/index.d.ts"
 }
