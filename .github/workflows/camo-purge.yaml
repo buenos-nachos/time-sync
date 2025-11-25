@@ -1,0 +1,17 @@
+# This action is necessary to make sure that GitHub's Camo Index gets purged in
+# the event that an image changes by content in the README. We want to make sure
+# we serve the latest images possible, and not purging tends to cause problems
+# for repo badges
+name: camo
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  purge:
+    name: Purge GitHub Camo Cache
+    runs-on: ubuntu-latest
+    steps:
+      - name: Purge
+        uses: kevincobain2000/action-camo-purge@0b70f4d64c9828aace7bbbf1931a646957734ef3 # v1.0.0
