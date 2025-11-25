@@ -109,8 +109,7 @@ unsubscribe2();
 
 // The ReadonlyDate class is fully assignable to the native date class, to
 // maximize interoperability with existing JavaScript libraries. Any function
-// that takes a native date as input works with onUpdate out of the box. The
-// ReadonlyClass also works with
+// that takes a native date as input works with onUpdate out of the box.
 function displayYear(date: Date): void {
 	// When used with TimeSync's onUpdate property, both of these runtime
 	// checks will evaluate to true
