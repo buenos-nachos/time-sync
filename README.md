@@ -15,12 +15,12 @@ In other words, the goal of `time-sync` is to make time more obvious and less ma
 
 - 🔄 **Keep things in sync** – `time-sync` ensures that different systems on one device can't ever get out of sync with each other.
 - 📸 **No more snapshot flakes** – `time-sync` makes it easy to freeze the time to a specific value to ensure that your snapshot tests stay deterministic. The upcoming UI framework bindings will have out-of-the-box support for platforms like Storybook.
-- 🏝️ **Astro islands** – All `time-sync` packages aim to support Astro's island architecture out of the box. This includes mixing `.astro` files with UI frameworks that have official `time-sync` packages.
 - 📦 **As few dependencies as possible** – The vanilla version of `time-sync` has zero runtime dependencies. Each package for binding it to a framework aims to have only that framework as a dependency.
 
 ### Coming soon
 
 - 🖥️ **Bindings for popular UI frameworks** – `time-sync` will be launching bindings for React in the next few weeks. Solid.js bindings will launch soon after. Other frameworks may be added based on demand/interest.
+- 🏝️ **Astro islands** – All the packages for binding `time-sync` to a UI framework will support Astro out of the box. This includes support for islands and the ability to mix the bindings with `.astro` files.
 - 💿 **Mix and match UI frameworks** – The React and Solid.js packages are being designed so that they can be used together in a single Astro project. Any future framework bindings will aim to have the same support.
 
 ## Quick start
@@ -160,17 +160,18 @@ You can find [the contributing guide here](./CONTRIBUTING.md).
 
 ### In active development
 
-1. Add initial bindings for React (supporting Single-Page Applications and Astro islands)
+1. Add initial bindings for React (supporting Single-Page Applications only)
 
 ### Want to implement (roughly ordered by priority)
 
 1. Start auto-generating documentation (was skipped to get the MVP version of the library published sooner)
-2. Add bindings for Solid.js
-3. Improve support for mixing bindings for multiple frameworks together in Astro
-4. Improve open-source contribution and development experience
-5. Research updating the React bindings to support React Native
-6. Beef up documentation once packages seem to be more stable (add explanations, how-to guides, etc.)
+2. Update vanilla and React packages as necessary to support Astro while avoiding hydration problems.
+3. Add bindings for Solid.js
+4. Improve support for mixing bindings for multiple frameworks together in Astro
+5. Improve open-source contribution and development experience
+6. Research updating the React bindings to support React Native
 7. Add support for using React and Solid.js bindings in popular meta-frameworks that use Server-Side Rendering (TanStack Start, Solid Start, React Router v7, Next.js App Router)
+8. Beef up documentation once packages seem to be more stable (add explanations, how-to guides, etc.)
 
 ### Want to implement (blocked)
 
