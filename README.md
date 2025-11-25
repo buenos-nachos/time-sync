@@ -1,7 +1,7 @@
 # time-sync
 
 <!-- prettier-ignore-start -->
-[![MIT License](https://img.shields.io/github/license/buenos-nachos/time-sync.svg?color=slateblue)](https://github.com/buenos-nachos/time-sync/blob/main/LICENSE) 
+[![MIT License](https://img.shields.io/github/license/buenos-nachos/time-sync.svg?color=darkslateblue)](https://github.com/buenos-nachos/time-sync/blob/main/LICENSE) 
 [![CI/CD](https://github.com/buenos-nachos/time-sync/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/buenos-nachos/time-sync/actions/workflows/ci.yaml)
 <!-- prettier-ignore-end -->
 
