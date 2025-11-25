@@ -12,6 +12,7 @@
 		"url": "https://www.github.com/buenos-nachos/time-sync.git"
 	},
 	"scripts": {
+		"build:all": "tsdown --workspace",
 		"check:all": "pnpm check:lint && pnpm check:types",
 		"check:lint": "biome check --error-on-warnings .",
 		"check:types": "tsc --noEmit",
