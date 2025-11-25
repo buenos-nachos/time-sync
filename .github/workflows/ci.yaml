@@ -12,6 +12,29 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  verify-builds:
+    name: Verify Builds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Install PNPM
+        uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+
+      - name: Setup Node
+        uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # v4.0.4
+        with:
+          node-version: 22.19.0
+
+      - name: Install dependencies
+        run: pnpm i --frozen-lockfile
+
+      - name: Build everything
+        run: pnpm run build:all
+
   lint:
     name: Lint Code
     runs-on: ubuntu-latest
@@ -30,15 +53,10 @@ jobs:
           node-version: 22.19.0
 
       - name: Install dependencies
-        run: pnpm i
+        run: pnpm i --frozen-lockfile
 
       - name: Lint everything
         run: pnpm run check:all
-
-      - name: Check for typos
-        uses: crate-ci/typos@v1.39.2
-        with:
-          config: .github/typos.toml
 
   test-code:
     name: Test Code
@@ -58,7 +76,20 @@ jobs:
           node-version: 22.19.0
 
       - name: Install dependencies
-        run: pnpm i
+        run: pnpm i --frozen-lockfile
 
       - name: Run test runner
         run: pnpm run test
+
+  typos:
+    name: Check for Typos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 1
+      - name: Check for typos
+        uses: crate-ci/typos@v1.39.2
+        with:
+          config: .github/typos.toml

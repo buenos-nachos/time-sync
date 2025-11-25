@@ -8,6 +8,8 @@
 		"moduleResolution": "bundler",
 		"outDir": "./dist",
 
+		// Set to true because we'll be using tsdown to handle compilation
+		"noEmit": true,
 		"esModuleInterop": true,
 		"allowSyntheticDefaultImports": false,
 		"skipLibCheck": true,
@@ -17,7 +19,6 @@
 		"moduleDetection": "force",
 		"isolatedModules": true,
 		"verbatimModuleSyntax": true,
-		"noEmit": false,
 
 		"composite": true,
 		"declaration": true,
