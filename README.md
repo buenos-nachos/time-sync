@@ -1,7 +1,7 @@
 # time-sync
 
 <!-- prettier-ignore-start -->
-[![AGPL-3 License](https://img.shields.io/github/license/buenos-nachos/time-sync.svg?color=slateblue)](https://github.com/buenos-nachos/time-sync/blob/main/LICENSE) 
+[![MIT License](https://img.shields.io/github/license/buenos-nachos/time-sync.svg?color=slateblue)](https://github.com/buenos-nachos/time-sync/blob/main/LICENSE) 
 [![CI/CD](https://github.com/buenos-nachos/time-sync/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/buenos-nachos/time-sync/actions/workflows/ci.yaml)
 <!-- prettier-ignore-end -->
 
@@ -14,7 +14,7 @@ In other words, the goal of `time-sync` is to make time more obvious and less ma
 ## Features
 
 - 🔄 **Keep things in sync** – `time-sync` ensures that different systems on one device can't ever get out of sync with each other.
-- 📸 **No more snapshot flakes** – `time-sync` makes it easy to freeze the time to a specific value to ensure that your snapshot tests stay deterministic. The upcoming UI framework bindings will have out-of-the-box support for platforms like Storybook.
+- 📸 **No more snapshot flakes** – `time-sync` makes it easy to freeze the date to a specific value to ensure that your snapshot tests stay deterministic. The upcoming UI framework bindings will have out-of-the-box support for platforms like Storybook.
 - 📦 **As few dependencies as possible** – The vanilla version of `time-sync` has zero runtime dependencies. Each package for binding it to a framework aims to have only that framework as a dependency.
 
 ### Coming soon
@@ -76,17 +76,24 @@ export const sync = new TimeSync();
 import { refreshRates } from "@buenos-nachos/time-sync";
 import { sync } from "./setupFile";
 
+// Most interactions with TimeSync are expected to be handled via subscriptions
 const unsubscribe1 = sync.subscribe({
-	// refreshRates contains a set of commonly-used intervals, but any positive
-	// integer can be used as well
+	// This tells TimeSync to start an interval to dispatch a new update to all
+	// subscribers in five minutes. refreshRates contains a set of
+	// commonly-used intervals, but any positive integer can be used as well
 	targetRefreshIntervalMs: refreshRates.fiveMinutes,
+
+	// newDate is a special ReadonlyDate class that enforces readonly access at
+	// runtime. It also includes a .toNativeDate method to convert it to a
+	// native/mutable date.
 	onUpdate: (newDate) => {
 		console.log(`The new date is ${newDate.toDateString()}`);
 	},
 });
 
 // All subscribers are automatically updated by the fastest interval currently
-// active among all subscriptions
+// active among all subscriptions. Adding this subscription accelerates the
+// interval to start happening every minute instead.
 const unsubscribe2 = sync.subscribe({
 	targetRefreshIntervalMs: refreshRates.oneMinute,
 	onUpdate: (newDate) => {
@@ -95,12 +102,14 @@ const unsubscribe2 = sync.subscribe({
 });
 
 // Once a subscriber leaves, TimeSync automatically re-calculates the fastest
-// interval. Let's say that this happens 45 seconds after the last update.
-// Subscriber 1 will be updated in 4 minutes and 15 seconds, rather than in
-// five minutes. The timer does not start over from scratch as long as there is
-// an active subscriber.
+// interval, and makes sure not to restart the interval from scratch. Let's say
+// this unsubscribe happens 45 seconds after the last update. Subscriber 1 will
+// be updated in 4 minutes and 15 seconds, rather than in five minutes.
 unsubscribe2();
 
+// The ReadonlyDate class is fully assignable to the native date class, to
+// maximize interoperability with existing JavaScript libraries. Any function
+// that takes a native date as input works with onUpdate out of the box
 function displayYear(date: Date): void {
 	console.log(`The year is ${newDate.getYear()}`);
 }
@@ -113,10 +122,13 @@ const unsubscribe3 = sync.subscribe({
 	onUpdate: displayYear,
 });
 
+// Let's say that five seconds have passed since the last update, and then this
+// subscription gets added
 const unsubscribe4 = sync.subscribe({
 	// If a new subscription is added that has an interval less than or equal to
 	// the elapsed time since the last update, all subscribers will be notified
-	// immediately, and then the update cycle will resume as normal.
+	// immediately. Afterwards, a new update round will start with the fastest
+	// interval among all subscribers
 	targetRefreshIntervalMs: refreshRates.oneSecond,
 
 	// If the same function (by reference) is added by multiple subscribers,
@@ -161,16 +173,18 @@ You can find [the contributing guide here](./CONTRIBUTING.md).
 ### In active development
 
 1. Add initial bindings for React (supporting Single-Page Applications only)
+2. Add basic how-to documentation for how to set up the React bindings for common use cases
+3. Update vanilla and React packages as necessary to support Astro while avoiding hydration problems.
 
 ### Want to implement (roughly ordered by priority)
 
-1. Start auto-generating documentation (was skipped to get the MVP version of the library published sooner)
-2. Update vanilla and React packages as necessary to support Astro while avoiding hydration problems.
-3. Add bindings for Solid.js
+1. Start auto-generating API reference documentation
+2. Add bindings for Solid.js
+3. Tighten up CI process
 4. Improve support for mixing bindings for multiple frameworks together in Astro
 5. Improve open-source contribution and development experience
-6. Research updating the React bindings to support React Native
-7. Add support for using React and Solid.js bindings in popular meta-frameworks that use Server-Side Rendering (TanStack Start, Solid Start, React Router v7, Next.js App Router)
+6. Add support for using React and Solid.js bindings in popular meta-frameworks that use Server-Side Rendering (TanStack Start, Solid Start, React Router v7, Next.js App Router)
+7. Research updating the React bindings to support React Native
 8. Beef up documentation once packages seem to be more stable (add explanations, how-to guides, etc.)
 
 ### Want to implement (blocked)
