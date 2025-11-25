@@ -76,7 +76,8 @@ export const sync = new TimeSync();
 import { refreshRates } from "@buenos-nachos/time-sync";
 import { sync } from "./setupFile";
 
-// The subscribe method forms the Most interactions with TimeSync are expected to be handled via subscriptions
+// The subscribe method forms the backbone of the library. Most interactions
+// involving TimeSync are expected to be handled via subscriptions.
 const unsubscribe1 = sync.subscribe({
 	// This tells TimeSync to start an interval to dispatch a new update to all
 	// subscribers in five minutes. refreshRates contains a set of
