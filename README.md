@@ -127,7 +127,7 @@ const unsubscribe3 = sync.subscribe({
 const unsubscribe4 = sync.subscribe({
 	// If a new subscription is added that has an interval less than or equal to
 	// the elapsed time since the last update, all subscribers will be notified
-	// immediately. Aftewards, a new update round will start with the fastest
+	// immediately. Afterwards, a new update round will start with the fastest
 	// interval among all subscribers
 	targetRefreshIntervalMs: refreshRates.oneSecond,
 
