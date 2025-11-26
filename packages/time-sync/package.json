@@ -9,6 +9,11 @@
 	"publishConfig": {
 		"access": "public"
 	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/buenos-nachos/time-sync.git",
+		"directory": "packages/time-sync"
+	},
 	"keywords": [
 		"typescript",
 		"utility",
