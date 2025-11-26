@@ -1037,5 +1037,35 @@ describe(TimeSync, () => {
 			const snap2 = sync2.getStateSnapshot();
 			expect(snap2).toEqual(snap1);
 		});
+
+		it("Does not let stale unsubscribe callbacks remove data after clear", ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+			const sharedOnUpdate = vi.fn();
+
+			const initialUnsub = sync.subscribe({
+				onUpdate: sharedOnUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			sync.clearAll();
+
+			const newUnsub = sync.subscribe({
+				onUpdate: sharedOnUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			const snap1 = sync.getStateSnapshot().subscriberCount;
+			expect(snap1).toBe(1);
+
+			initialUnsub();
+			const snap2 = sync.getStateSnapshot().subscriberCount;
+			expect(snap2).toBe(1);
+
+			newUnsub();
+			const snap3 = sync.getStateSnapshot().subscriberCount;
+			expect(snap3).toBe(0);
+		});
 	});
 });
