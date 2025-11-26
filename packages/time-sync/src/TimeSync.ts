@@ -221,7 +221,7 @@ export type SubscriptionContext = {
 	 * the active interval is set to fire every second, you may need to know
 	 * which update actually happened five minutes later.
 	 */
-	lastIntervalMatchAt: ReadonlyDate | null;
+	intervalLastFulfilledAt: ReadonlyDate | null;
 };
 
 /**
@@ -428,12 +428,12 @@ export class TimeSync implements TimeSyncApi {
 				}
 
 				const comparisonDate =
-					context.lastIntervalMatchAt ?? context.registeredAt;
+					context.intervalLastFulfilledAt ?? context.registeredAt;
 				const isIntervalMatch =
 					dateTime - comparisonDate.getTime() >=
 					context.targetRefreshIntervalMs;
 				if (isIntervalMatch) {
-					context.lastIntervalMatchAt = date;
+					context.intervalLastFulfilledAt = date;
 				}
 
 				if (shouldCallOnUpdate) {
@@ -568,7 +568,7 @@ export class TimeSync implements TimeSyncApi {
 			timeSync: this,
 			unsubscribe: noOp,
 			registeredAt: new ReadonlyDate(),
-			lastIntervalMatchAt: null,
+			intervalLastFulfilledAt: null,
 			targetRefreshIntervalMs: Math.max(
 				config.minimumRefreshIntervalMs,
 				targetRefreshIntervalMs,
