@@ -6,6 +6,7 @@ import {
 	type Snapshot,
 	TimeSync,
 } from "./TimeSync";
+import type { Writeable } from "./utilities";
 
 const invalidIntervals: readonly number[] = [
 	Number.NaN,
@@ -842,7 +843,6 @@ describe(TimeSync, () => {
 		});
 
 		it("Prevents mutating properties at runtime", ({ expect }) => {
-			type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
 			const sync = new TimeSync();
 
 			// We have readonly modifiers on the types, but we need to make sure

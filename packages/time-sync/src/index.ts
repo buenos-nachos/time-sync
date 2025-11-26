@@ -6,6 +6,7 @@ export {
 	type OnTimeSyncUpdate,
 	refreshRates,
 	type Snapshot,
-	type SubscriptionOptions,
+	type SubscriptionContext,
+	type SubscriptionInitOptions,
 	TimeSync,
 } from "./TimeSync";
