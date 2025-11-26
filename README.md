@@ -159,8 +159,8 @@ const unsubscribe4 = sync.subscribe({
 const snap = sync.getStateSnapshot();
 
 // This clears out all subscribers and clears the active interval. This is
-// useful for making sure a TimeSync can be garbage-collected without memory
-// leaks, but it can also be used to reset a global TimeSync between test runs
+// useful for making for making sure a locally-scoped TimeSync can be torn down
+// properly, but can also be used to reset a global TimeSync between test runs
 sync.clearAll();
 ```
 
