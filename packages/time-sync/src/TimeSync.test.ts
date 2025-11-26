@@ -4,6 +4,7 @@ import {
 	type Configuration,
 	refreshRates,
 	type Snapshot,
+	type SubscriptionContext,
 	TimeSync,
 } from "./TimeSync";
 import type { Writeable } from "./utilities";
@@ -117,45 +118,29 @@ describe(TimeSync, () => {
 				const sync = new TimeSync();
 				const onUpdate = vi.fn();
 
-				void sync.subscribe({
+				const dateBefore = sync.getStateSnapshot().date;
+				const unsubscribe = sync.subscribe({
 					onUpdate,
 					targetRefreshIntervalMs: rate,
 				});
 				expect(onUpdate).not.toHaveBeenCalled();
 
-				const dateBefore = sync.getStateSnapshot().date;
 				await vi.advanceTimersByTimeAsync(rate);
 				const dateAfter = sync.getStateSnapshot().date;
 				expect(onUpdate).toHaveBeenCalledTimes(1);
-				expect(onUpdate).toHaveBeenCalledWith(dateAfter, undefined);
+
+				const expectedCtx: SubscriptionContext = {
+					unsubscribe,
+					timeSync: sync,
+					lastIntervalMatchAt: dateAfter,
+					registeredAt: dateBefore,
+					targetRefreshIntervalMs: rate,
+				};
+				expect(onUpdate).toHaveBeenCalledWith(dateAfter, expectedCtx);
 
 				const diff = dateAfter.getTime() - dateBefore.getTime();
 				expect(diff).toBe(rate);
 			}
-		});
-
-		it("Dispatches current and previous dates on each update", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-			const onUpdate = vi.fn();
-
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneMinute,
-			});
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(onUpdate).toHaveBeenCalledTimes(1);
-
-			const snap1 = sync.getStateSnapshot().date;
-			expect(onUpdate).toHaveBeenCalledWith(snap1, undefined);
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(onUpdate).toHaveBeenCalledTimes(2);
-
-			const snap2 = sync.getStateSnapshot().date;
-			expect(onUpdate).toHaveBeenCalledWith(snap2, snap1);
 		});
 
 		it("Throws an error if provided subscription interval is not a positive integer", ({
@@ -196,7 +181,7 @@ describe(TimeSync, () => {
 		it("Always dispatches updates in the order that callbacks were first registered", async ({
 			expect,
 		}) => {
-			const sync = new TimeSync();
+			const sync = new TimeSync({ allowDuplicateOnUpdateCalls: false });
 			const callOrder: number[] = [];
 
 			const onUpdate1 = vi.fn(() => {
@@ -672,25 +657,8 @@ describe(TimeSync, () => {
 	});
 
 	describe("Subscriptions: duplicating function calls", () => {
-		it("Defaults to de-duplicating", async ({ expect }) => {
+		it("Defaults to allowing duplicate calls", async ({ expect }) => {
 			const sync = new TimeSync();
-			const sharedOnUpdate = vi.fn();
-			for (let i = 0; i < 100; i++) {
-				void sync.subscribe({
-					onUpdate: sharedOnUpdate,
-					targetRefreshIntervalMs: refreshRates.oneMinute,
-				});
-			}
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(sharedOnUpdate).toHaveBeenCalledTimes(1);
-		});
-
-		it("Lets user turn on duplication", async ({ expect }) => {
-			const sync = new TimeSync({
-				allowDuplicateOnUpdateCalls: true,
-			});
-
 			const sharedOnUpdate = vi.fn();
 			for (let i = 0; i < 100; i++) {
 				void sync.subscribe({
@@ -702,6 +670,23 @@ describe(TimeSync, () => {
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			expect(sharedOnUpdate).toHaveBeenCalledTimes(100);
 		});
+
+		it("Lets user turn off duplication", async ({ expect }) => {
+			const sync = new TimeSync({
+				allowDuplicateOnUpdateCalls: false,
+			});
+
+			const sharedOnUpdate = vi.fn();
+			for (let i = 0; i < 100; i++) {
+				void sync.subscribe({
+					onUpdate: sharedOnUpdate,
+					targetRefreshIntervalMs: refreshRates.oneMinute,
+				});
+			}
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(sharedOnUpdate).toHaveBeenCalledTimes(1);
+		});
 	});
 
 	describe("State snapshots", () => {
@@ -710,7 +695,11 @@ describe(TimeSync, () => {
 		}) => {
 			const initialDate = setInitialTime("July 4, 1999");
 			const minimumRefreshIntervalMs = 5_000_000;
-			const sync = new TimeSync({ initialDate, minimumRefreshIntervalMs });
+			const sync = new TimeSync({
+				initialDate,
+				minimumRefreshIntervalMs,
+				allowDuplicateOnUpdateCalls: false,
+			});
 
 			const snap = sync.getStateSnapshot();
 			expect(snap).toEqual<Snapshot>({
@@ -773,9 +762,8 @@ describe(TimeSync, () => {
 			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
 
 			expect(onUpdate).toHaveBeenCalledTimes(1);
-			expect(onUpdate).toHaveBeenCalledWith(expect.any(Date), undefined);
-
 			const newSnap = sync.getStateSnapshot();
+			expect(onUpdate).toHaveBeenCalledWith(newSnap.date, expect.any(Object));
 			expect(newSnap).not.toEqual(initialSnap);
 		});
 
