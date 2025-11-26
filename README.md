@@ -76,12 +76,14 @@ export const sync = new TimeSync();
 import { refreshRates } from "@buenos-nachos/time-sync";
 import { sync } from "./setupFile";
 
-// The subscribe method forms the backbone of the library. Most interactions
-// involving TimeSync are expected to be handled via subscriptions.
+// This tells TimeSync that we have a new subscriber that needs to be updated
+// NO SLOWER than every five minutes. Subscribers are allowed to be notified
+// more often than this, if it would keep all subscribers in sync. As this
+// is the first subscriber, this also kicks off a new interval that will
+// dispatch an update every 5 minutes.
 const unsubscribe1 = sync.subscribe({
-	// This tells TimeSync to start an interval to dispatch a new update to all
-	// subscribers in five minutes. refreshRates contains a set of
-	// commonly-used intervals, but any positive integer can be used as well
+	// refreshRates contains a set of commonly-used intervals, but any
+	// positive integer is valid
 	targetRefreshIntervalMs: refreshRates.fiveMinutes,
 
 	// newDate is a special ReadonlyDate class that enforces readonly access at
@@ -107,6 +109,11 @@ const unsubscribe2 = sync.subscribe({
 // this unsubscribe happens 45 seconds after the last update. Subscriber 1 will
 // be updated in 4 minutes and 15 seconds, rather than in five minutes.
 unsubscribe2();
+
+// If we were to call this, there would be no active interval, and TimeSync
+// would immediately clear the active interval. Calling any unsubscribe
+// callback more than once always results in a no-op.
+// unsubscribe1();
 
 // The ReadonlyDate class is fully assignable to the native date class, to
 // maximize interoperability with existing JavaScript libraries. Any function
@@ -150,6 +157,11 @@ const unsubscribe4 = sync.subscribe({
 // This lets you pull an immutable snapshot of the TimeSync's inner state. The
 // immutability is enforced at runtime and at the type level.
 const snap = sync.getStateSnapshot();
+
+// This clears out all subscribers and clears the active interval. This is
+// useful for making sure a TimeSync can be garbage-collected without memory
+// leaks, but it can also be used to reset a global TimeSync between test runs
+sync.clearAll();
 ```
 
 ## Documentation
