@@ -7,7 +7,9 @@
 
 ![time-sync logo](./images/banner.png)
 
-`time-sync` is a set of packages designed to help avoid [screen tearing](https://github.com/reactwg/react-18/discussions/69) and snapshot test flakes when bringing time values into UIs. It ensures that every consumer of a time value is set up with explicit data dependencies, and that all consumers update together synchronously. And while `time-sync` is designed for UIs first and foremost, the core package has zero runtime dependencies and can be used for stateful servers as well. More broadly, the core package give you the tools to keep time-based processes in sync on a single device. All `time-sync` packages force you as a developer to specify when and how time should be updated, while also centralizing updates to a single place.
+`time-sync` is a set of packages designed to help avoid [screen tearing](https://github.com/reactwg/react-18/discussions/69) and snapshot test flakes when bringing time values into UIs. It centralizes time-based computations into a single place, and then forces you as a developer to be explicit about when and how processes can change over time. This makes sure that a user can't see different contradictory values on screen at the same time, but also provides the tools to make snapshot tests 100% deterministic.
+
+While `time-sync` is designed for UIs first and foremost, the core package has zero runtime dependencies and can also be used for stateful servers (Node.js, Bun, Deno). More broadly, the core package provides the tools for ensuring processes can't ever get out of sync on a single device.
 
 In other words, `time-sync` aims to make time more obvious and less magical.
 
@@ -15,12 +17,12 @@ In other words, `time-sync` aims to make time more obvious and less magical.
 
 - 🔄 **Keep things in sync** – `time-sync` ensures that different systems on one device can't ever get out of sync with each other.
 - 📸 **No more snapshot flakes** – `time-sync` makes it easy to freeze the date to a specific value to ensure that your snapshot tests stay deterministic. The upcoming UI framework bindings will have out-of-the-box support for platforms like Storybook.
-- 📦 **As few dependencies as possible** – The vanilla version of `time-sync` has zero runtime dependencies. Each package for binding it to a framework aims to have only that framework as a dependency.
+- 📦 **As few dependencies as possible** – The vanilla version of `time-sync` has zero runtime dependencies. Each package for binding it to a framework aims to have the vanilla `time-sync` package and that framework as its only two dependencies.
 
 ### Coming soon
 
 - 🖥️ **Bindings for popular UI frameworks** – `time-sync` will be launching bindings for React in the next few weeks. Solid.js bindings will launch soon after. Other frameworks may be added based on demand/interest.
-- 🏝️ **Astro islands** – All the packages for binding `time-sync` to a UI framework will support Astro out of the box. This includes support for islands and the ability to mix the bindings with `.astro` files.
+- 🏝️ **Astro islands** – All the packages for binding `time-sync` to a UI framework aim to support Astro out of the box. This includes support for islands and the ability to mix the bindings with `.astro` files.
 - 💿 **Mix and match UI frameworks** – The React and Solid.js packages are being designed so that they can be used together in a single Astro project. Any future framework bindings will aim to have the same support.
 
 ## Quick start
@@ -40,7 +42,7 @@ npm i -E @buenos-nachos/time-sync
 yarn add -E @buenos-nachos/time-sync
 ```
 
-Other packages can be installed in a similar way. For example, the React package is installed like this:
+Other packages can be installed in a similar way. For example, the React package (coming soon) can be installed like this:
 
 ```bash
 // PNPM
@@ -139,12 +141,12 @@ const unsubscribe3 = sync.subscribe({
 });
 
 // Let's say that five seconds have passed since the last update, and then this
-// subscription gets added
+// subscription gets added...
 const unsubscribe4 = sync.subscribe({
-	// If a new subscription is added that has an interval less than or equal to
-	// the elapsed time since the last update, all subscribers will be notified
-	// immediately. Afterwards, a new subscription cycle will start with the
-	// fastest interval among all subscribers
+	// ...If a new subscription is added that has a refresh interval less than
+	// or equal to the elapsed time since the last update, all subscribers will
+	// be notified immediately. Afterwards, a new subscription cycle will start
+	// with the fastest interval among all subscribers
 	targetRefreshIntervalMs: refreshRates.oneSecond,
 
 	// If the same function (by reference) is added by multiple subscribers,
