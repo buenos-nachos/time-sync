@@ -92,6 +92,6 @@ jobs:
         with:
           fetch-depth: 1
       - name: Check for typos
-        uses: crate-ci/typos@v1.39.2
+        uses: crate-ci/typos@626c4bedb751ce0b7f03262ca97ddda9a076ae1c #v1.39.2
         with:
           config: .github/typos.toml
