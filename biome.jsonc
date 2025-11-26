@@ -123,6 +123,8 @@
 		}
 	},
 	"overrides": [
+		// Everything in the Void 0 ecosystem uses default exports for their
+		// config files
 		{
 			"includes": ["./**/tsdown.config.ts", "./**/vitest.config.ts"],
 			"linter": {
@@ -131,6 +133,15 @@
 						"noDefaultExport": "off"
 					}
 				}
+			}
+		},
+		// A lot of the built-in code tools (including the Changesets GitHub
+		// Action) end up auto-expanding arrays. Just giving in and matching the
+		// output to make sure we don't run into failed jobs from automations
+		{
+			"includes": ["./**/package.json"],
+			"formatter": {
+				"expand": "always"
 			}
 		}
 	]

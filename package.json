@@ -3,9 +3,16 @@
 	"private": true,
 	"license": "MIT",
 	"packageManager": "pnpm@10.17.0",
-	"workspaces": ["./packages/*"],
+	"workspaces": [
+		"./packages/*"
+	],
 	"description": "Root package.json file for all time-sync packages",
-	"keywords": ["react", "typescript", "utility", "ui"],
+	"keywords": [
+		"react",
+		"typescript",
+		"utility",
+		"ui"
+	],
 	"repository": {
 		"type": "git",
 		"url": "https://www.github.com/buenos-nachos/time-sync.git"
