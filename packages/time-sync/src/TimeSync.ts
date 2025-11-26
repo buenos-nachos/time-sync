@@ -530,8 +530,8 @@ export class TimeSync implements TimeSyncApi {
 			entries.splice(matchIndex, 1);
 			if (entries.length === 0) {
 				subsOnSetup.delete(onUpdate);
+				this.#updateFastestInterval();
 			}
-			this.#updateFastestInterval();
 
 			void this.#setSnapshot({
 				subscriberCount: Math.max(0, this.#latestSnapshot.subscriberCount - 1),
@@ -539,10 +539,10 @@ export class TimeSync implements TimeSyncApi {
 			subscribed = false;
 		};
 
-		let entries = this.#subscriptions.get(onUpdate);
+		let entries = subsOnSetup.get(onUpdate);
 		if (entries === undefined) {
 			entries = [];
-			this.#subscriptions.set(onUpdate, entries);
+			subsOnSetup.set(onUpdate, entries);
 		}
 
 		const targetInterval = Math.max(
