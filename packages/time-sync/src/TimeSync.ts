@@ -239,7 +239,7 @@ export class TimeSync implements TimeSyncApi {
 	 * Each map value should stay sorted by refresh interval, in ascending
 	 * order.
 	 */
-	readonly #subscriptions: Map<OnTimeSyncUpdate, SubscriptionEntry[]>;
+	#subscriptions: Map<OnTimeSyncUpdate, SubscriptionEntry[]>;
 
 	/**
 	 * The latest public snapshot of TimeSync's internal state. The snapshot
@@ -507,13 +507,15 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		let unsubscribed = false;
+		const subsOnSetup = this.#subscriptions;
+		let subscribed = true;
 		const unsubscribe = (): void => {
-			if (unsubscribed) {
+			if (!subscribed || this.#subscriptions !== subsOnSetup) {
+				subscribed = false;
 				return;
 			}
 
-			const entries = this.#subscriptions.get(onUpdate);
+			const entries = subsOnSetup.get(onUpdate);
 			if (entries === undefined) {
 				return;
 			}
@@ -527,14 +529,14 @@ export class TimeSync implements TimeSyncApi {
 			// enters the subscriptions map
 			entries.splice(matchIndex, 1);
 			if (entries.length === 0) {
-				this.#subscriptions.delete(onUpdate);
+				subsOnSetup.delete(onUpdate);
 			}
 			this.#updateFastestInterval();
 
 			void this.#setSnapshot({
 				subscriberCount: Math.max(0, this.#latestSnapshot.subscriberCount - 1),
 			});
-			unsubscribed = true;
+			subscribed = false;
 		};
 
 		let entries = this.#subscriptions.get(onUpdate);
@@ -567,13 +569,15 @@ export class TimeSync implements TimeSyncApi {
 		this.#intervalId = undefined;
 		this.#fastestRefreshInterval = 0;
 
-		for (const entries of this.#subscriptions.values()) {
-			for (const e of entries) {
-				e.unsubscribe();
-			}
-		}
-		this.#subscriptions.clear();
-
+		// If we know for a fact that we're going to toss everything, we don't
+		// need to bother iterating through the unsubscribe callbacks. We can
+		// just swap in a new map, and then completely erase the old map (likely
+		// leaning into more efficient code than we could write). As long as the
+		// unsubscribe callbacks are set up to check a local version of the
+		// subscriptions, this won't ever cause problems.
+		const subsBefore = this.#subscriptions;
+		this.#subscriptions = new Map();
+		subsBefore.clear();
 		void this.#setSnapshot({ subscriberCount: 0 });
 	}
 }
