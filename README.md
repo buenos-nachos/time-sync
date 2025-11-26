@@ -110,10 +110,10 @@ const unsubscribe2 = sync.subscribe({
 // be updated in 4 minutes and 15 seconds, rather than in five minutes.
 unsubscribe2();
 
-// If we were to call this, there would be no active interval, and TimeSync
-// would immediately clear the active interval. Calling any unsubscribe
-// callback more than once always results in a no-op.
-// unsubscribe1();
+// If we were to call this, there would be no subscribers, and no need for an
+// active interval, so TimeSync automatically clears the interval. Calling any
+// unsubscribe callback more than once always results in a no-op.
+unsubscribe1();
 
 // The ReadonlyDate class is fully assignable to the native date class, to
 // maximize interoperability with existing JavaScript libraries. Any function
