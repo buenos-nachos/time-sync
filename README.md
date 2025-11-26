@@ -71,6 +71,30 @@ import { TimeSync } from "@buenos-nachos/time-sync";
 // TimeSync tries to have sensible defaults, but an options object can be passed
 // to the constructor to configure behavior.
 export const sync = new TimeSync();
+
+export const syncWithOptions = new TimeSync({
+	// By default, TimeSync initializes itself with the current system time.
+	// A specific date can be provided to make the TimeSync result 100% pure and
+	// deterministic, which helps with testing and server-to-client hydration.
+	initialDate: new Date("August 1, 2045"),
+
+	// This tells TimeSync to freeze all internal state, effectively turning all
+	// subscriptions into no-ops. Most useful for snapshot tests; highly
+	// recommended that you use this together with `initialDate`
+	freezeUpdates: true,
+
+	// Can be used to provide a minimum threshold for how often updates should
+	// be dispatched. If a consumer tries to subscribe with a lower value, this
+	// minimum will be used instead
+	minimumRefreshIntervalMs: 500,
+
+	// When setting up a subscription, TimeSync allows multiple subscribers to
+	// register the same pair of update interval and onUpdate callback
+	// (determined by reference equality). Since all subscribers always get
+	// notified at once, TimeSync defaults to de-duplicating function calls.
+	// Flip this property to true to make sure you get one call per subscriber.
+	allowDuplicateFunctionCalls: true,
+});
 ```
 
 ```ts
