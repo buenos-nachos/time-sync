@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.1.2
+
+### Patch Changes
+
+- 6189eb2: add README to root directory
+
 ## 0.1.1
 
 ### Patch Changes
