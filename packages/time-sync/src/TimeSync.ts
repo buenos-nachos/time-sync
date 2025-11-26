@@ -542,7 +542,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 	}
 
-	subscribe(sh: SubscriptionInitOptions): () => void {
+	subscribe(options: SubscriptionInitOptions): () => void {
 		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
 			return noOp;
@@ -550,7 +550,7 @@ export class TimeSync implements TimeSyncApi {
 
 		// Destructuring properties so that they can't be fiddled with after
 		// this function call ends
-		const { targetRefreshIntervalMs, onUpdate } = sh;
+		const { targetRefreshIntervalMs, onUpdate } = options;
 
 		const isTargetValid =
 			targetRefreshIntervalMs === Number.POSITIVE_INFINITY ||
@@ -579,8 +579,8 @@ export class TimeSync implements TimeSyncApi {
 		let subscribed = true;
 		const unsubscribe = (): void => {
 			if (!subscribed || this.#subscriptions !== subsOnSetup) {
-				subscribed = false;
 				context.timeSync = null;
+				subscribed = false;
 				return;
 			}
 
@@ -649,6 +649,9 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		this.#subscriptions.clear();
+
+		// We swap the map out so that the unsubscribe callbacks can detect
+		// whether their functionality is still relevant
 		this.#subscriptions = new Map();
 		void this.#setSnapshot({ subscriberCount: 0 });
 	}
