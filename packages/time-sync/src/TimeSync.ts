@@ -85,7 +85,10 @@ export type InitOptions = Readonly<
 /**
  * The callback to call when a new state update is ready to be dispatched.
  */
-export type OnTimeSyncUpdate = (dateSnapshot: ReadonlyDate) => void;
+export type OnTimeSyncUpdate = (
+	newDate: ReadonlyDate,
+	dateFromLastUpdate: ReadonlyDate | undefined,
+) => void;
 
 /**
  * An object used to initialize a new subscription for TimeSync.
@@ -226,6 +229,8 @@ const defaultMinimumRefreshIntervalMs = 200;
  * some parts of the screen.)
  */
 export class TimeSync implements TimeSyncApi {
+	#dateFromLastUpdate: ReadonlyDate | undefined;
+
 	/**
 	 * Stores all refresh intervals actively associated with an onUpdate
 	 * callback (along with their associated unsubscribe callbacks).
@@ -287,6 +292,7 @@ export class TimeSync implements TimeSyncApi {
 		this.#subscriptions = new Map();
 		this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 		this.#intervalId = undefined;
+		this.#dateFromLastUpdate = undefined;
 
 		// Not defined inline to avoid wonkiness that Object.freeze introduces
 		// when you rename a property on a frozen object
@@ -343,6 +349,8 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
+		const fromLast = this.#dateFromLastUpdate;
+
 		/**
 		 * Two things for both paths:
 		 * 1. We need to make sure that we do one-time serializations of the map
@@ -374,20 +382,21 @@ export class TimeSync implements TimeSyncApi {
 					if (wasCleared) {
 						break outer;
 					}
-					onUpdate(date);
+					onUpdate(date, fromLast);
 				}
 			}
-			return;
+		} else {
+			const funcs = [...this.#subscriptions.keys()];
+			for (const onUpdate of funcs) {
+				const wasCleared = this.#subscriptions.size === 0;
+				if (wasCleared) {
+					break;
+				}
+				onUpdate(date, fromLast);
+			}
 		}
 
-		const funcs = [...this.#subscriptions.keys()];
-		for (const onUpdate of funcs) {
-			const wasCleared = this.#subscriptions.size === 0;
-			if (wasCleared) {
-				break;
-			}
-			onUpdate(date);
-		}
+		this.#dateFromLastUpdate = date;
 	}
 
 	/**

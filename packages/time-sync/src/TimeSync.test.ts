@@ -126,11 +126,35 @@ describe(TimeSync, () => {
 				await vi.advanceTimersByTimeAsync(rate);
 				const dateAfter = sync.getStateSnapshot().date;
 				expect(onUpdate).toHaveBeenCalledTimes(1);
-				expect(onUpdate).toHaveBeenCalledWith(dateAfter);
+				expect(onUpdate).toHaveBeenCalledWith(dateAfter, undefined);
 
 				const diff = dateAfter.getTime() - dateBefore.getTime();
 				expect(diff).toBe(rate);
 			}
+		});
+
+		it("Dispatches current and previous dates on each update", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+			const onUpdate = vi.fn();
+
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(onUpdate).toHaveBeenCalledTimes(1);
+
+			const snap1 = sync.getStateSnapshot().date;
+			expect(onUpdate).toHaveBeenCalledWith(snap1, undefined);
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(onUpdate).toHaveBeenCalledTimes(2);
+
+			const snap2 = sync.getStateSnapshot().date;
+			expect(onUpdate).toHaveBeenCalledWith(snap2, snap1);
 		});
 
 		it("Throws an error if provided subscription interval is not a positive integer", ({
@@ -748,7 +772,7 @@ describe(TimeSync, () => {
 			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
 
 			expect(onUpdate).toHaveBeenCalledTimes(1);
-			expect(onUpdate).toHaveBeenCalledWith(expect.any(Date));
+			expect(onUpdate).toHaveBeenCalledWith(expect.any(Date), undefined);
 
 			const newSnap = sync.getStateSnapshot();
 			expect(newSnap).not.toEqual(initialSnap);
