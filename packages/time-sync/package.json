@@ -1,11 +1,15 @@
 {
 	"name": "@buenos-nachos/time-sync",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"license": "MIT",
 	"packageManager": "pnpm@10.17.0",
 	"author": "Michael Smith <hello@nachos.dev> (https://www.nachos.dev)",
 	"description": "The base package for the time-sync set of packages.",
-	"keywords": ["typescript", "utility", "ui"],
+	"keywords": [
+		"typescript",
+		"utility",
+		"ui"
+	],
 	"sideEffects": false,
 	"main": "./dist/index.js",
 	"module": "./dist/index.mjs",
