@@ -7,9 +7,9 @@
 
 ![time-sync logo](./images/banner.png)
 
-`time-sync` is a set of packages designed to make it foolproof to work with time values on a single device. This can be multiple UI components on a single client device, or a series of UI snapshot tests being run in a platform like Storybook. While `time-sync` is mostly intended for UIs, the vanilla version also has zero dependencies and can be used for stateful servers. The packages force you as a developer to specify when and how time should be updated, while also centralizing updates to a single place.
+`time-sync` is a set of packages designed to help avoid [screen tearing](https://github.com/reactwg/react-18/discussions/69) and snapshot test flakes when bringing time values into UIs. It ensures that every consumer of a time value is set up with explicit data dependencies, and that all consumers update together synchronously. And while `time-sync` is designed for UIs first and foremost, the core package has zero runtime dependencies and can be used for stateful servers as well. More broadly, the core package give you the tools to keep time-based processes in sync on a single device. All `time-sync` packages force you as a developer to specify when and how time should be updated, while also centralizing updates to a single place.
 
-In other words, the goal of `time-sync` is to make time more obvious and less magical.
+In other words, `time-sync` aims to make time more obvious and less magical.
 
 ## Features
 
