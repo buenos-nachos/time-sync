@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.1.1
+
+### Patch Changes
+
+- f18d71c: fix: specified module type as ESM
+
 ## 0.1.0
 
 ### Minor Changes
