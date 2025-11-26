@@ -590,9 +590,9 @@ describe(TimeSync, () => {
 			const sync = new TimeSync();
 			const interval = refreshRates.oneMinute;
 
-			let ejectedInteral: number | undefined;
+			let ejectedInterval: number | undefined;
 			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
-				ejectedInteral = ctx.targetRefreshIntervalMs;
+				ejectedInterval = ctx.targetRefreshIntervalMs;
 			});
 
 			void sync.subscribe({
@@ -601,7 +601,7 @@ describe(TimeSync, () => {
 			});
 
 			await vi.advanceTimersByTimeAsync(interval);
-			expect(ejectedInteral).toBe(interval);
+			expect(ejectedInterval).toBe(interval);
 		});
 
 		it("Exposes exact same unsubscribe callback as the one returned from the subscribe call", async ({
