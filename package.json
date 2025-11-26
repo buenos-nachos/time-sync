@@ -19,6 +19,8 @@
 	},
 	"scripts": {
 		"build:all": "tsdown --workspace",
+		"changeset:version": "changeset version && git add --all",
+		"changeset:release": "changeset publish",
 		"check:all": "pnpm check:lint && pnpm check:types",
 		"check:lint": "biome check --error-on-warnings .",
 		"check:types": "tsc --noEmit",

@@ -9,12 +9,20 @@ concurrency:
 jobs:
   publish:
     name: Publish new versions
+    # Prevents this action from running on forks
+    if: github.repository == 'buenos-nachos/time-sync'
+    permissions:
+      contents: write # to create release (changesets/action)
+      id-token: write # OpenID Connect token needed for provenance
+      pull-requests: write # to create pull request (changesets/action)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          fetch-depth: 1
+          # This makes Actions fetch all Git history so that Changesets can
+          # generate changelogs with the correct commits
+          fetch-depth: 0
 
       - name: Install PNPM
         uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
@@ -32,7 +40,8 @@ jobs:
         id: changesets
         uses: changesets/action@e0145edc7d9d8679003495b11f87bd8ef63c0cba # v1.5.3
         with:
-          publish: pnpm run build:all
+          publish: pnpm changeset:release
+          version: pnpm changeset:version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
