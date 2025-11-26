@@ -178,7 +178,7 @@ interface TimeSyncApi {
 }
 
 /**
- * An object with information about a specific subcription registered with
+ * An object with information about a specific subscription registered with
  * TimeSync.
  *
  * For performance reasons, this object has ZERO readonly guarantees enforced at
@@ -641,7 +641,7 @@ export class TimeSync implements TimeSyncApi {
 
 		// As long as we clean things the internal state, it's safe not to
 		// bother calling each unsubscribe callback. Not calling them one by
-		// one actualy has much better time complexity
+		// one actually has much better time complexity
 		for (const subArray of this.#subscriptions.values()) {
 			for (const ctx of subArray) {
 				ctx.timeSync = null;

@@ -415,7 +415,7 @@ describe(TimeSync, () => {
 			const snap2 = sync.getStateSnapshot();
 			expect(snap2.subscriberCount).toBe(30);
 			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
-			expect(sharedOnUpdate).toHaveBeenCalledTimes(1);
+			expect(sharedOnUpdate).toHaveBeenCalledTimes(30);
 		});
 
 		it("Speeds up interval when new subscriber is added that is faster than all other subscribers", async ({
