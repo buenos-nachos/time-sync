@@ -304,9 +304,9 @@ export class TimeSync implements TimeSyncApi {
 	 * than new subscriptions (a single subscription that subscribes for one
 	 * second will receive 360 updates in five minutes), operations should be
 	 * done to optimize that use case. So we should move the immutability costs
-	 * to the subscription add operation.
+	 * to the subscribe and unsubscribe operations.
 	 */
-	#subscriptions: Map<OnTimeSyncUpdate, SubscriptionContext[]>;
+	#subscriptions: Map<OnTimeSyncUpdate, readonly SubscriptionContext[]>;
 
 	/**
 	 * The latest public snapshot of TimeSync's internal state. The snapshot
@@ -414,23 +414,24 @@ export class TimeSync implements TimeSyncApi {
 
 		/**
 		 * Two things:
-		 * 1. We need to make sure that we do one-time serializations of the map
-		 * entries into an array instead of constantly pulling from the map via
-		 * the iterator protocol in the off chance that subscriptions add new
-		 * subscriptions. Each sub array is mutable, and not only is there a
-		 * risk of a subscription pushing to the array currently being iterated
-		 * over, but also any other array that hasn't yet been processed. So we
-		 * need to grab a complete copy of everything before any loops start.
+		 * 1. Even though the context arrays are defined as readonly (which
+		 * removes on the worst edge cases during dispatching), the
+		 * subscriptions map itself is still mutable, so there are a few edge
+		 * cases we need to deal with. While the risk of infinite loops should
+		 * be much lower, there's still the risk that an onUpdate callback could
+		 * add a subscriber for an interval that wasn't registered before, which
+		 * the iterator protocol will pick up. Need to make a local,
+		 * fixed-length copy of the map entries before starting iteration. Any
+		 * subscriptions added during update will just have to wait until the
+		 * next round of updates.
 		 *
 		 * 2. The trade off of the serialization is that we do lose the ability
-		 * to auto-break the loops if one of the subscribers ends up resetting
+		 * to auto-break the loop if one of the subscribers ends up resetting
 		 * all state, because we'll still have local copies of entries. We need
 		 * to check on each iteration to see if we should continue.
 		 */
-		const entries = Array.from(
-			this.#subscriptions,
-			([onUpdate, subs]) => [onUpdate, [...subs]] as const,
-		);
+		const subsBeforeUpdate = this.#subscriptions;
+		const entries = Array.from(subsBeforeUpdate);
 		outer: for (const [onUpdate, subs] of entries) {
 			// Even if duplicate onUpdate calls are disabled, we still need to
 			// iterate through everything and update any internal data. If the
@@ -441,7 +442,7 @@ export class TimeSync implements TimeSyncApi {
 				// We're not doing anything more sophisticated here because
 				// we're assuming that any systems that can clear out the
 				// subscriptions will handle cleaning up each context, too
-				const wasCleared = this.#subscriptions.size === 0;
+				const wasCleared = subsBeforeUpdate.size === 0;
 				if (wasCleared) {
 					break outer;
 				}
@@ -603,22 +604,22 @@ export class TimeSync implements TimeSyncApi {
 				return;
 			}
 
-			const entries = subsOnSetup.get(onUpdate);
-			if (entries === undefined) {
+			const contexts = subsOnSetup.get(onUpdate);
+			if (contexts === undefined) {
 				return;
 			}
-			const matchIndex = entries.findIndex(
-				(e) => e.unsubscribe === unsubscribe,
-			);
-			if (matchIndex === -1) {
+			const filtered = contexts.filter((e) => e.unsubscribe !== unsubscribe);
+			if (filtered.length === contexts.length) {
 				return;
 			}
-			// No need to sort on removal because everything gets sorted as it
-			// enters the subscriptions map
-			entries.splice(matchIndex, 1);
-			if (entries.length === 0) {
+
+			if (filtered.length === 0) {
 				subsOnSetup.delete(onUpdate);
 				this.#updateFastestInterval();
+			} else {
+				// No need to sort on removal because everything gets sorted as
+				// it enters the subscriptions map
+				subsOnSetup.set(onUpdate, filtered);
 			}
 
 			void this.#setSnapshot({
@@ -628,16 +629,20 @@ export class TimeSync implements TimeSyncApi {
 			context.timeSync = null;
 			subscribed = false;
 		};
+		context.unsubscribe = unsubscribe;
 
-		let entries = subsOnSetup.get(onUpdate);
-		if (entries === undefined) {
-			entries = [];
-			subsOnSetup.set(onUpdate, entries);
+		let contexts: SubscriptionContext[];
+		if (this.#subscriptions.has(onUpdate)) {
+			const prev = this.#subscriptions.get(onUpdate) as SubscriptionContext[];
+			contexts = [...prev];
+		} else {
+			contexts = [];
+			subsOnSetup.set(onUpdate, contexts);
 		}
 
-		context.unsubscribe = unsubscribe;
-		entries.push(context);
-		entries.sort(
+		subsOnSetup.set(onUpdate, contexts);
+		contexts.push(context);
+		contexts.sort(
 			(e1, e2) => e1.targetRefreshIntervalMs - e2.targetRefreshIntervalMs,
 		);
 
