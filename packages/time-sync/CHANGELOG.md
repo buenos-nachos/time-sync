@@ -2,13 +2,13 @@
 
 ## 0.2.0
 
+### Breaking Chnanges
+
+- 2f527dd: Changed the default value of `allowDuplicateFunctionCalls` from `false` to `true`
+
 ### Minor Changes
 
-- a4d619e: ## Breaking
-  - Changed the default value of `allowDuplicateFunctionCalls` to `true` instead of `false`
-
-  ## Features
-  - Added second parameter to `onUpdate` callback. This value is a value of type `SubscriptionContext` and provides information about the current subscription.
+- 5f86fac: Added second parameter to `onUpdate` callback. This value is a value of type `SubscriptionContext` and provides information about the current subscription.
 
 ## 0.1.2
 
