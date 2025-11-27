@@ -6,9 +6,6 @@
 	"packageManager": "pnpm@10.17.0",
 	"author": "Michael Smith <hello@nachos.dev> (https://www.nachos.dev)",
 	"description": "The base package for the time-sync set of packages.",
-	"publishConfig": {
-		"access": "public"
-	},
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/buenos-nachos/time-sync.git",
@@ -20,7 +17,11 @@
 		"ui"
 	],
 	"sideEffects": false,
-	"main": "./dist/index.js",
-	"module": "./dist/index.mjs",
-	"types": "./dist/index.d.ts"
+	"main": "./src/index.ts",
+	"publishConfig": {
+		"access": "public",
+		"main": "./dist/index.js",
+		"module": "./dist/index.mjs",
+		"types": "./dist/index.d.ts"
+	}
 }
