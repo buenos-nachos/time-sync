@@ -148,7 +148,7 @@ export interface Snapshot {
  */
 export interface SubscriptionContext {
 	/**
-	 * The interval that the subscription was originally registered with.
+	 * The interval that the subscription was registered with.
 	 */
 	readonly targetRefreshIntervalMs: number;
 
@@ -165,13 +165,15 @@ export interface SubscriptionContext {
 
 	/**
 	 * A reference to the TimeSync instance that the subscription was registered
-	 * with. Note that if the subscription is ever removed from the TimeSync
-	 * (whether through an explicit unsubscribe or a .clearAll call), this value
-	 * will become null through a mutation.
-	 *
-	 * As such, it can be used to track whether the subscription is still live.
+	 * with.
 	 */
 	timeSync: TimeSync | null;
+
+	/**
+	 * Indicates whether the subscription is still live. Will be mutated to be
+	 * false when a subscription is
+	 */
+	isLive: boolean;
 
 	/**
 	 * Indicates when the last time the subscription had its explicit interval
@@ -583,6 +585,7 @@ export class TimeSync implements TimeSyncApi {
 		// Have to define this as a writeable to avoid a chicken-and-the-egg
 		// problem for the unsubscribe callback
 		const context: Writeable<SubscriptionContext> = {
+			isLive: true,
 			timeSync: this,
 			unsubscribe: noOp,
 			registeredAt: new ReadonlyDate(),
@@ -593,11 +596,14 @@ export class TimeSync implements TimeSyncApi {
 			),
 		};
 
-		const subsOnSetup = this.#subscriptions;
+		// Not reading from context value to decide whether to bail out of
+		// unsubscribes in off chance that outside consumer accidentally mutates
+		// the value
 		let subscribed = true;
+		const subsOnSetup = this.#subscriptions;
 		const unsubscribe = (): void => {
 			if (!subscribed || this.#subscriptions !== subsOnSetup) {
-				context.timeSync = null;
+				context.isLive = false;
 				subscribed = false;
 				return;
 			}
@@ -624,7 +630,7 @@ export class TimeSync implements TimeSyncApi {
 				subscriberCount: Math.max(0, this.#latestSnapshot.subscriberCount - 1),
 			});
 
-			context.timeSync = null;
+			context.isLive = false;
 			subscribed = false;
 		};
 		context.unsubscribe = unsubscribe;
@@ -666,7 +672,7 @@ export class TimeSync implements TimeSyncApi {
 		// one actually has much better time complexity
 		for (const subArray of this.#subscriptions.values()) {
 			for (const ctx of subArray) {
-				ctx.timeSync = null;
+				ctx.isLive = false;
 			}
 		}
 
