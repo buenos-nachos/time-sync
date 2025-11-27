@@ -15,6 +15,10 @@ export function createUseTimeSyncRef(
 	};
 }
 
+// We're typing this as the polyfill instead of React.useEffectEvent because the
+// official type uses Function for its type constraint, which makes
+// assignability awkward, and also drastically increases the work I need to do.
+// Not worth it for an internal implementation detail for a single file
 const useEffectEvent: typeof polyfill =
 	typeof React.useEffectEvent === "undefined" ? polyfill : React.useEffectEvent;
 

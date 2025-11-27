@@ -20,32 +20,32 @@ export type TimeSyncProvider = FC<{
 	timeSyncOverride?: TimeSync;
 }>;
 
-const injectionTypes = [
+const injectionMethods = [
 	"closure",
 	"reactContext",
 	"hybrid",
 ] as const satisfies readonly string[];
 
-export type InjectionType = (typeof injectionTypes)[number];
+export type InjectionMethod = (typeof injectionMethods)[number];
 
-function isInjectionType(value: unknown): value is InjectionType {
-	return injectionTypes.includes(value as InjectionType);
+function isInjectionMethod(value: unknown): value is InjectionMethod {
+	return injectionMethods.includes(value as InjectionMethod);
 }
 
-export type CreateReactBindingsOptions<T extends InjectionType> =
+export type CreateReactBindingsOptions<T extends InjectionMethod> =
 	T extends "reactContext"
 		? {
-				readonly injectionType: T;
+				readonly injectionMethod: T;
 			}
 		: {
-				readonly injectionType: T;
+				readonly injectionMethod: T;
 				readonly timeSync: TimeSync;
 			};
 
-export type CreateReactBindingsResult<T extends InjectionType> =
+export type CreateReactBindingsResult<T extends InjectionMethod> =
 	T extends "closure"
 		? {
-				readonly useTimeSync: unknown;
+				readonly useTimeSync: UseTimeSync;
 				readonly useTimeSyncRef: UseTimeSyncRef;
 			}
 		: {
@@ -58,47 +58,50 @@ export type CreateReactBindingsResult<T extends InjectionType> =
 // easier to work with internally. The main problem with them is that they don't
 // provide any nice TypeScript type feedback for external users
 interface FlatCreateReactBindingsOptions {
-	readonly injectionType: InjectionType;
+	readonly injectionMethod: InjectionMethod;
 	readonly timeSync?: TimeSync;
 }
 interface FlatCreateReactBindingsResult {
 	readonly useTimeSync: unknown;
 	readonly useTimeSyncRef: UseTimeSyncRef;
+	// Left mutable on purpose; it'll become readonly before it reaches users
 	TimeSyncProvider?: TimeSyncProvider;
 }
 
 function validateCreateReactBindingsOptions(
 	options: FlatCreateReactBindingsOptions,
 ): void {
-	const { injectionType, timeSync } = options;
+	const { injectionMethod, timeSync } = options;
 
-	if (!isInjectionType(injectionType)) {
-		throw new RangeError(`Received unknown injection type: ${injectionType}`);
+	if (!isInjectionMethod(injectionMethod)) {
+		throw new RangeError(
+			`Received unknown injection method: ${injectionMethod}`,
+		);
 	}
 
 	const missingFallbackSync =
-		(injectionType === "closure" || injectionType === "hybrid") &&
+		(injectionMethod === "closure" || injectionMethod === "hybrid") &&
 		timeSync === undefined;
 	if (missingFallbackSync) {
 		throw new Error(
-			`timeSync property is missing for ${injectionType} strategy`,
+			`timeSync property is missing for ${injectionMethod} strategy`,
 		);
 	}
 }
 
-export function createReactBindings<T extends InjectionType>(
+export function createReactBindings<T extends InjectionMethod>(
 	options: CreateReactBindingsOptions<T>,
 ): CreateReactBindingsResult<T> {
 	const flat = options as FlatCreateReactBindingsOptions;
 	validateCreateReactBindingsOptions(flat);
-	const { injectionType, timeSync } = flat;
+	const { injectionMethod, timeSync } = flat;
 
 	// Not trying to DRY these cases up because realistically, these are going
 	// to get more complicated and nuanced over time. Code duplication is better
 	// than bad abstractions right now
 	let TimeSyncProvider: TimeSyncProvider | undefined;
 	let getter: ReactTimeSyncGetter;
-	switch (injectionType) {
+	switch (injectionMethod) {
 		case "closure": {
 			const fixedRts = new ReactTimeSync(timeSync);
 			getter = () => fixedRts;
@@ -113,17 +116,26 @@ export function createReactBindings<T extends InjectionType>(
 				const value = useContext(rtsContext);
 				if (value === null) {
 					throw new Error(
-						"Bindings were created with setting `reactContext`, but TimeSyncProvider is not mounted anywhere in the application",
+						"Bindings were created with injection method `reactContext`, but TimeSyncProvider is not mounted anywhere in the application",
 					);
 				}
 				return value;
 			};
 
-			TimeSyncProvider = ({ children }) => {
-				const [rts] = useState(() => new ReactTimeSync(timeSync));
+			TimeSyncProvider = ({ children, timeSyncOverride }) => {
+				const [rts] = useState(() => new ReactTimeSync());
+
+				useInsertionEffect(() => {
+					if (!timeSyncOverride) {
+						return undefined;
+					}
+					return rts.onTimeSyncOverrideReload(timeSyncOverride);
+				}, [rts, timeSyncOverride]);
+
 				useInsertionEffect(() => {
 					return rts.onProviderMount();
 				}, [rts]);
+
 				return (
 					<rtsContext.Provider value={rts}>{children}</rtsContext.Provider>
 				);
@@ -161,9 +173,9 @@ export function createReactBindings<T extends InjectionType>(
 		}
 
 		default: {
-			const exhaust: never = injectionType;
+			const exhaust: never = injectionMethod;
 			throw new Error(
-				`Impossible case encountered: cannot process injection type ${exhaust}`,
+				`Impossible case encountered: cannot process injection method ${exhaust}`,
 			);
 		}
 	}
