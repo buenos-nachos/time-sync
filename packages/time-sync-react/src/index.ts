@@ -5,6 +5,5 @@ export {
 	type InjectionType,
 	type TimeSyncProvider,
 } from "./bindings";
-export type { UseTimeSync, UseTimeSyncOptions } from "./useTimeSync";
-export type { UseTimeSyncRef } from "./useTimeSyncRef";
+export type { UseTimeSync, UseTimeSyncOptions, UseTimeSyncRef } from "./hooks";
 export type { TransformCallback } from "./utilities";

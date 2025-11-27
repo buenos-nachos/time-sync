@@ -7,9 +7,13 @@ import {
 	useInsertionEffect,
 	useState,
 } from "react";
+import {
+	createUseTimeSync,
+	createUseTimeSyncRef,
+	type UseTimeSync,
+	type UseTimeSyncRef,
+} from "./hooks";
 import { ReactTimeSync, type ReactTimeSyncGetter } from "./ReactTimeSync";
-import { createUseTimeSync, type UseTimeSync } from "./useTimeSync";
-import { createUseTimeSyncRef, type UseTimeSyncRef } from "./useTimeSyncRef";
 
 export type TimeSyncProvider = FC<{
 	children: ReactNode;
