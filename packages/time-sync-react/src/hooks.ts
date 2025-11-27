@@ -1,8 +1,19 @@
-import type { ReadonlyDate } from "@buenos-nachos/time-sync";
+import type { ReadonlyDate, TimeSync } from "@buenos-nachos/time-sync";
 import React from "react";
 import { useEffectEvent as polyfill } from "./hookPolyfills";
 import type { ReactTimeSyncGetter } from "./ReactTimeSync";
 import type { TransformCallback } from "./utilities";
+
+export type UseTimeSyncRef = () => TimeSync;
+
+export function createUseTimeSyncRef(
+	getter: ReactTimeSyncGetter,
+): UseTimeSyncRef {
+	return function useTimeSyncRef() {
+		const reactTimeSync = getter();
+		return reactTimeSync.getTimeSync();
+	};
+}
 
 const useEffectEvent: typeof polyfill =
 	typeof React.useEffectEvent === "undefined" ? polyfill : React.useEffectEvent;
