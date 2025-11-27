@@ -54,6 +54,14 @@ function identity<T>(value: T): T {
 	return value;
 }
 
+// The setup here is a little bit wonkier than the one for useTimeSyncRef
+// because of type parameters. If we were to define the UseTimeSync type
+// upfront, and then say that this function returns it, we would be forced to
+// evaluate and consume the generic type slot. There's no way to reference a
+// generic type in return type position without either passing it an explicit
+// generic or triggering its default type. We have to avoid writing it out to
+// trick TypeScript into preserving the slot, and then we can pluck the complete
+// type out with the ReturnType utility type
 export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 	return function useTimeSync<T = ReadonlyDate>(
 		options: UseTimeSyncOptions<T>,

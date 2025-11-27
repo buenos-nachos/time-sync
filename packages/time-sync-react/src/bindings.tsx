@@ -165,9 +165,12 @@ export function createReactBindings<T extends InjectionType>(
 	}
 
 	const result: FlatCreateReactBindingsResult = {
-		TimeSyncProvider,
 		useTimeSync: createUseTimeSync(getter),
 		useTimeSyncRef: createUseTimeSyncRef(getter),
 	};
+	// Only add the key at runtime if we actually have a meaningful value
+	if (TimeSyncProvider !== undefined) {
+		result.TimeSyncProvider = TimeSyncProvider;
+	}
 	return result as CreateReactBindingsResult<T>;
 }
