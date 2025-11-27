@@ -286,6 +286,25 @@ export class TimeSync implements TimeSyncApi {
 	 *
 	 * Each map value should stay sorted by refresh interval, in ascending
 	 * order.
+	 *
+	 * ---
+	 *
+	 * This is a rare case where we actually REALLY need the readonly modifier
+	 * to avoid infinite loops. JavaScript's iterator protocol is really great
+	 * for making loops simple and type-safe, but because subscriptions have the
+	 * ability to add more subscriptions, we need to make an immutable version
+	 * of each array at some point to make sure that we're not iterating through
+	 * values forever
+	 *
+	 * We can choose to do that at one of two points:
+	 * 1. When adding a new subscription
+	 * 2. When dispatching a new round of updates
+	 *
+	 * Because this library assumes that dispatches will be much more common
+	 * than new subscriptions (a single subscription that subscribes for one
+	 * second will receive 360 updates in five minutes), operations should be
+	 * done to optimize that use case. So we should move the immutability costs
+	 * to the subscription add operation.
 	 */
 	#subscriptions: Map<OnTimeSyncUpdate, SubscriptionContext[]>;
 
