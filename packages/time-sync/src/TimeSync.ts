@@ -27,14 +27,14 @@ export const refreshRates = Object.freeze({
 /**
  * The set of readonly options that the TimeSync has been configured with.
  */
-export type Configuration = Readonly<{
+export interface Configuration {
 	/**
 	 * Indicates whether the TimeSync instance should be frozen for Snapshot
 	 * tests.
 	 *
 	 * Defaults to false.
 	 */
-	freezeUpdates: boolean;
+	readonly freezeUpdates: boolean;
 
 	/**
 	 * The minimum refresh interval (in milliseconds) to use when dispatching
@@ -49,7 +49,7 @@ export type Configuration = Readonly<{
 	 *
 	 * Defaults to 200ms.
 	 */
-	minimumRefreshIntervalMs: number;
+	readonly minimumRefreshIntervalMs: number;
 
 	/**
 	 * Indicates whether the same `onUpdate` callback (by reference) should be
@@ -59,36 +59,34 @@ export type Configuration = Readonly<{
 	 * callback will receive the subscription context for the FIRST subscriber
 	 * that registered the onUpdate callback.
 	 */
-	allowDuplicateOnUpdateCalls: boolean;
-}>;
+	readonly allowDuplicateOnUpdateCalls: boolean;
+}
 
 /**
  * The set of options that can be used to instantiate a TimeSync.
  */
-export type InitOptions = Readonly<
-	Configuration & {
-		/**
-		 * Indicates whether the TimeSync instance should be frozen for snapshot
-		 * tests. Highly encouraged that you use this together with
-		 * `initialDate`.
-		 *
-		 *  Defaults to false.
-		 */
-		// Duplicated property to override the LSP comment
-		freezeUpdates: boolean;
+export interface InitOptions extends Configuration {
+	/**
+	 * Indicates whether the TimeSync instance should be frozen for snapshot
+	 * tests. Highly encouraged that you use this together with
+	 * `initialDate`.
+	 *
+	 *  Defaults to false.
+	 */
+	// Duplicated property to override the LSP comment
+	readonly freezeUpdates: boolean;
 
-		/**
-		 * The Date object to use when initializing TimeSync to make the
-		 * constructor more pure and deterministic.
-		 */
-		initialDate: Date;
-	}
->;
+	/**
+	 * The Date object to use when initializing TimeSync to make the
+	 * constructor more pure and deterministic.
+	 */
+	readonly initialDate: Date;
+}
 
 /**
  * An object used to initialize a new subscription for TimeSync.
  */
-export type SubscriptionInitOptions = Readonly<{
+export interface SubscriptionInitOptions {
 	/**
 	 * The maximum update interval that a subscriber needs. A value of
 	 * Number.POSITIVE_INFINITY indicates that the subscriber does not strictly
@@ -108,36 +106,91 @@ export type SubscriptionInitOptions = Readonly<{
 	 * after A, updates will pause completely until a new subscriber gets
 	 * added, and it has a non-infinite interval.
 	 */
-	targetRefreshIntervalMs: number;
+	readonly targetRefreshIntervalMs: number;
 
 	/**
 	 * The callback to call when a new state update needs to be flushed amongst
 	 * all subscribers.
 	 */
-	onUpdate: OnTimeSyncUpdate;
-}>;
+	readonly onUpdate: OnTimeSyncUpdate;
+}
 
 /**
  * A complete snapshot of the user-relevant internal state from TimeSync. This
  * value is treated as immutable at both runtime and compile time.
  */
-export type Snapshot = Readonly<{
+export interface Snapshot {
 	/**
 	 * The date that was last dispatched to all subscribers.
 	 */
-	date: ReadonlyDate;
+	readonly date: ReadonlyDate;
 
 	/**
 	 * The number of subscribers registered with TimeSync.
 	 */
-	subscriberCount: number;
+	readonly subscriberCount: number;
 
 	/**
 	 * The configuration options used when instantiating the TimeSync instance.
 	 * The value is guaranteed to be stable for the entire lifetime of TimeSync.
 	 */
-	config: Configuration;
-}>;
+	readonly config: Configuration;
+}
+
+/**
+ * An object with information about a specific subscription registered with
+ * TimeSync.
+ *
+ * For performance reasons, this object has ZERO readonly guarantees enforced at
+ * runtime. A few properties are flagged as readonly at the type level, but
+ * misuse of this value has a risk of breaking a TimeSync instance's internal
+ * state. Proceed with caution.
+ */
+export interface SubscriptionContext {
+	/**
+	 * The interval that the subscription was originally registered with.
+	 */
+	readonly targetRefreshIntervalMs: number;
+
+	/**
+	 * The unsubscribe callback associated with a subscription. This is the same
+	 * callback returned by `TimeSync.subscribe`.
+	 */
+	readonly unsubscribe: () => void;
+
+	/**
+	 * A timestamp of when the subscription was first set up.
+	 */
+	readonly registeredAt: ReadonlyDate;
+
+	/**
+	 * A reference to the TimeSync instance that the subscription was registered
+	 * with. Note that if the subscription is ever removed from the TimeSync
+	 * (whether through an explicit unsubscribe or a .clearAll call), this value
+	 * will become null through a mutation.
+	 *
+	 * As such, it can be used to track whether the subscription is still live.
+	 */
+	timeSync: TimeSync | null;
+
+	/**
+	 * Indicates when the last time the subscription had its explicit interval
+	 * "satisfied".
+	 *
+	 * For example, if a subscription is registered for every five minutes, but
+	 * the active interval is set to fire every second, you may need to know
+	 * which update actually happened five minutes later.
+	 */
+	intervalLastFulfilledAt: ReadonlyDate | null;
+}
+
+/**
+ * The callback to call when a new state update is ready to be dispatched.
+ */
+export type OnTimeSyncUpdate = (
+	newDate: ReadonlyDate,
+	context: SubscriptionContext,
+) => void;
 
 interface TimeSyncApi {
 	/**
@@ -176,61 +229,6 @@ interface TimeSyncApi {
 	 */
 	clearAll: () => void;
 }
-
-/**
- * An object with information about a specific subscription registered with
- * TimeSync.
- *
- * For performance reasons, this object has ZERO readonly guarantees enforced at
- * runtime. A few properties are flagged as readonly at the type level, but
- * misuse of this value has a risk of breaking a TimeSync instance's internal
- * state. Proceed with caution.
- */
-export type SubscriptionContext = {
-	/**
-	 * The interval that the subscription was originally registered with.
-	 */
-	readonly targetRefreshIntervalMs: number;
-
-	/**
-	 * The unsubscribe callback associated with a subscription. This is the same
-	 * callback returned by `TimeSync.subscribe`.
-	 */
-	readonly unsubscribe: () => void;
-
-	/**
-	 * A timestamp of when the subscription was first set up.
-	 */
-	readonly registeredAt: ReadonlyDate;
-
-	/**
-	 * A reference to the TimeSync instance that the subscription was registered
-	 * with. Note that if the subscription is ever removed from the TimeSync
-	 * (whether through an explicit unsubscribe or a .clearAll call), this value
-	 * will become null through a mutation.
-	 *
-	 * As such, it can be used to track whether the subscription is still live.
-	 */
-	timeSync: TimeSync | null;
-
-	/**
-	 * Indicates when the last time the subscription had its explicit interval
-	 * "satisfied".
-	 *
-	 * For example, if a subscription is registered for every five minutes, but
-	 * the active interval is set to fire every second, you may need to know
-	 * which update actually happened five minutes later.
-	 */
-	intervalLastFulfilledAt: ReadonlyDate | null;
-};
-
-/**
- * The callback to call when a new state update is ready to be dispatched.
- */
-export type OnTimeSyncUpdate = (
-	newDate: ReadonlyDate,
-	context: SubscriptionContext,
-) => void;
 
 /* biome-ignore lint:suspicious/noEmptyBlockStatements -- Rare case where we do
    actually want a completely empty function body. */
