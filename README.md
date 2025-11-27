@@ -99,7 +99,7 @@ export const syncWithOptions = new TimeSync({
 
 ```ts
 // consumingFile.ts
-import { refreshRates } from "@buenos-nachos/time-sync";
+import { ReadonlyDate, refreshRates } from "@buenos-nachos/time-sync";
 import { sync } from "./setupFile";
 
 // This tells TimeSync that we have a new subscriber that needs to be updated
@@ -180,6 +180,21 @@ const unsubscribe4 = sync.subscribe({
 	onUpdate: displayYear,
 });
 
+const unsubscribe5 = sync.subscribe({
+	targetRefreshIntervalMs: refreshRates.oneHour,
+
+	// All onUpdate callbacks also dispatch the date that was used on the
+	// previous update. While this pattern is not recommended by default, you
+	// can compare the dates to determine whether TimeSync's onUpdate should
+	// run
+	onUpdate: (newDate, prevDate) => {
+		const shouldRunExpensiveFunction =
+			newDate.getTime() - prevDate.getTime() >= refreshDates.oneHour;
+		if (shouldRunExpensiveFunction) {
+			runExpensiveFunction(newDate);
+		}
+	},
+});
 // This lets you pull an immutable snapshot of the TimeSync's inner state. The
 // immutability is enforced at runtime and at the type level.
 const snap = sync.getStateSnapshot();

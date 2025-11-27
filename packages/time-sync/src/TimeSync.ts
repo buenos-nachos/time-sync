@@ -1,4 +1,5 @@
 import { ReadonlyDate } from "./ReadonlyDate";
+import type { Writeable } from "./utilities";
 
 /**
  * A collection of commonly-needed intervals (all defined in milliseconds).
@@ -54,7 +55,9 @@ export type Configuration = Readonly<{
 	 * Indicates whether the same `onUpdate` callback (by reference) should be
 	 * called multiple time if registered by multiple systems.
 	 *
-	 * Defaults to false.
+	 * Defaults to true. If this value is flipped to false, each onUpdate
+	 * callback will receive the subscription context for the FIRST subscriber
+	 * that registered the onUpdate callback.
 	 */
 	allowDuplicateOnUpdateCalls: boolean;
 }>;
@@ -83,14 +86,9 @@ export type InitOptions = Readonly<
 >;
 
 /**
- * The callback to call when a new state update is ready to be dispatched.
- */
-export type OnTimeSyncUpdate = (dateSnapshot: ReadonlyDate) => void;
-
-/**
  * An object used to initialize a new subscription for TimeSync.
  */
-export type SubscriptionOptions = Readonly<{
+export type SubscriptionInitOptions = Readonly<{
 	/**
 	 * The maximum update interval that a subscriber needs. A value of
 	 * Number.POSITIVE_INFINITY indicates that the subscriber does not strictly
@@ -155,7 +153,7 @@ interface TimeSyncApi {
 	 * @returns An unsubscribe callback. Calling the callback more than once
 	 * results in a no-op.
 	 */
-	subscribe: (options: SubscriptionOptions) => () => void;
+	subscribe: (options: SubscriptionInitOptions) => () => void;
 
 	/**
 	 * Allows an external system to pull an immutable snapshot of some of the
@@ -179,10 +177,62 @@ interface TimeSyncApi {
 	clearAll: () => void;
 }
 
-type SubscriptionEntry = Readonly<{
-	targetInterval: number;
-	unsubscribe: () => void;
-}>;
+/**
+ * An object with information about a specific subscription registered with
+ * TimeSync.
+ *
+ * For performance reasons, this object has ZERO readonly guarantees enforced at
+ * runtime. A few properties are flagged as readonly at the type level, but
+ * misuse of this value has a risk of breaking a TimeSync instance's internal
+ * state. Proceed with caution.
+ */
+export type SubscriptionContext = {
+	/**
+	 * The interval that the subscription was registered with.
+	 */
+	readonly targetRefreshIntervalMs: number;
+
+	/**
+	 * The unsubscribe callback associated with a subscription. This is the same
+	 * callback returned by `TimeSync.subscribe`.
+	 */
+	readonly unsubscribe: () => void;
+
+	/**
+	 * A timestamp of when the subscription was first set up.
+	 */
+	readonly registeredAt: ReadonlyDate;
+
+	/**
+	 * A reference to the TimeSync instance that the subscription was registered
+	 * with.
+	 */
+	readonly timeSync: TimeSync;
+
+	/**
+	 * Indicates whether the subscription is still live. Will be mutated to be
+	 * false when a subscription is
+	 */
+	isLive: boolean;
+
+	/**
+	 * Indicates when the last time the subscription had its explicit interval
+	 * "satisfied".
+	 *
+	 * For example, if a subscription is registered for every five minutes, but
+	 * the active interval is set to fire every second, you may need to know
+	 * which update actually happened five minutes later.
+	 */
+	intervalLastFulfilledAt: ReadonlyDate | null;
+};
+
+/**
+ * The callback to call when a new state update is ready to be dispatched.
+ */
+export type OnTimeSyncUpdate = (
+	newDate: ReadonlyDate,
+	context: SubscriptionContext,
+) => void;
 
 /* biome-ignore lint:suspicious/noEmptyBlockStatements -- Rare case where we do
    actually want a completely empty function body. */
@@ -239,7 +289,7 @@ export class TimeSync implements TimeSyncApi {
 	 * Each map value should stay sorted by refresh interval, in ascending
 	 * order.
 	 */
-	#subscriptions: Map<OnTimeSyncUpdate, SubscriptionEntry[]>;
+	#subscriptions: Map<OnTimeSyncUpdate, SubscriptionContext[]>;
 
 	/**
 	 * The latest public snapshot of TimeSync's internal state. The snapshot
@@ -271,7 +321,7 @@ export class TimeSync implements TimeSyncApi {
 		const {
 			initialDate,
 			freezeUpdates = false,
-			allowDuplicateOnUpdateCalls = false,
+			allowDuplicateOnUpdateCalls = true,
 			minimumRefreshIntervalMs = defaultMinimumRefreshIntervalMs,
 		} = options ?? {};
 
@@ -343,50 +393,56 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
+		const dateTime = date.getTime();
+
 		/**
-		 * Two things for both paths:
+		 * Two things:
 		 * 1. We need to make sure that we do one-time serializations of the map
 		 * entries into an array instead of constantly pulling from the map via
 		 * the iterator protocol in the off chance that subscriptions add new
-		 * subscriptions. We need to make infinite loops impossible. If new
-		 * subscriptions get added, they'll just have to wait until the next
-		 * update round.
+		 * subscriptions. Each sub array is mutable, and not only is there a
+		 * risk of a subscription pushing to the array currently being iterated
+		 * over, but also any other array that hasn't yet been processed. So we
+		 * need to grab a complete copy of everything before any loops start.
 		 *
 		 * 2. The trade off of the serialization is that we do lose the ability
 		 * to auto-break the loops if one of the subscribers ends up resetting
 		 * all state, because we'll still have local copies of entries. We need
 		 * to check on each iteration to see if we should continue.
 		 */
-		if (config.allowDuplicateOnUpdateCalls) {
-			// Not super happy about this, but because each subscription array
-			// is mutable, we have to make an immutable copy of the count of
-			// each sub before starting any dispatches. If we wait until the
-			// inner loop to store the length of the subs before iterating over
-			// them, that's too late. It's possible that a subscription could
-			// cause data to be pushed to an array for a different interval
-			const entries = Array.from(
-				this.#subscriptions,
-				([onUpdate, subs]) => [onUpdate, subs.length] as const,
-			);
-			outer: for (const [onUpdate, subCount] of entries) {
-				for (let i = 0; i < subCount; i++) {
-					const wasCleared = this.#subscriptions.size === 0;
-					if (wasCleared) {
-						break outer;
-					}
-					onUpdate(date);
+		const entries = Array.from(
+			this.#subscriptions,
+			([onUpdate, subs]) => [onUpdate, [...subs]] as const,
+		);
+		outer: for (const [onUpdate, subs] of entries) {
+			// Even if duplicate onUpdate calls are disabled, we still need to
+			// iterate through everything and update any internal data. If the
+			// first context in a sub array gets removed by unsubscribing, we
+			// want what was the the second element to still be up to date
+			let shouldCallOnUpdate = true;
+			for (const context of subs) {
+				// We're not doing anything more sophisticated here because
+				// we're assuming that any systems that can clear out the
+				// subscriptions will handle cleaning up each context, too
+				const wasCleared = this.#subscriptions.size === 0;
+				if (wasCleared) {
+					break outer;
+				}
+
+				const comparisonDate =
+					context.intervalLastFulfilledAt ?? context.registeredAt;
+				const isIntervalMatch =
+					dateTime - comparisonDate.getTime() >=
+					context.targetRefreshIntervalMs;
+				if (isIntervalMatch) {
+					context.intervalLastFulfilledAt = date;
+				}
+
+				if (shouldCallOnUpdate) {
+					onUpdate(date, context);
+					shouldCallOnUpdate = config.allowDuplicateOnUpdateCalls;
 				}
 			}
-			return;
-		}
-
-		const funcs = [...this.#subscriptions.keys()];
-		for (const onUpdate of funcs) {
-			const wasCleared = this.#subscriptions.size === 0;
-			if (wasCleared) {
-				break;
-			}
-			onUpdate(date);
 		}
 	}
 
@@ -475,7 +531,8 @@ export class TimeSync implements TimeSyncApi {
 		// This setup requires that every interval array stay sorted. It
 		// immediately falls apart if this isn't guaranteed.
 		for (const entries of this.#subscriptions.values()) {
-			const subFastest = entries[0]?.targetInterval ?? Number.POSITIVE_INFINITY;
+			const subFastest =
+				entries[0]?.targetRefreshIntervalMs ?? Number.POSITIVE_INFINITY;
 			if (subFastest < newFastest) {
 				newFastest = subFastest;
 			}
@@ -487,7 +544,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 	}
 
-	subscribe(sh: SubscriptionOptions): () => void {
+	subscribe(options: SubscriptionInitOptions): () => void {
 		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
 			return noOp;
@@ -495,7 +552,7 @@ export class TimeSync implements TimeSyncApi {
 
 		// Destructuring properties so that they can't be fiddled with after
 		// this function call ends
-		const { targetRefreshIntervalMs, onUpdate } = sh;
+		const { targetRefreshIntervalMs, onUpdate } = options;
 
 		const isTargetValid =
 			targetRefreshIntervalMs === Number.POSITIVE_INFINITY ||
@@ -507,10 +564,28 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		const subsOnSetup = this.#subscriptions;
+		// Have to define this as a writeable to avoid a chicken-and-the-egg
+		// problem for the unsubscribe callback
+		const context: Writeable<SubscriptionContext> = {
+			isLive: true,
+			timeSync: this,
+			unsubscribe: noOp,
+			registeredAt: new ReadonlyDate(),
+			intervalLastFulfilledAt: null,
+			targetRefreshIntervalMs: Math.max(
+				config.minimumRefreshIntervalMs,
+				targetRefreshIntervalMs,
+			),
+		};
+
+		// Not reading from context value to decide whether to bail out of
+		// unsubscribes in off chance that outside consumer accidentally mutates
+		// the value
 		let subscribed = true;
+		const subsOnSetup = this.#subscriptions;
 		const unsubscribe = (): void => {
 			if (!subscribed || this.#subscriptions !== subsOnSetup) {
+				context.isLive = false;
 				subscribed = false;
 				return;
 			}
@@ -536,6 +611,8 @@ export class TimeSync implements TimeSyncApi {
 			void this.#setSnapshot({
 				subscriberCount: Math.max(0, this.#latestSnapshot.subscriberCount - 1),
 			});
+
+			context.isLive = false;
 			subscribed = false;
 		};
 
@@ -545,12 +622,11 @@ export class TimeSync implements TimeSyncApi {
 			subsOnSetup.set(onUpdate, entries);
 		}
 
-		const targetInterval = Math.max(
-			config.minimumRefreshIntervalMs,
-			targetRefreshIntervalMs,
+		context.unsubscribe = unsubscribe;
+		entries.push(context);
+		entries.sort(
+			(e1, e2) => e1.targetRefreshIntervalMs - e2.targetRefreshIntervalMs,
 		);
-		entries.push({ unsubscribe, targetInterval });
-		entries.sort((e1, e2) => e1.targetInterval - e2.targetInterval);
 
 		void this.#setSnapshot({
 			subscriberCount: this.#latestSnapshot.subscriberCount + 1,
@@ -567,17 +643,22 @@ export class TimeSync implements TimeSyncApi {
 	clearAll(): void {
 		clearInterval(this.#intervalId);
 		this.#intervalId = undefined;
-		this.#fastestRefreshInterval = 0;
+		this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 
-		// If we know for a fact that we're going to toss everything, we don't
-		// need to bother iterating through the unsubscribe callbacks. We can
-		// just swap in a new map, and then completely erase the old map (likely
-		// leaning into more efficient code than we could write). As long as the
-		// unsubscribe callbacks are set up to check a local version of the
-		// subscriptions, this won't ever cause problems.
-		const subsBefore = this.#subscriptions;
+		// As long as we clean things the internal state, it's safe not to
+		// bother calling each unsubscribe callback. Not calling them one by
+		// one actually has much better time complexity
+		for (const subArray of this.#subscriptions.values()) {
+			for (const ctx of subArray) {
+				ctx.isLive = false;
+			}
+		}
+
+		this.#subscriptions.clear();
+
+		// We swap the map out so that the unsubscribe callbacks can detect
+		// whether their functionality is still relevant
 		this.#subscriptions = new Map();
-		subsBefore.clear();
 		void this.#setSnapshot({ subscriberCount: 0 });
 	}
 }
