@@ -2,7 +2,7 @@
 
 ## 0.2.0
 
-### Breaking Chnanges
+### Breaking Changes
 
 - 2f527dd: Changed the default value of `allowDuplicateFunctionCalls` from `false` to `true`
 
