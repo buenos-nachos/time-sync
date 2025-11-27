@@ -35,5 +35,7 @@
 		"forceConsistentCasingInFileNames": true,
 		"erasableSyntaxOnly": true,
 		"noUnusedParameters": true
-	}
+	},
+
+	"exclude": ["**/dist/**"]
 }

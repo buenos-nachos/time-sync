@@ -4,8 +4,10 @@ import {
 	type Configuration,
 	refreshRates,
 	type Snapshot,
+	type SubscriptionContext,
 	TimeSync,
 } from "./TimeSync";
+import type { Writeable } from "./utilities";
 
 const invalidIntervals: readonly number[] = [
 	Number.NaN,
@@ -116,17 +118,26 @@ describe(TimeSync, () => {
 				const sync = new TimeSync();
 				const onUpdate = vi.fn();
 
-				void sync.subscribe({
+				const dateBefore = sync.getStateSnapshot().date;
+				const unsubscribe = sync.subscribe({
 					onUpdate,
 					targetRefreshIntervalMs: rate,
 				});
 				expect(onUpdate).not.toHaveBeenCalled();
 
-				const dateBefore = sync.getStateSnapshot().date;
 				await vi.advanceTimersByTimeAsync(rate);
 				const dateAfter = sync.getStateSnapshot().date;
 				expect(onUpdate).toHaveBeenCalledTimes(1);
-				expect(onUpdate).toHaveBeenCalledWith(dateAfter);
+
+				const expectedCtx: SubscriptionContext = {
+					unsubscribe,
+					isLive: true,
+					timeSync: sync,
+					intervalLastFulfilledAt: dateAfter,
+					registeredAt: dateBefore,
+					targetRefreshIntervalMs: rate,
+				};
+				expect(onUpdate).toHaveBeenCalledWith(dateAfter, expectedCtx);
 
 				const diff = dateAfter.getTime() - dateBefore.getTime();
 				expect(diff).toBe(rate);
@@ -171,7 +182,7 @@ describe(TimeSync, () => {
 		it("Always dispatches updates in the order that callbacks were first registered", async ({
 			expect,
 		}) => {
-			const sync = new TimeSync();
+			const sync = new TimeSync({ allowDuplicateOnUpdateCalls: false });
 			const callOrder: number[] = [];
 
 			const onUpdate1 = vi.fn(() => {
@@ -260,7 +271,7 @@ describe(TimeSync, () => {
 			expect(secondOnUpdate).toHaveBeenCalledTimes(1);
 		});
 
-		it("Calls onUpdate callback one time total if callback is registered multiple times for the same time interval", async ({
+		it("Calls onUpdate callback once for each subscription (even if the same callback was registered multiple times)", async ({
 			expect,
 		}) => {
 			const sync = new TimeSync();
@@ -274,59 +285,7 @@ describe(TimeSync, () => {
 			}
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(sharedOnUpdate).toHaveBeenCalledTimes(1);
-		});
-
-		it("Calls onUpdate callback one time total if callback is registered multiple times for different time intervals", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-			const sharedOnUpdate = vi.fn();
-
-			void sync.subscribe({
-				onUpdate: sharedOnUpdate,
-				targetRefreshIntervalMs: refreshRates.oneHour,
-			});
-			void sync.subscribe({
-				onUpdate: sharedOnUpdate,
-				targetRefreshIntervalMs: refreshRates.oneMinute,
-			});
-			void sync.subscribe({
-				onUpdate: sharedOnUpdate,
-				targetRefreshIntervalMs: refreshRates.oneSecond,
-			});
-
-			// Testing like this to ensure that for really, really long spans of
-			// time, the no duplicated calls logic still holds up
-			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
-			const secondsInOneHour = 3600;
-			expect(sharedOnUpdate).toHaveBeenCalledTimes(secondsInOneHour);
-		});
-
-		it("Calls onUpdate callback one time total if callback is registered multiple times with a mix of redundant/different intervals", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-			const sharedOnUpdate = vi.fn();
-
-			for (let i = 0; i < 10; i++) {
-				void sync.subscribe({
-					onUpdate: sharedOnUpdate,
-					targetRefreshIntervalMs: refreshRates.oneHour,
-				});
-				void sync.subscribe({
-					onUpdate: sharedOnUpdate,
-					targetRefreshIntervalMs: refreshRates.oneMinute,
-				});
-				void sync.subscribe({
-					onUpdate: sharedOnUpdate,
-					targetRefreshIntervalMs: refreshRates.oneSecond,
-				});
-			}
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
-			const secondsInOneHour = 3600;
-			expect(sharedOnUpdate).toHaveBeenCalledTimes(secondsInOneHour);
+			expect(sharedOnUpdate).toHaveBeenCalledTimes(3);
 		});
 
 		it("Lets an external system unsubscribe", async ({ expect }) => {
@@ -405,7 +364,7 @@ describe(TimeSync, () => {
 			const snap2 = sync.getStateSnapshot();
 			expect(snap2.subscriberCount).toBe(30);
 			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
-			expect(sharedOnUpdate).toHaveBeenCalledTimes(1);
+			expect(sharedOnUpdate).toHaveBeenCalledTimes(30);
 		});
 
 		it("Speeds up interval when new subscriber is added that is faster than all other subscribers", async ({
@@ -604,6 +563,132 @@ describe(TimeSync, () => {
 			const dateAfter = sync.getStateSnapshot().date;
 			expect(dateAfter).not.toEqual(dateBefore);
 		});
+
+		it("Mutates the isLive context value to be false on unsubscribe", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+
+			let ejectedContext: SubscriptionContext | undefined;
+			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
+				ejectedContext = ctx;
+			});
+
+			const unsub = sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(ejectedContext?.isLive).toBe(true);
+
+			unsub();
+			expect(ejectedContext?.isLive).toBe(false);
+		});
+	});
+
+	describe("Subscriptions: context values", () => {
+		it("Defaults to exposing the TimeSync instance the subscription was registered with", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+
+			let ejectedSync: TimeSync | null = null;
+			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
+				ejectedSync = ctx.timeSync;
+			});
+
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(ejectedSync).toBe(sync);
+		});
+
+		it("Exposes refresh interval used on initialization", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+			const interval = refreshRates.oneMinute;
+
+			let ejectedInterval: number | undefined;
+			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
+				ejectedInterval = ctx.targetRefreshIntervalMs;
+			});
+
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: interval,
+			});
+
+			await vi.advanceTimersByTimeAsync(interval);
+			expect(ejectedInterval).toBe(interval);
+		});
+
+		it("Exposes exact same unsubscribe callback as the one returned from the subscribe call", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+
+			let ejectedUnsub: (() => void) | undefined;
+			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
+				ejectedUnsub = ctx.unsubscribe;
+			});
+
+			const unsub = sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(ejectedUnsub).toBe(unsub);
+		});
+
+		it("Exposes when the subscription was first set up", async ({ expect }) => {
+			const sync = new TimeSync();
+			const start = sync.getStateSnapshot().date;
+
+			let ejectedDate: Date | undefined;
+			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
+				ejectedDate = ctx.registeredAt;
+			});
+
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(ejectedDate).toEqual(start);
+		});
+
+		it("Indicates when the last requested interval was fulfilled", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+
+			const fulfilledValues: (ReadonlyDate | null)[] = [];
+			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
+				fulfilledValues.push(ctx.intervalLastFulfilledAt);
+			});
+
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+			void sync.subscribe({
+				onUpdate: vi.fn(),
+				targetRefreshIntervalMs: refreshRates.thirtySeconds,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			const snapAfter = sync.getStateSnapshot().date;
+
+			expect(onUpdate).toHaveBeenCalledTimes(2);
+			expect(fulfilledValues).toEqual([null, snapAfter]);
+		});
 	});
 
 	describe("Subscriptions: custom `minimumRefreshIntervalMs` value", () => {
@@ -646,11 +731,14 @@ describe(TimeSync, () => {
 		});
 	});
 
-	describe("Subscriptions: duplicating function calls", () => {
-		it("Defaults to de-duplicating", async ({ expect }) => {
-			const sync = new TimeSync();
+	describe("Subscriptions: turning off duplicate function calls", () => {
+		it("Calls onUpdate callback once for each subscription (even if the same callback was registered multiple times)", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync({ allowDuplicateOnUpdateCalls: false });
 			const sharedOnUpdate = vi.fn();
-			for (let i = 0; i < 100; i++) {
+
+			for (let i = 1; i <= 3; i++) {
 				void sync.subscribe({
 					onUpdate: sharedOnUpdate,
 					targetRefreshIntervalMs: refreshRates.oneMinute,
@@ -661,21 +749,104 @@ describe(TimeSync, () => {
 			expect(sharedOnUpdate).toHaveBeenCalledTimes(1);
 		});
 
-		it("Lets user turn on duplication", async ({ expect }) => {
-			const sync = new TimeSync({
-				allowDuplicateOnUpdateCalls: true,
+		it("Calls onUpdate callback one time total if callback is registered multiple times for different time intervals", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync({ allowDuplicateOnUpdateCalls: false });
+			const sharedOnUpdate = vi.fn();
+
+			void sync.subscribe({
+				onUpdate: sharedOnUpdate,
+				targetRefreshIntervalMs: refreshRates.oneHour,
+			});
+			void sync.subscribe({
+				onUpdate: sharedOnUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+			void sync.subscribe({
+				onUpdate: sharedOnUpdate,
+				targetRefreshIntervalMs: refreshRates.oneSecond,
 			});
 
+			// Testing like this to ensure that for really, really long spans of
+			// time, the no duplicated calls logic still holds up
+			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
+			const secondsInOneHour = 3600;
+			expect(sharedOnUpdate).toHaveBeenCalledTimes(secondsInOneHour);
+		});
+
+		it("Calls onUpdate callback one time total if callback is registered multiple times with a mix of redundant/different intervals", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync({ allowDuplicateOnUpdateCalls: false });
 			const sharedOnUpdate = vi.fn();
-			for (let i = 0; i < 100; i++) {
+
+			for (let i = 0; i < 10; i++) {
+				void sync.subscribe({
+					onUpdate: sharedOnUpdate,
+					targetRefreshIntervalMs: refreshRates.oneHour,
+				});
 				void sync.subscribe({
 					onUpdate: sharedOnUpdate,
 					targetRefreshIntervalMs: refreshRates.oneMinute,
 				});
+				void sync.subscribe({
+					onUpdate: sharedOnUpdate,
+					targetRefreshIntervalMs: refreshRates.oneSecond,
+				});
 			}
 
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(sharedOnUpdate).toHaveBeenCalledTimes(100);
+			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
+			const secondsInOneHour = 3600;
+			expect(sharedOnUpdate).toHaveBeenCalledTimes(secondsInOneHour);
+		});
+
+		it("Always exposes the context for the subscription that first set up onUpdate", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+			const snapBefore = sync.getStateSnapshot().date;
+
+			let ejectedContext: SubscriptionContext | undefined;
+			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
+				ejectedContext = ctx;
+			});
+
+			const unsub = sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneHour,
+			});
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneSecond,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
+			expect(ejectedContext).toEqual<SubscriptionContext>({
+				isLive: true,
+				intervalLastFulfilledAt: null,
+				registeredAt: snapBefore,
+				targetRefreshIntervalMs: refreshRates.oneHour,
+				timeSync: sync,
+				unsubscribe: unsub,
+			});
+
+			const remainingSecondsToOneHour = refreshRates.oneHour - 1000;
+			await vi.advanceTimersByTimeAsync(remainingSecondsToOneHour);
+
+			const snapAfter = sync.getStateSnapshot().date;
+			expect(ejectedContext).toEqual<SubscriptionContext>({
+				isLive: true,
+				intervalLastFulfilledAt: snapAfter,
+				registeredAt: snapBefore,
+				targetRefreshIntervalMs: refreshRates.oneHour,
+				timeSync: sync,
+				unsubscribe: unsub,
+			});
 		});
 	});
 
@@ -685,7 +856,11 @@ describe(TimeSync, () => {
 		}) => {
 			const initialDate = setInitialTime("July 4, 1999");
 			const minimumRefreshIntervalMs = 5_000_000;
-			const sync = new TimeSync({ initialDate, minimumRefreshIntervalMs });
+			const sync = new TimeSync({
+				initialDate,
+				minimumRefreshIntervalMs,
+				allowDuplicateOnUpdateCalls: false,
+			});
 
 			const snap = sync.getStateSnapshot();
 			expect(snap).toEqual<Snapshot>({
@@ -748,9 +923,8 @@ describe(TimeSync, () => {
 			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
 
 			expect(onUpdate).toHaveBeenCalledTimes(1);
-			expect(onUpdate).toHaveBeenCalledWith(expect.any(Date));
-
 			const newSnap = sync.getStateSnapshot();
+			expect(onUpdate).toHaveBeenCalledWith(newSnap.date, expect.any(Object));
 			expect(newSnap).not.toEqual(initialSnap);
 		});
 
@@ -818,7 +992,6 @@ describe(TimeSync, () => {
 		});
 
 		it("Prevents mutating properties at runtime", ({ expect }) => {
-			type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
 			const sync = new TimeSync();
 
 			// We have readonly modifiers on the types, but we need to make sure
@@ -912,6 +1085,28 @@ describe(TimeSync, () => {
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			expect(sharedOnUpdate).not.toHaveBeenCalled();
+		});
+
+		it("Mutates the isLive context value to be false", async ({ expect }) => {
+			const sync = new TimeSync();
+
+			let ejectedContext: SubscriptionContext | undefined;
+			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
+				if (ejectedContext === undefined) {
+					ejectedContext = ctx;
+				}
+			});
+
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(ejectedContext?.isLive).toBe(true);
+
+			sync.clearAll();
+			expect(ejectedContext?.isLive).toBe(false);
 		});
 	});
 
@@ -1066,6 +1261,32 @@ describe(TimeSync, () => {
 			newUnsub();
 			const snap3 = sync.getStateSnapshot().subscriberCount;
 			expect(snap3).toBe(0);
+		});
+
+		it("Lets consumers detect whether an update corresponds to the subscription they explicitly set up", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+			const innerOnUpdate = vi.fn();
+
+			void sync.subscribe({
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+				onUpdate: (date, ctx) => {
+					const intervalMatches =
+						date.getTime() === ctx.intervalLastFulfilledAt?.getTime();
+					if (intervalMatches) {
+						innerOnUpdate();
+					}
+				},
+			});
+
+			void sync.subscribe({
+				targetRefreshIntervalMs: refreshRates.thirtySeconds,
+				onUpdate: vi.fn(),
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(innerOnUpdate).toHaveBeenCalledTimes(1);
 		});
 	});
 });
