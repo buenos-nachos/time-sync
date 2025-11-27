@@ -1259,5 +1259,31 @@ describe(TimeSync, () => {
 			sync.clearAll();
 			expect(ejectedContext?.timeSync).toBeNull();
 		});
+
+		it("Lets consumers detect whether an update corresponds to the subscription they explicitly set up", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+			const innerOnUpdate = vi.fn();
+
+			void sync.subscribe({
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+				onUpdate: (date, ctx) => {
+					const intervalMatches =
+						date.getTime() === ctx.intervalLastFulfilledAt?.getTime();
+					if (intervalMatches) {
+						innerOnUpdate();
+					}
+				},
+			});
+
+			void sync.subscribe({
+				targetRefreshIntervalMs: refreshRates.thirtySeconds,
+				onUpdate: vi.fn(),
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(innerOnUpdate).toHaveBeenCalledTimes(1);
+		});
 	});
 });
