@@ -25,9 +25,13 @@
 	"module": "./dist/index.mjs",
 	"types": "./dist/index.d.ts",
 	"dependencies": {
-		"@buenos-nachos/time-sync": "workspace:*"
+		"@buenos-nachos/time-sync": "workspace:*",
+		"react": "^19.2.0"
 	},
 	"peerDependencies": {
 		"@buenos-nachos/time-sync": "0.4.0"
+	},
+	"devDependencies": {
+		"@types/react": "^19.2.7"
 	}
 }
