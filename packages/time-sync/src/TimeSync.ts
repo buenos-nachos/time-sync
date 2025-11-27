@@ -167,7 +167,7 @@ export interface SubscriptionContext {
 	 * A reference to the TimeSync instance that the subscription was registered
 	 * with.
 	 */
-	timeSync: TimeSync | null;
+	readonly timeSync: TimeSync;
 
 	/**
 	 * Indicates whether the subscription is still live. Will be mutated to be

@@ -11,7 +11,7 @@
 
 While `time-sync` is designed for UIs first and foremost, the core package has zero runtime dependencies and can also be used for stateful servers (Node.js, Bun, Deno). More broadly, the core package provides the tools for ensuring processes can't ever get out of sync on a single device.
 
-In other words, `time-sync` aims to make time more obvious and less magical.
+In other words, `time-sync` aims to make time more obvious, less magical, and easier to use in your codebases.
 
 ## Features
 
@@ -89,17 +89,23 @@ export const syncWithOptions = new TimeSync({
 	minimumRefreshIntervalMs: 500,
 
 	// When setting up a subscription, TimeSync allows multiple subscribers to
-	// register the same pair of update interval and onUpdate callback
-	// (determined by reference equality). Since all subscribers always get
-	// notified at once, TimeSync defaults to de-duplicating function calls.
-	// Flip this property to true to make sure you get one call per subscriber.
-	allowDuplicateFunctionCalls: true,
+	// register the same pair of refresh interval and onUpdate callback
+	// (determined by reference equality). By default, each callback is called
+	// once for each subscriber. But since updates always happen at once,  you
+	// can turn this off, de-duplicating all calls. When this is off, each
+	// onUpdate callback will receive the context value for the OLDEST
+	// subscription that registered the onUpdate callback.
+	allowDuplicateFunctionCalls: false,
 });
 ```
 
 ```ts
 // consumingFile.ts
-import { ReadonlyDate, refreshRates } from "@buenos-nachos/time-sync";
+import {
+	ReadonlyDate,
+	refreshRates,
+	type SubscriptionContext,
+} from "@buenos-nachos/time-sync";
 import { sync } from "./setupFile";
 
 // This tells TimeSync that we have a new subscriber that needs to be updated
@@ -195,6 +201,55 @@ const unsubscribe5 = sync.subscribe({
 		}
 	},
 });
+
+const intervalForNextSubscription = refreshRates.oneHour;
+
+// Each onUpdate function also exposes a second context argument. This provides
+// information about the specific subscription that was registered, but also
+// provides values that make it easier to create reusable functions that don't
+// need to rely on closure
+function processOnUpdate(date: ReadonlyDate, ctx: SubscriptionContext): void {
+	if (ctx.isLive) {
+		// Indicates whether the subscription is still active. This value will
+		// be mutated to false the moment an unsubscribe call or .clearAll call
+		// happen
+	}
+
+	// A reference to the TimeSync instance that the subscription was registered
+	// with. Can be used to grab snapshots or even register new subscriptions
+	ctx.timeSync;
+
+	// Provides a reference to when the subscription was first set up
+	console.log(
+		`Subscription was registered at ${ctx.registeredAt.toISOString()}`,
+	);
+
+	// Indicates the interval the callback was registered with. In this case, it
+	// will match the intervalForNextSubscription variable above
+	console.log(`This subscription runs every ${ctx.targetRefreshIntervalMs}`);
+
+	// Ensures you always have access to the unsubscribe callback
+	const shouldCancel = shouldCancelSubscription(date);
+	if (shouldCancel) {
+		ctx.unsubscribe();
+	}
+
+	// While this isn't recommended by default (the more you do this, the more
+	// you risk getting systems out of sync), sometimes dispatching updates
+	// to all subscribers can get expensive. You can perform this check to
+	// see whether the update being processed actually matches the interval
+	// that was explicitly requested
+	const matchesRequestedInterval = date === ctx.intervalLastFulfilledAt;
+	if (matchesRequestedInterval) {
+		runExpensiveFunction(date);
+	}
+}
+
+sync.subscribe({
+	onUpdate: processOnUpdate,
+	targetRefreshIntervalMs: intervalForNextSubscription,
+});
+
 // This lets you pull an immutable snapshot of the TimeSync's inner state. The
 // immutability is enforced at runtime and at the type level.
 const snap = sync.getStateSnapshot();
