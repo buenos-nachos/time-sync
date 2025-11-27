@@ -131,7 +131,7 @@ describe(TimeSync, () => {
 
 				const expectedCtx: SubscriptionContext = {
 					unsubscribe,
-					isLive: true,
+					isSubscribed: true,
 					timeSync: sync,
 					intervalLastFulfilledAt: dateAfter,
 					registeredAt: dateBefore,
@@ -580,10 +580,10 @@ describe(TimeSync, () => {
 			});
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(ejectedContext?.isLive).toBe(true);
+			expect(ejectedContext?.isSubscribed).toBe(true);
 
 			unsub();
-			expect(ejectedContext?.isLive).toBe(false);
+			expect(ejectedContext?.isSubscribed).toBe(false);
 		});
 	});
 
@@ -827,7 +827,7 @@ describe(TimeSync, () => {
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
 			expect(ejectedContext).toEqual<SubscriptionContext>({
-				isLive: true,
+				isSubscribed: true,
 				intervalLastFulfilledAt: null,
 				registeredAt: snapBefore,
 				targetRefreshIntervalMs: refreshRates.oneHour,
@@ -840,7 +840,7 @@ describe(TimeSync, () => {
 
 			const snapAfter = sync.getStateSnapshot().date;
 			expect(ejectedContext).toEqual<SubscriptionContext>({
-				isLive: true,
+				isSubscribed: true,
 				intervalLastFulfilledAt: snapAfter,
 				registeredAt: snapBefore,
 				targetRefreshIntervalMs: refreshRates.oneHour,
@@ -1103,10 +1103,10 @@ describe(TimeSync, () => {
 			});
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(ejectedContext?.isLive).toBe(true);
+			expect(ejectedContext?.isSubscribed).toBe(true);
 
 			sync.clearAll();
-			expect(ejectedContext?.isLive).toBe(false);
+			expect(ejectedContext?.isSubscribed).toBe(false);
 		});
 	});
 
