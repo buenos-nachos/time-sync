@@ -3,6 +3,10 @@
 	"private": true,
 	"license": "MIT",
 	"packageManager": "pnpm@10.17.0",
+	"engines": {
+		"node": ">=22.16",
+		"pnpm": ">=10.17"
+	},
 	"workspaces": [
 		"./packages/*"
 	],
@@ -44,6 +48,7 @@
 		"vitest": "4.0.8"
 	},
 	"overrides": {
-		"@buenos-nachos/time-sync": "workspace:*"
+		"@buenos-nachos/time-sync": "workspace:*",
+		"@buenos-nachos/time-sync-react": "workspace:*"
 	}
 }

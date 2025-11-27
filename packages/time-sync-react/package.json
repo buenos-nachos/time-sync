@@ -1,27 +1,33 @@
 {
-	"name": "@buenos-nachos/time-sync",
+	"name": "@buenos-nachos/time-sync-react",
 	"version": "0.4.0",
 	"license": "MIT",
 	"type": "module",
 	"packageManager": "pnpm@10.17.0",
 	"author": "Michael Smith <hello@nachos.dev> (https://www.nachos.dev)",
 	"description": "The base package for the time-sync set of packages.",
+	"publishConfig": {
+		"access": "public"
+	},
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/buenos-nachos/time-sync.git",
-		"directory": "packages/time-sync"
+		"directory": "packages/time-sync-react"
 	},
 	"keywords": [
+		"react",
 		"typescript",
 		"utility",
 		"ui"
 	],
 	"sideEffects": false,
-	"main": "./src/index.ts",
-	"publishConfig": {
-		"access": "public",
-		"main": "./dist/index.js",
-		"module": "./dist/index.mjs",
-		"types": "./dist/index.d.ts"
+	"main": "./dist/index.js",
+	"module": "./dist/index.mjs",
+	"types": "./dist/index.d.ts",
+	"dependencies": {
+		"@buenos-nachos/time-sync": "workspace:*"
+	},
+	"peerDependencies": {
+		"@buenos-nachos/time-sync": "0.4.0"
 	}
 }
