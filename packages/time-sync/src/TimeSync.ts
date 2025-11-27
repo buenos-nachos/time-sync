@@ -167,13 +167,13 @@ export interface SubscriptionContext {
 	 * A reference to the TimeSync instance that the subscription was registered
 	 * with.
 	 */
-	timeSync: TimeSync | null;
+	readonly timeSync: TimeSync;
 
 	/**
 	 * Indicates whether the subscription is still live. Will be mutated to be
 	 * false when a subscription is
 	 */
-	isLive: boolean;
+	isSubscribed: boolean;
 
 	/**
 	 * Indicates when the last time the subscription had its explicit interval
@@ -585,7 +585,7 @@ export class TimeSync implements TimeSyncApi {
 		// Have to define this as a writeable to avoid a chicken-and-the-egg
 		// problem for the unsubscribe callback
 		const context: Writeable<SubscriptionContext> = {
-			isLive: true,
+			isSubscribed: true,
 			timeSync: this,
 			unsubscribe: noOp,
 			registeredAt: new ReadonlyDate(),
@@ -603,7 +603,7 @@ export class TimeSync implements TimeSyncApi {
 		const subsOnSetup = this.#subscriptions;
 		const unsubscribe = (): void => {
 			if (!subscribed || this.#subscriptions !== subsOnSetup) {
-				context.isLive = false;
+				context.isSubscribed = false;
 				subscribed = false;
 				return;
 			}
@@ -630,7 +630,7 @@ export class TimeSync implements TimeSyncApi {
 				subscriberCount: Math.max(0, this.#latestSnapshot.subscriberCount - 1),
 			});
 
-			context.isLive = false;
+			context.isSubscribed = false;
 			subscribed = false;
 		};
 		context.unsubscribe = unsubscribe;
@@ -672,7 +672,7 @@ export class TimeSync implements TimeSyncApi {
 		// one actually has much better time complexity
 		for (const subArray of this.#subscriptions.values()) {
 			for (const ctx of subArray) {
-				ctx.isLive = false;
+				ctx.isSubscribed = false;
 			}
 		}
 
