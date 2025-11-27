@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.3.0
+
+### Minor Changes
+
+- 122f6c1: Updated `SubscriptionContext.timeSync` type to be readonly and non-nullable, and renamed `SubscriptionContext.isLive` to `SubscriptionContext.isSubscribed`.
+
 ## 0.2.0
 
 ### Breaking Changes
