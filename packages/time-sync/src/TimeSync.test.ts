@@ -131,6 +131,7 @@ describe(TimeSync, () => {
 
 				const expectedCtx: SubscriptionContext = {
 					unsubscribe,
+					isLive: true,
 					timeSync: sync,
 					intervalLastFulfilledAt: dateAfter,
 					registeredAt: dateBefore,
@@ -562,6 +563,28 @@ describe(TimeSync, () => {
 			const dateAfter = sync.getStateSnapshot().date;
 			expect(dateAfter).not.toEqual(dateBefore);
 		});
+
+		it("Mutates the isLive context value to be false on unsubscribe", async ({
+			expect,
+		}) => {
+			const sync = new TimeSync();
+
+			let ejectedContext: SubscriptionContext | undefined;
+			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
+				ejectedContext = ctx;
+			});
+
+			const unsub = sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(ejectedContext?.isLive).toBe(true);
+
+			unsub();
+			expect(ejectedContext?.isLive).toBe(false);
+		});
 	});
 
 	describe("Subscriptions: context values", () => {
@@ -804,6 +827,7 @@ describe(TimeSync, () => {
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
 			expect(ejectedContext).toEqual<SubscriptionContext>({
+				isLive: true,
 				intervalLastFulfilledAt: null,
 				registeredAt: snapBefore,
 				targetRefreshIntervalMs: refreshRates.oneHour,
@@ -816,6 +840,7 @@ describe(TimeSync, () => {
 
 			const snapAfter = sync.getStateSnapshot().date;
 			expect(ejectedContext).toEqual<SubscriptionContext>({
+				isLive: true,
 				intervalLastFulfilledAt: snapAfter,
 				registeredAt: snapBefore,
 				targetRefreshIntervalMs: refreshRates.oneHour,
@@ -1061,6 +1086,28 @@ describe(TimeSync, () => {
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			expect(sharedOnUpdate).not.toHaveBeenCalled();
 		});
+
+		it("Mutates the isLive context value to be false", async ({ expect }) => {
+			const sync = new TimeSync();
+
+			let ejectedContext: SubscriptionContext | undefined;
+			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
+				if (ejectedContext === undefined) {
+					ejectedContext = ctx;
+				}
+			});
+
+			void sync.subscribe({
+				onUpdate,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(ejectedContext?.isLive).toBe(true);
+
+			sync.clearAll();
+			expect(ejectedContext?.isLive).toBe(false);
+		});
 	});
 
 	/**
@@ -1214,50 +1261,6 @@ describe(TimeSync, () => {
 			newUnsub();
 			const snap3 = sync.getStateSnapshot().subscriberCount;
 			expect(snap3).toBe(0);
-		});
-
-		it("Wipes the TimeSync context via mutation when an unsubscribe happens", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-
-			let ejectedContext: SubscriptionContext | undefined;
-			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
-				ejectedContext = ctx;
-			});
-
-			const unsub = sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneMinute,
-			});
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(ejectedContext?.timeSync).toBe(sync);
-
-			unsub();
-			expect(ejectedContext?.timeSync).toBeNull();
-		});
-
-		it("Wipes the TimeSync context via mutation when .clearAll is called", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-
-			let ejectedContext: SubscriptionContext | undefined;
-			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
-				ejectedContext = ctx;
-			});
-
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneMinute,
-			});
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(ejectedContext?.timeSync).toBe(sync);
-
-			sync.clearAll();
-			expect(ejectedContext?.timeSync).toBeNull();
 		});
 
 		it("Lets consumers detect whether an update corresponds to the subscription they explicitly set up", async ({
