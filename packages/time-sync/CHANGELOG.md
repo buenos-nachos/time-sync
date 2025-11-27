@@ -1,5 +1,15 @@
 # @buenos-nachos/time-sync
 
+## 0.2.0
+
+### Breaking Changes
+
+- 2f527dd: Changed the default value of `allowDuplicateFunctionCalls` from `false` to `true`
+
+### Minor Changes
+
+- 5f86fac: Added second parameter to `onUpdate` callback. This value is a value of type `SubscriptionContext` and provides information about the current subscription.
+
 ## 0.1.2
 
 ### Patch Changes
