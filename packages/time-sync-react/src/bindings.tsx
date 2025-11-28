@@ -5,6 +5,7 @@ import {
 	type ReactNode,
 	useContext,
 	useInsertionEffect,
+	useState,
 } from "react";
 import {
 	createUseTimeSync,
@@ -122,16 +123,11 @@ export function createReactBindings<T extends InjectionMethod>(
 			};
 
 			TimeSyncProvider = ({ children, timeSyncOverride }) => {
-				useInsertionEffect(() => {
-					if (!timeSyncOverride) {
-						return undefined;
-					}
-					return fixedRts.onTimeSyncOverrideReload(timeSyncOverride);
-				}, [timeSyncOverride]);
+				const [overrideOnMount] = useState(timeSyncOverride);
 
 				useInsertionEffect(() => {
-					return fixedRts.onProviderMount();
-				}, []);
+					return fixedRts.onProviderMount(overrideOnMount);
+				}, [overrideOnMount]);
 
 				return (
 					<rtsContext.Provider value={fixedRts}>{children}</rtsContext.Provider>
@@ -153,17 +149,11 @@ export function createReactBindings<T extends InjectionMethod>(
 			getter = useReactTimeSyncContextWithDefault;
 			TimeSyncProvider = ({ children, timeSyncOverride }) => {
 				const rts = useReactTimeSyncContextWithDefault();
+				const [overrideOnMount] = useState(timeSyncOverride);
 
 				useInsertionEffect(() => {
-					if (!timeSyncOverride) {
-						return undefined;
-					}
-					return rts.onTimeSyncOverrideReload(timeSyncOverride);
-				}, [rts, timeSyncOverride]);
-
-				useInsertionEffect(() => {
-					return rts.onProviderMount();
-				}, [rts]);
+					return rts.onProviderMount(overrideOnMount);
+				}, [rts, overrideOnMount]);
 
 				return (
 					<rtsContext.Provider value={rts}>{children}</rtsContext.Provider>

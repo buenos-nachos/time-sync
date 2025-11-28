@@ -61,9 +61,6 @@ export type UseTimeSyncOptions<T> = Readonly<{
 	 *    value), the component will try to bail out of re-rendering. At that
 	 *    stage, the component will only re-render if a parent component
 	 *    re-renders
-	 *
-	 * `transform` callbacks must not be async. The hook will error out at the
-	 * type level if you provide one by mistake.
 	 */
 	transform?: TransformCallback<T>;
 }>;
@@ -200,7 +197,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		const [, fallbackSync] = useReducer(negate, false);
 		const { date, cachedTransformation } = useSyncExternalStore(
 			stableDummySubscribe,
-			() => reactTs.getCacheEntry<T>(hookId),
+			() => reactTs.getSubscriptionEntry<T>(hookId),
 		);
 
 		// There's some trade-offs with this memo (notably, if the consumer
@@ -246,6 +243,10 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 				},
 			});
 		}, [hookId, externalTransform, reactTs, targetRefreshIntervalMs]);
+
+		useLayoutEffect(() => {
+			reactTs.onComponentMount();
+		}, [reactTs]);
 
 		return merged;
 	};

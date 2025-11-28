@@ -1,8 +1,10 @@
 import type { ReadonlyDate } from "@buenos-nachos/time-sync";
 
-export type TransformCallback<T> = (
-	date: ReadonlyDate,
-) => T extends Promise<unknown> ? never : T extends void ? never : T;
+// This type originally had a more sophisticated signature to prevent it from
+// returning promises. But now React now has support for consuming promises
+// from inside a render via Suspsense and `use`. A promise is probably a mistake
+// 99% of the time, but this library shouldn't stop someone from trying.
+export type TransformCallback<T> = (date: ReadonlyDate) => T;
 
 /* biome-ignore lint:suspicious/noEmptyBlockStatements -- Rare case where we do
    actually want a completely empty function body. */
