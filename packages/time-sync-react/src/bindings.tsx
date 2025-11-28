@@ -5,7 +5,6 @@ import {
 	type ReactNode,
 	useContext,
 	useInsertionEffect,
-	useState,
 } from "react";
 import {
 	createUseTimeSync,
@@ -110,6 +109,7 @@ export function createReactBindings<T extends InjectionMethod>(
 		}
 
 		case "reactContext": {
+			const fixedRts = new ReactTimeSync();
 			const rtsContext = createContext<ReactTimeSync | null>(null);
 
 			getter = function useReactTimeSyncContext() {
@@ -123,21 +123,19 @@ export function createReactBindings<T extends InjectionMethod>(
 			};
 
 			TimeSyncProvider = ({ children, timeSyncOverride }) => {
-				const [rts] = useState(() => new ReactTimeSync());
-
 				useInsertionEffect(() => {
 					if (!timeSyncOverride) {
 						return undefined;
 					}
-					return rts.onTimeSyncOverrideReload(timeSyncOverride);
-				}, [rts, timeSyncOverride]);
+					return fixedRts.onTimeSyncOverrideReload(timeSyncOverride);
+				}, [timeSyncOverride]);
 
 				useInsertionEffect(() => {
-					return rts.onProviderMount();
-				}, [rts]);
+					return fixedRts.onProviderMount();
+				}, []);
 
 				return (
-					<rtsContext.Provider value={rts}>{children}</rtsContext.Provider>
+					<rtsContext.Provider value={fixedRts}>{children}</rtsContext.Provider>
 				);
 			};
 			break;
@@ -145,13 +143,17 @@ export function createReactBindings<T extends InjectionMethod>(
 
 		case "hybrid": {
 			const fixedRts = new ReactTimeSync(timeSync);
+
+			// This behavior is almost never used by React developers, but even
+			// if useContext is called outside of a complete UI tree (which you
+			// have to worry about with Astro's islands), the call will still
+			// work as long as there's a meaningful default value
 			const rtsContext = createContext(fixedRts);
-			const useReactTimeSyncContextWithoutTree = () => useContext(rtsContext);
+			const useReactTimeSyncContextWithDefault = () => useContext(rtsContext);
 
-			getter = useReactTimeSyncContextWithoutTree;
-
+			getter = useReactTimeSyncContextWithDefault;
 			TimeSyncProvider = ({ children, timeSyncOverride }) => {
-				const rts = useReactTimeSyncContextWithoutTree();
+				const rts = useReactTimeSyncContextWithDefault();
 
 				useInsertionEffect(() => {
 					if (!timeSyncOverride) {

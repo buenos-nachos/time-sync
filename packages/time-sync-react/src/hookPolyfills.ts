@@ -4,17 +4,27 @@ import { useCallback, useInsertionEffect, useRef } from "react";
  * Implemented to enable support for React on versions 18 (released March
  * 29, 2022) up to version 19.1.1 (released July 28, 2025). useEffectEvent was
  * only added to the core library in verison 19.2 (October 1, 2025).
+ *
+ * This polyfill tries to implement the public behavior of useEffectEvent as
+ * possible, but it can't do much more than that, because it doesn't have direct
+ * access to React internals.
  */
-export function useEffectEvent<TArgs extends unknown[], TReturn = unknown>(
-	callback: (...args: TArgs) => TReturn,
-) {
+/* biome-ignore lint:complexity/noBannedTypes -- I don't want to use this type,
+   since there is a much more type-safe of doing it for the 99% use case, but
+   this is what the official React types use. */
+export function useEffectEventPolyfill<T extends Function>(callback: T): T {
 	const callbackRef = useRef(callback);
 
+	// Need to have maximum firing priority on this just to be on the extra safe
+	// side. We need to have other useInsertionEffects in the library, so we
+	// need to make any potential edge cases impossible.
 	useInsertionEffect(() => {
 		callbackRef.current = callback;
 	}, [callback]);
 
-	return useCallback((...args: TArgs): TReturn => {
+	const stable = useCallback((...args: readonly unknown[]): unknown => {
 		return callbackRef.current(...args);
 	}, []);
+
+	return stable as unknown as T;
 }

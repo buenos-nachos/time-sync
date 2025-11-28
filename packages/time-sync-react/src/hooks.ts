@@ -1,8 +1,16 @@
 import type { ReadonlyDate, TimeSync } from "@buenos-nachos/time-sync";
-import React from "react";
-import { useEffectEvent as polyfill } from "./hookPolyfills";
+import React, {
+	useCallback,
+	useId,
+	useLayoutEffect,
+	useMemo,
+	useReducer,
+	useRef,
+	useSyncExternalStore,
+} from "react";
+import { useEffectEventPolyfill } from "./hookPolyfills";
 import type { ReactTimeSyncGetter } from "./ReactTimeSync";
-import type { TransformCallback } from "./utilities";
+import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
 export type UseTimeSyncRef = () => TimeSync;
 
@@ -10,17 +18,15 @@ export function createUseTimeSyncRef(
 	getter: ReactTimeSyncGetter,
 ): UseTimeSyncRef {
 	return function useTimeSyncRef() {
-		const reactTimeSync = getter();
-		return reactTimeSync.getTimeSync();
+		const reactTs = getter();
+		return reactTs.getTimeSync();
 	};
 }
 
-// We're typing this as the polyfill instead of React.useEffectEvent because the
-// official type uses Function for its type constraint, which makes
-// assignability awkward, and also drastically increases the work I need to do.
-// Not worth it for an internal implementation detail for a single file
-const useEffectEvent: typeof polyfill =
-	typeof React.useEffectEvent === "undefined" ? polyfill : React.useEffectEvent;
+const useEffectEvent: typeof React.useEffectEvent =
+	typeof React.useEffectEvent === "undefined"
+		? useEffectEventPolyfill
+		: React.useEffectEvent;
 
 export type UseTimeSyncOptions<T> = Readonly<{
 	/**
@@ -29,14 +35,14 @@ export type UseTimeSyncOptions<T> = Readonly<{
 	 *
 	 * Note that a refresh is not the same as a re-render. If the hook is
 	 * refreshed with a new datetime, but the state for the component itself has
-	 * not changed, the hook will bail out of re-rendering.
+	 * not changed in a meaningful way, the hook will bail out of re-rendering.
 	 *
 	 * The hook reserves the right to refresh MORE frequently than the
 	 * specified interval if it would guarantee that the hook does not get out
 	 * of sync with other useTimeSync users. This removes the risk of screen
 	 * tearing.
 	 */
-	targetIntervalMs: number;
+	targetRefreshIntervalMs: number;
 
 	/**
 	 * Allows you to transform any Date values received from the TimeSync
@@ -69,6 +75,11 @@ function identity<T>(value: T): T {
 	return value;
 }
 
+// Should also be defined outside the hook to optimize useReducer behavior
+function negate(value: boolean): boolean {
+	return !value;
+}
+
 // The setup here is a little bit wonkier than the one for useTimeSyncRef
 // because of type parameters. If we were to define the UseTimeSync type
 // upfront, and then say that this function returns it, we would be forced to
@@ -81,9 +92,149 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 	return function useTimeSync<T = ReadonlyDate>(
 		options: UseTimeSyncOptions<T>,
 	): T {
-		const { transform } = options;
-		const reactTimeSync = getter();
+		/**
+		 * A lot of our challenges boil down to the fact that even though it's
+		 * our only viable option right now, useSyncExternalStore is an
+		 * incredibly wonky hook, and we have to hack our way around its edge
+		 * cases.
+		 *
+		 * 1. We HAVE to use the hook because it's the only officially-supported
+		 *    way of grabbing a value from a mutable source right from the
+		 *    mounting render. All other options involve breaking the React
+		 *    rules, or introducing extra re-renders (and screen flickering).
+		 * 2. It's also the only hook with native support for server rendering
+		 *    and producing different values on server vs post-hydration client.
+		 * 3. But to be on the safe side, if either callback for
+		 *    useSyncExternalStore changes on re-render, React will re-call them
+		 *    to be on the safe side. Not a huge deal for state getters, but it
+		 *    does mean there's a risk that subscriptions can keep getting torn
+		 *    down and built back up on re-renders. So we have to stabilize
+		 *    those as much as possible.
+		 * 4. We need to bring in a few layout effects to minimize the risks of
+		 *    contradictory dates when a new component mounts, too
+		 * 5. This isn't documented anywhere, but the way the hook works is that
+		 *    on mount, it grabs the value from the mutable source via the
+		 *    getter function, and then waits until after the render finishes to
+		 *    fire the subscription callback. In other words, the subscription
+		 *    gets registered at useEffect speed. That opens it up to screen
+		 *    flickering problems, and also means that by default, it's
+		 *    impossible to "weave" it between useLayoutEffect calls because it
+		 *    doesn't have the correct firing priority.
+		 * 6. So, basically we have to do some cursed things to build out an
+		 *    equivalent version of useSyncExternalStore that has two extra
+		 *    features:
+		 *    1. Being able to subscribe at useLayoutEffect speed.
+		 *    2. Being able to call any number of hooks between the get and
+		 *       subscribe phases, instead of keeping them glued together.
+		 *
+		 * There's still the problem of useSyncExternalStore not having any
+		 * support for React's concurrency features whatsoever, and it sometimes
+		 * undoing performance optimizations from concurrent rendering. But
+		 * that's a problem that can't be solved until React comes out with
+		 * concurrent stores. All the state management libraries in the entire
+		 * ecosystem have to put up with this edge case right now, too.
+		 *
+		 * We REALLY have to bend over backwards to follow all the React rules.
+		 */
+		const { targetRefreshIntervalMs, transform } = options;
+		const reactTs = getter();
 		const activeTransform = (transform ?? identity) as TransformCallback<T>;
+
+		// This is an abuse of the useId API, but because it gives us a stable
+		// ID that is uniquely associated with the current component instance,
+		// we can use it to differentiate between multiple instances of the same
+		// function component subscribing to useTimeSync. Technically it also
+		// differentiates between different useTimeSync calls in the same
+		// component instance, too
+		const hookId = useId();
+
+		// The notifyReact callback is what React uses to decide when to re-call
+		// the state getter while outside a render. We have to eject this
+		// function specifically; trying to force re-rendering via a simple
+		// useReducer hack won't work. Not only will it lack the necessary level
+		// of granularity, but it's not guaranteed the getter will re-run
+		const ejectedNotifyRef = useRef<() => void>(noOp);
+		const stableSubscribe = useCallback((notifyReact: () => void) => {
+			ejectedNotifyRef.current = notifyReact;
+			return noOp;
+		}, []);
+
+		/**
+		 * This is a wacky setup, but because we sometimes call subscribers from
+		 * useLayoutEffects, we need to account for this scenario, and make it
+		 * impossible
+		 *
+		 * 1. We call useSyncExternalStore, get the value from the mutable
+		 *    source immediately, and then cue up the logic for ejecting the
+		 *    notify callback at useEffect speed
+		 * 2. The layout effect for the subscription fires, and it gets set up.
+		 * 3. Some other layout effect fires, and causes the susbcribers to be
+		 *    notified
+		 * 4. But because we haven't had the chance to eject anything yet, we
+		 *    don't have the ability to tell the state getter to check for a
+		 *    new value.
+		 *
+		 * The solution is to force a coarse-grained re-render (using
+		 * useReducer here, but useState works, too). And then deliberately keep
+		 * the state getter UN-memoized. React will automatically re-call the
+		 * getter on the new render because it'll receive a new function
+		 * reference, and if the value happened to change, we'll still have
+		 * access to it.
+		 *
+		 * @todo 2025-11-27 - Verify that this still works with the React
+		 * compiler. It hopefully should, since React should be smart enough to
+		 * know it shouldn't memoize results from mutable sources. But who knows
+		 * – this is abusing undocumented behavior.
+		 */
+		const [, fallbackSync] = useReducer(negate, false);
+		const { date, cachedTransformation } = useSyncExternalStore(
+			stableSubscribe,
+			() => reactTs.getCacheEntry<T>(hookId),
+		);
+
+		// There's some trade-offs with this memo (notably, if the consumer
+		// passes in an inline transform callback, the memo result will be
+		// invalidated on every single render). But it's the *only* way to give
+		// the consumer the option of memoizing expensive transformations at the
+		// render level without polluting the hook's API with super-fragile
+		// dependency array logic
+		const renderTransformation = useMemo(
+			() => activeTransform(date),
+			[date, activeTransform],
+		);
+
+		const merged = useMemo(
+			() => structuralMerge<T>(cachedTransformation, renderTransformation),
+			[cachedTransformation, renderTransformation],
+		);
+
+		// Make sure to load the new merged value in before subscribing, so that
+		// we give the subscription more accurate data for detecting changes
+		useLayoutEffect(() => {
+			reactTs.syncRenderTransformation(hookId, merged);
+		}, [reactTs, hookId, merged]);
+
+		// Because of how React lifecycles work, this effect event callback
+		// should never be called from inside render logic. While called in a
+		// re-render, it will *always* give you stale date, but it will be
+		// correct by the time that ReactTimeSync needs to use the function
+		const externalTransform = useEffectEvent(activeTransform);
+		useLayoutEffect(() => {
+			return reactTs.subscribe({
+				hookId,
+				targetRefreshIntervalMs,
+				transform: externalTransform,
+				onReactStateSync: () => {
+					if (ejectedNotifyRef.current === noOp) {
+						fallbackSync();
+					} else {
+						ejectedNotifyRef.current();
+					}
+				},
+			});
+		}, [hookId, externalTransform, reactTs, targetRefreshIntervalMs]);
+
+		return merged;
 	};
 }
 
