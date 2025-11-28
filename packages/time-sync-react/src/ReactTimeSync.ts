@@ -12,7 +12,7 @@ type ReactSubscriptionOptions = Readonly<{
 
 interface SubscriptionCacheEntry<T> {
 	readonly date: ReadonlyDate;
-	readonly cachedTransformation: T;
+	readonly cachedTransformation?: T;
 }
 
 export class ReactTimeSync {

@@ -96,7 +96,9 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 * A lot of our challenges boil down to the fact that even though it's
 		 * our only viable option right now, useSyncExternalStore is an
 		 * incredibly wonky hook, and we have to hack our way around its edge
-		 * cases.
+		 * cases. We REALLY have to bend over backwards to follow all the React
+		 * rules (which is essential for making sure the React Compiler doesn't
+		 * break anything if a user turns that on).
 		 *
 		 * 1. We HAVE to use the hook because it's the only officially-supported
 		 *    way of grabbing a value from a mutable source right from the
@@ -111,15 +113,16 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 *    down and built back up on re-renders. So we have to stabilize
 		 *    those as much as possible.
 		 * 4. We need to bring in a few layout effects to minimize the risks of
-		 *    contradictory dates when a new component mounts, too
+		 *    contradictory dates when a new component mounts, too, which
+		 *    complicates using useSyncExternalStore.
 		 * 5. This isn't documented anywhere, but the way the hook works is that
 		 *    on mount, it grabs the value from the mutable source via the
 		 *    getter function, and then waits until after the render finishes to
 		 *    fire the subscription callback. In other words, the subscription
 		 *    gets registered at useEffect speed. That opens it up to screen
 		 *    flickering problems, and also means that by default, it's
-		 *    impossible to "weave" it between useLayoutEffect calls because it
-		 *    doesn't have the correct firing priority.
+		 *    impossible to "weave" it between useLayoutEffect calls because
+		 *    they'll always outpace it.
 		 * 6. So, basically we have to do some cursed things to build out an
 		 *    equivalent version of useSyncExternalStore that has two extra
 		 *    features:
@@ -133,12 +136,10 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 * that's a problem that can't be solved until React comes out with
 		 * concurrent stores. All the state management libraries in the entire
 		 * ecosystem have to put up with this edge case right now, too.
-		 *
-		 * We REALLY have to bend over backwards to follow all the React rules.
 		 */
 		const { targetRefreshIntervalMs, transform } = options;
-		const reactTs = getter();
 		const activeTransform = (transform ?? identity) as TransformCallback<T>;
+		const reactTs = getter();
 
 		// This is an abuse of the useId API, but because it gives us a stable
 		// ID that is uniquely associated with the current component instance,
@@ -153,8 +154,8 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		// function specifically; trying to force re-rendering via a simple
 		// useReducer hack won't work. Not only will it lack the necessary level
 		// of granularity, but it's not guaranteed the getter will re-run
-		const ejectedNotifyRef = useRef<() => void>(noOp);
-		const stableSubscribe = useCallback((notifyReact: () => void) => {
+		const ejectedNotifyRef = useRef(noOp);
+		const stableDummySubscribe = useCallback((notifyReact: () => void) => {
 			ejectedNotifyRef.current = notifyReact;
 			return noOp;
 		}, []);
@@ -171,24 +172,34 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 * 3. Some other layout effect fires, and causes the susbcribers to be
 		 *    notified
 		 * 4. But because we haven't had the chance to eject anything yet, we
-		 *    don't have the ability to tell the state getter to check for a
-		 *    new value.
+		 *    don't have the ability to tell the newly-added state getter to
+		 *    check for a new value. And then we're back to screen tearing.
 		 *
-		 * The solution is to force a coarse-grained re-render (using
-		 * useReducer here, but useState works, too). And then deliberately keep
-		 * the state getter UN-memoized. React will automatically re-call the
-		 * getter on the new render because it'll receive a new function
-		 * reference, and if the value happened to change, we'll still have
-		 * access to it.
+		 * The solution is to force a coarse-grained re-render (useState also
+		 * works, but useReducer gives us more options for minimizing GC
+		 * generation on each render). And then deliberately keep the state
+		 * getter UN-memoized. React will automatically re-call the getter on
+		 * the new render because it'll receive a new function reference, and if
+		 * the value happened to change, we'll still have access to it.
 		 *
 		 * @todo 2025-11-27 - Verify that this still works with the React
 		 * compiler. It hopefully should, since React should be smart enough to
 		 * know it shouldn't memoize results from mutable sources. But who knows
 		 * – this is abusing undocumented behavior.
+		 *
+		 * Worst case scenario, we do something like this to FORCE the compiler
+		 * to avoid memoizing:
+		 *
+		 * function createGetCacheEntry<T>(rts: ReactTimeSync, hookId: string) {
+		 *   // React compiler directives only work at the beginning of a
+		 *   // function body, so we have to introduce a new boundary.
+		 *   "use no memo";
+		 *   return () => rts.getCacheEntry<T>(hookId);
+		 * }
 		 */
 		const [, fallbackSync] = useReducer(negate, false);
 		const { date, cachedTransformation } = useSyncExternalStore(
-			stableSubscribe,
+			stableDummySubscribe,
 			() => reactTs.getCacheEntry<T>(hookId),
 		);
 
@@ -203,10 +214,12 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 			[date, activeTransform],
 		);
 
-		const merged = useMemo(
-			() => structuralMerge<T>(cachedTransformation, renderTransformation),
-			[cachedTransformation, renderTransformation],
-		);
+		const merged = useMemo(() => {
+			// Adding type annotation to force TypeScript LSP to show a clean
+			// type, instead of the direct return type from TransformCallback
+			const prev: T = cachedTransformation ?? renderTransformation;
+			return structuralMerge(prev, renderTransformation);
+		}, [cachedTransformation, renderTransformation]);
 
 		// Make sure to load the new merged value in before subscribing, so that
 		// we give the subscription more accurate data for detecting changes
