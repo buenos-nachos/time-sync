@@ -4,3 +4,6 @@ preferWorkspacePackages: true
 
 packages:
   - "./packages/*"
+
+catalog:
+  vitest: "4.0.8"
