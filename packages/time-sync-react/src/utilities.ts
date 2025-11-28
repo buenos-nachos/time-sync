@@ -62,6 +62,27 @@ function structuralMergeWithCycleDetection<T = unknown>(
 		}
 	}
 
+	// No idea why Object.keys requires a type assertion, but this doesn't
+	const newStringKeys = Object.getOwnPropertyNames(newValue);
+
+	// If the new object has non-enumerable keys, there's not really much we can
+	// do at a generic level to clone the object. So we have to return it out
+	// unchanged
+	const hasNonEnumerableKeys =
+		newStringKeys.length !==
+		Object.keys(newValue as NonNullable<unknown>).length;
+	if (hasNonEnumerableKeys) {
+		return newValue;
+	}
+
+	for (const tracked of compositeTracker) {
+		if (tracked === oldValue || tracked === newValue) {
+			throw new Error("Detected cycle in nested value definition");
+		}
+	}
+	compositeTracker.push(oldValue);
+	compositeTracker.push(newValue);
+
 	if (Array.isArray(newValue)) {
 		if (!Array.isArray(oldValue)) {
 			return newValue;
@@ -82,17 +103,6 @@ function structuralMergeWithCycleDetection<T = unknown>(
 	const oldRecast = oldValue as Readonly<Record<string | symbol, unknown>>;
 	const newRecast = newValue as Readonly<Record<string | symbol, unknown>>;
 
-	const newStringKeys = Object.getOwnPropertyNames(newRecast);
-
-	// If the new object has non-enumerable keys, there's not really much we can
-	// do at a generic level to clone the object. So we have to return it out
-	// unchanged
-	const hasNonEnumerableKeys =
-		newStringKeys.length !== Object.keys(newRecast).length;
-	if (hasNonEnumerableKeys) {
-		return newValue;
-	}
-
 	const newKeys = [
 		...newStringKeys,
 		...Object.getOwnPropertySymbols(newRecast),
@@ -110,10 +120,14 @@ function structuralMergeWithCycleDetection<T = unknown>(
 
 	const updated = { ...newRecast };
 	for (const key of newKeys) {
+		const newV = newRecast[key];
+		if (compositeTracker.includes(newV)) {
+			throw new Error("Detected cycle in nested value definition");
+		}
 		updated[key] = structuralMergeWithCycleDetection(
 			compositeTracker,
 			oldRecast[key],
-			newRecast[key],
+			newValue,
 		);
 	}
 	return updated as T;
