@@ -7,9 +7,6 @@
 	"packageManager": "pnpm@10.17.0",
 	"author": "Michael Smith <hello@nachos.dev> (https://www.nachos.dev)",
 	"description": "The base package for the time-sync set of packages.",
-	"publishConfig": {
-		"access": "public"
-	},
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/buenos-nachos/time-sync.git",
@@ -22,18 +19,22 @@
 		"ui"
 	],
 	"sideEffects": false,
-	"main": "./dist/index.js",
-	"module": "./dist/index.mjs",
-	"types": "./dist/index.d.ts",
+	"main": "./src/index.ts",
+	"publishConfig": {
+		"access": "public",
+		"main": "./dist/index.js",
+		"module": "./dist/index.mjs",
+		"types": "./dist/index.d.ts"
+	},
 	"dependencies": {
 		"@buenos-nachos/time-sync": "workspace:*",
 		"react": "19.2.0"
 	},
+	"devDependencies": {
+		"@types/react": "19.2.0"
+	},
 	"peerDependencies": {
 		"@buenos-nachos/time-sync": "0.4.0",
 		"react": ">= 18.0.0"
-	},
-	"devDependencies": {
-		"@types/react": "19.2.0"
 	}
 }
