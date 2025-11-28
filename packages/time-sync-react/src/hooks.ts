@@ -162,7 +162,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		/**
 		 * This is a wacky setup, but because we sometimes call subscribers from
 		 * useLayoutEffects, we need to account for this scenario, and make it
-		 * impossible
+		 * impossible:
 		 *
 		 * 1. We call useSyncExternalStore, get the value from the mutable
 		 *    source immediately, and then cue up the logic for ejecting the
