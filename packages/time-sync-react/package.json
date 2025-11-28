@@ -27,11 +27,11 @@
 		"types": "./dist/index.d.ts"
 	},
 	"dependencies": {
-		"@buenos-nachos/time-sync": "workspace:*",
-		"react": "19.2.0"
+		"@buenos-nachos/time-sync": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/react": "19.2.0",
+		"react": "19.2.0",
 		"vitest": "catalog:"
 	},
 	"peerDependencies": {
