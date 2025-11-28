@@ -7,6 +7,8 @@
 
 ![time-sync logo](./images/banner.png)
 
+<sub>[(Link to Figma doc for banner image)](https://www.figma.com/design/Es6F3clZxP7GFZb4RJEbud/time-sync-banner?node-id=1-2)</sub>
+
 `time-sync` is a set of packages designed to help avoid [screen tearing](https://github.com/reactwg/react-18/discussions/69) and snapshot test flakes when bringing time values into UIs. It centralizes time-based computations into a single place, and then forces you as a developer to be explicit about when and how processes can change over time. This makes sure that a user can't see different contradictory values on screen at the same time, but also provides the tools to make snapshot tests 100% deterministic.
 
 While `time-sync` is designed for UIs first and foremost, the core package has zero runtime dependencies and can also be used for stateful servers (Node.js, Bun, Deno). More broadly, the core package provides the tools for ensuring processes can't ever get out of sync on a single device.
