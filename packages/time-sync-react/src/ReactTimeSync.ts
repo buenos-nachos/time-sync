@@ -3,12 +3,12 @@ import { noOp, type TransformCallback } from "./utilities";
 
 export type ReactTimeSyncGetter = () => ReactTimeSync;
 
-type ReactSubscriptionOptions = Readonly<{
-	hookId: string;
-	targetRefreshIntervalMs: number;
-	transform: TransformCallback<unknown>;
-	onReactStateSync: () => void;
-}>;
+interface ReactSubscriptionOptions {
+	readonly hookId: string;
+	readonly targetRefreshIntervalMs: number;
+	readonly transform: TransformCallback<unknown>;
+	readonly onReactStateSync: () => void;
+}
 
 interface SubscriptionCacheEntry<T> {
 	readonly date: ReadonlyDate;
