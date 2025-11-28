@@ -197,7 +197,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		const [, fallbackSync] = useReducer(negate, false);
 		const { date, cachedTransformation } = useSyncExternalStore(
 			stableDummySubscribe,
-			() => reactTs.getSubscriptionEntry<T>(hookId),
+			() => reactTs.getSubscriptionData<T>(hookId),
 		);
 
 		// There's some trade-offs with this memo (notably, if the consumer

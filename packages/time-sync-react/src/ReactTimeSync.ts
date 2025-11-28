@@ -7,18 +7,30 @@ type LifeCycle = "initialized" | "mounted" | "disposed";
 
 type onReactStateSync = () => void;
 
-interface ReactSubscriptionOptions {
+interface ReactSubscriptionOptions<T> {
 	readonly hookId: string;
 	readonly targetRefreshIntervalMs: number;
-	readonly transform: TransformCallback<unknown>;
+	readonly transform: TransformCallback<T>;
 	readonly onReactStateSync: onReactStateSync;
 }
 
-interface SubscriptionEntry<T> {
+interface SubscriptionData<T> {
 	readonly date: ReadonlyDate;
 	readonly cachedTransformation: T;
+}
+
+interface SubscriptionEntry<T> {
 	readonly onReactStateSync: () => void;
+	readonly transform: TransformCallback<T>;
 	readonly unsubscribe: onReactStateSync;
+
+	// The data value itself is readonly, but the key is being kept mutable on
+	// purpose
+	data: SubscriptionData<T>;
+}
+
+function fallbackSubscriptionTransform(): null {
+	return null;
 }
 
 /**
@@ -34,35 +46,27 @@ interface SubscriptionEntry<T> {
 export class ReactTimeSync {
 	static readonly #stalenessThresholdMs = 200;
 	readonly subscriptions: Map<string, SubscriptionEntry<unknown>>;
-	readonly #batchRefresh: () => void;
+	readonly #fallbackSubscription: SubscriptionEntry<null>;
 
-	#batchRefreshId: number | undefined;
-	#intervalId: NodeJS.Timeout | number | undefined;
-	#fallbackSubscription: SubscriptionEntry<null>;
+	#dateRefreshBatchId: number | undefined;
+	#dateRefreshIntervalId: NodeJS.Timeout | number | undefined;
 	#lifecycle: LifeCycle;
 	#timeSync: TimeSync;
 
 	constructor(timeSync?: TimeSync) {
 		this.#timeSync = timeSync ?? new TimeSync();
 		this.subscriptions = new Map();
-		this.#intervalId = undefined;
-		this.#batchRefreshId = undefined;
+		this.#dateRefreshIntervalId = undefined;
+		this.#dateRefreshBatchId = undefined;
 
 		this.#fallbackSubscription = {
 			unsubscribe: noOp,
 			onReactStateSync: noOp,
-			cachedTransformation: null,
-			date: this.#timeSync.getStateSnapshot().date,
-		};
-
-		this.#batchRefresh = () => {
-			// Serializing entries before looping just to be extra safe and make
-			// sure there's no risk of infinite loops from the iterator protocol
-			const entries = [...this.subscriptions.values()];
-			for (const entry of entries) {
-			}
-
-			this.#batchRefreshId = undefined;
+			transform: fallbackSubscriptionTransform,
+			data: {
+				cachedTransformation: null,
+				date: this.#timeSync.getStateSnapshot().date,
+			},
 		};
 
 		this.#lifecycle = "initialized";
@@ -88,10 +92,14 @@ export class ReactTimeSync {
 		// coming, and we need to pre-seed the transformation to make sure that
 		// we don't do a bunch of redundant work
 		if (entry === undefined) {
-			const preSeedOverride = {
+			const preSeedOverride: SubscriptionEntry<unknown> = {
 				...this.#fallbackSubscription,
-				cachedTransformation: newValue,
+				data: {
+					...this.#fallbackSubscription.data,
+					cachedTransformation: newValue,
+				},
 			};
+
 			this.subscriptions.set(hookId, preSeedOverride);
 			return;
 		}
@@ -99,13 +107,20 @@ export class ReactTimeSync {
 		// This method is expected to be called from useEffect, which will
 		// already provide one layer of protection for change detection. But it
 		// doesn't hurt to have double book-keeping
-		if (entry.cachedTransformation !== newValue) {
-			const entryOverride = { ...entry, cachedTransformation: newValue };
+		if (entry.data.cachedTransformation !== newValue) {
+			const entryOverride: SubscriptionEntry<unknown> = {
+				...entry,
+				data: {
+					...entry.data,
+					cachedTransformation: newValue,
+				},
+			};
+
 			this.subscriptions.set(hookId, entryOverride);
 		}
 	}
 
-	subscribe(options: ReactSubscriptionOptions): () => void {
+	subscribe<T>(options: ReactSubscriptionOptions<T>): () => void {
 		if (this.#lifecycle !== "mounted") {
 			throw new Error("Cannot add subscription while system is not mounted");
 		}
@@ -115,57 +130,60 @@ export class ReactTimeSync {
 
 		// Even though TimeSync's unsubcribe has protections against
 		// double-calls, we should add another layer here, because React
-		// doesn't say whether it reuses hook IDs after a component unmounts
+		// doesn't say whether it reuses hook IDs after a component unmounts,
+		// and removing the same ID multiple times could be destructive
 		let subscribed = true;
-		const fullUnsubscribe = () => {
-			if (!subscribed) {
-				return;
-			}
-			rootUnsubscribe();
-			this.subscriptions.delete(hookId);
-			subscribed = false;
+		const newEntry: SubscriptionEntry<T> = {
+			onReactStateSync,
+			transform,
+			data: this.#fallbackSubscription.data as SubscriptionData<T>,
+			unsubscribe: () => {
+				if (!subscribed) {
+					return;
+				}
+				rootUnsubscribe();
+				this.subscriptions.delete(hookId);
+				subscribed = false;
+			},
 		};
+		this.subscriptions.set(hookId, newEntry);
 
 		const rootUnsubscribe = this.#timeSync.subscribe({
 			targetRefreshIntervalMs,
 			onUpdate: (newDate) => {
-				const entry =
-					this.subscriptions.get(hookId) ?? this.#fallbackSubscription;
+				// Not accessing newEntry from closure just to be on the safe
+				// side and make sure we can't access a subcription after it's
+				// been removed
+				const entry = this.subscriptions.get(hookId);
+				if (entry === undefined) {
+					return;
+				}
 
-				const oldTransformed = entry.cachedTransformation;
+				const oldTransformed = entry.data.cachedTransformation;
 				const newTransformed = transform(newDate);
 				const merged = structuralMerge(oldTransformed, newTransformed);
 
 				if (merged === oldTransformed) {
-					this.subscriptions.set(hookId, {
-						date: newDate,
-						onReactStateSync,
-						unsubscribe: fullUnsubscribe,
-						cachedTransformation: oldTransformed,
-					});
+					entry.data = { date: newDate, cachedTransformation: oldTransformed };
 					return;
 				}
 
-				this.subscriptions.set(hookId, {
-					date: newDate,
-					onReactStateSync,
-					unsubscribe: fullUnsubscribe,
-					cachedTransformation: merged,
-				});
+				entry.data = { date: newDate, cachedTransformation: merged };
 				onReactStateSync();
 			},
 		});
 
-		return fullUnsubscribe;
+		return newEntry.unsubscribe;
 	}
 
-	getSubscriptionEntry<T>(hookId: string): SubscriptionEntry<T> {
+	getSubscriptionData<T>(hookId: string): SubscriptionData<T> {
 		if (this.#lifecycle !== "mounted") {
 			throw new Error("Cannot access subscription while system is not mounted");
 		}
 
-		return (this.subscriptions.get(hookId) ??
+		const entry = (this.subscriptions.get(hookId) ??
 			this.#fallbackSubscription) as SubscriptionEntry<T>;
+		return entry.data;
 	}
 
 	// MUST be called from inside an effect, because it relies on browser APIs
@@ -179,41 +197,43 @@ export class ReactTimeSync {
 			this.#timeSync = timeSyncOverride;
 		}
 
+		// Because we can't control how much time can elapse between components
+		// mounting, we need some kind of mechanism for
 		const refreshAllDatesWithoutReactSync = (newDate: ReadonlyDate): void => {
 			const newDateTime = newDate.getTime();
-
-			if (this.#fallbackSubscription.date.getTime() < newDateTime) {
-				this.#fallbackSubscription = {
-					...this.#fallbackSubscription,
+			const fallbackData = this.#fallbackSubscription.data;
+			if (fallbackData.date.getTime() < newDateTime) {
+				this.#fallbackSubscription.data = {
+					...fallbackData,
 					date: newDate,
 				};
 			}
 
-			for (const [hookId, entry] of this.subscriptions) {
-				if (entry.date.getTime() < newDateTime) {
-					this.subscriptions.set(hookId, {
-						...entry,
+			for (const entry of this.subscriptions.values()) {
+				if (entry.data.date.getTime() < newDateTime) {
+					entry.data = {
+						...entry.data,
 						date: newDate,
-					});
+					};
 				}
 			}
 		};
-
-		const rootUnsub = this.#timeSync.subscribe({
+		this.#timeSync.subscribe({
 			targetRefreshIntervalMs: refreshRates.idle,
 			onUpdate: refreshAllDatesWithoutReactSync,
 		});
-
-		this.#intervalId = setInterval(() => {
+		this.#dateRefreshIntervalId = setInterval(() => {
 			const newDate = new ReadonlyDate();
 			refreshAllDatesWithoutReactSync(newDate);
 		}, ReactTimeSync.#stalenessThresholdMs);
 
 		return () => {
-			clearInterval(this.#intervalId);
-			rootUnsub();
-			if (this.#batchRefreshId !== undefined) {
-				cancelAnimationFrame(this.#batchRefreshId);
+			// This also cleans up the subscription registered above
+			this.#timeSync.clearAll();
+			clearInterval(this.#dateRefreshIntervalId);
+			this.subscriptions.clear();
+			if (this.#dateRefreshBatchId !== undefined) {
+				cancelAnimationFrame(this.#dateRefreshBatchId);
 			}
 			this.#lifecycle = "disposed";
 		};
@@ -229,10 +249,32 @@ export class ReactTimeSync {
 
 		// Protection to make sure that if a bunch of components mount at the
 		// same time, only one of them will actually cause a batch-resync
-		if (this.#batchRefreshId !== undefined) {
-			return;
+		if (this.#dateRefreshBatchId !== undefined) {
+			cancelAnimationFrame(this.#dateRefreshBatchId);
 		}
 
-		this.#batchRefreshId = requestAnimationFrame(this.#batchRefresh);
+		// Code assumes that all entries will always have an up to date .date
+		// property thanks to onProviderMount, and that only the transformations
+		// could be out of sync
+		this.#dateRefreshBatchId = requestAnimationFrame(() => {
+			// Serializing entries before looping just to be extra safe and make
+			// sure there's no risk of infinite loops from the iterator protocol
+			const entries = [...this.subscriptions.values()];
+
+			for (const entry of entries) {
+				const { date, cachedTransformation } = entry.data;
+				const newTransform = entry.transform(date);
+				const merged = structuralMerge(cachedTransformation, newTransform);
+
+				if (cachedTransformation === merged) {
+					continue;
+				}
+
+				entry.data = { date: date, cachedTransformation: merged };
+				entry.onReactStateSync();
+			}
+
+			this.#dateRefreshBatchId = undefined;
+		});
 	}
 }
