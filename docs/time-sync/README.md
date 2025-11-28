@@ -60,6 +60,7 @@ export const syncWithOptions = new TimeSync({
 ### Basic usage
 
 ```ts
+// consumingFile.ts
 import {
 	ReadonlyDate,
 	refreshRates,
@@ -94,10 +95,9 @@ const unsubscribe2 = sync.subscribe({
 	// Each onUpdate callback also exposes a second context value with
 	// information about the subscription. See the next section on context
 	// values for more information
-	onUpdate: (newDate, contextValue) => {
-		if (contextValue.isLive) {
-			console.log(`The seconds is now ${newDate.getSeconds()}`);
-		}
+	onUpdate: (newDate, ctx) => {
+		console.log(`The seconds is now ${newDate.getSeconds()}`);
+		console.log(`First registered at ${ctx.registeredAt.toISOString()}`);
 	},
 });
 
@@ -112,8 +112,8 @@ unsubscribe2();
 // unsubscribe callback more than once always results in a no-op.
 unsubscribe1();
 
-// The ReadonlyDate class is fully assignable to the native date class, to
-// maximize interoperability with existing JavaScript libraries. Any function
+// To maximize interoperability with existing JavaScript libraries, the
+// ReadonlyDate class is fully assignable to the native date class. Any function
 // that takes a native date as input works with onUpdate out of the box.
 function displayYear(date: Date): void {
 	// When used with TimeSync's onUpdate property, both of these runtime
@@ -144,10 +144,8 @@ const unsubscribe4 = sync.subscribe({
 	// with the fastest interval among all subscribers
 	targetRefreshIntervalMs: refreshRates.oneSecond,
 
-	// If the same function (by reference) is added by multiple subscribers,
-	// TimeSync will automatically de-duplicate the function calls when
-	// dispatching updates. This behavior can be turned off when configuring
-	// the instance.
+	// As mentioned above, you can tell TimeSync whether you want it to
+	//de-duplicate multiple copies of the same function received by reference
 	onUpdate: displayYear,
 });
 
@@ -179,26 +177,30 @@ const intervalForNextSubscription = refreshRates.oneHour;
 // provides values that make it easier to create reusable functions that don't
 // need to rely on closure
 function processOnUpdate(date: ReadonlyDate, ctx: SubscriptionContext): void {
-	if (ctx.isLive) {
-		// Indicates whether the subscription is still active. This value will
-		// be mutated to false the moment an unsubscribe call or .clearAll call
-		// happen
-	}
+	// Indicates whether the subscription is still active. This value will
+	// be mutated to false the moment an unsubscribe call or .clearAll call
+	// happen. This value is mainly here in case you need to eject values from
+	// the context and need to track whether the subscription still exists. This
+	// value is never read internally, so mutating it yourself won't break anything
+	ctx.isSubscribed;
 
 	// A reference to the TimeSync instance that the subscription was registered
 	// with. Can be used to grab snapshots or even register new subscriptions
 	ctx.timeSync;
 
 	// Provides a reference to when the subscription was first set up
+	ctx.registeredAt;
 	console.log(
 		`Subscription was registered at ${ctx.registeredAt.toISOString()}`,
 	);
 
 	// Indicates the interval the callback was registered with. In this case, it
 	// will match the intervalForNextSubscription variable above
+	ctx.targetRefreshIntervalMs;
 	console.log(`This subscription runs every ${ctx.targetRefreshIntervalMs}`);
 
 	// Ensures you always have access to the unsubscribe callback
+	ctx.unsubscribe;
 	const shouldCancel = shouldCancelSubscription(date);
 	if (shouldCancel) {
 		ctx.unsubscribe();
@@ -209,6 +211,7 @@ function processOnUpdate(date: ReadonlyDate, ctx: SubscriptionContext): void {
 	// to all subscribers can get expensive. You can perform this check to
 	// see whether the update being processed actually matches the interval
 	// that was explicitly requested
+	// ctx.intervalLastFulfilledAt;
 	const matchesRequestedInterval = date === ctx.intervalLastFulfilledAt;
 	if (matchesRequestedInterval) {
 		runExpensiveFunction(date);
