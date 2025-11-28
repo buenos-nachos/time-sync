@@ -88,6 +88,17 @@
 					"options": {
 						"syntax": "shorthand"
 					}
+				},
+
+				// Personally, I hate using interfaces in my TypeScript code,
+				// and use type aliases exclusively. But they do have more of a
+				// a cost on the LSP, so to make sure we're not affecting
+				// users in larger codebases, we'll default to interfaces
+				"useConsistentTypeDefinitions": {
+					"level": "error",
+					"options": {
+						"style": "interface"
+					}
 				}
 			},
 			"suspicious": {
