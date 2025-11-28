@@ -10,8 +10,9 @@ import { useCallback, useInsertionEffect, useRef } from "react";
  * access to React internals.
  */
 /* biome-ignore lint:complexity/noBannedTypes -- I don't want to use this type,
-   since there is a much more type-safe of doing it for the 99% use case, but
-   this is what the official React types use. */
+   since there is a much more type-safe of doing it for the 99% use case, and
+   using Function actually forces you to deal with type contravariance issues.
+   But this is what the official React types use, so we have to match it. */
 export function useEffectEventPolyfill<T extends Function>(callback: T): T {
 	const callbackRef = useRef(callback);
 
@@ -22,9 +23,11 @@ export function useEffectEventPolyfill<T extends Function>(callback: T): T {
 		callbackRef.current = callback;
 	}, [callback]);
 
+	// Don't want to deal with contravariance, so we're just going to make the
+	// broadest wrapper function possible, and then do a type assertion. Not
+	// worth doing it the "proper" way (if it's even possible for type Function)
 	const stable = useCallback((...args: readonly unknown[]): unknown => {
 		return callbackRef.current(...args);
 	}, []);
-
 	return stable as unknown as T;
 }
