@@ -1,6 +1,7 @@
 {
 	"name": "@buenos-nachos/time-sync-react",
-	"version": "0.4.0",
+	"private": true,
+	"version": "0.0.0",
 	"license": "MIT",
 	"type": "module",
 	"packageManager": "pnpm@10.17.0",
@@ -26,12 +27,13 @@
 	"types": "./dist/index.d.ts",
 	"dependencies": {
 		"@buenos-nachos/time-sync": "workspace:*",
-		"react": "^19.2.0"
+		"react": "19.2.0"
 	},
 	"peerDependencies": {
-		"@buenos-nachos/time-sync": "0.4.0"
+		"@buenos-nachos/time-sync": "0.4.0",
+		"react": ">= 18.0.0"
 	},
 	"devDependencies": {
-		"@types/react": "^19.2.7"
+		"@types/react": "19.2.0"
 	}
 }
