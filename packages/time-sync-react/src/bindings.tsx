@@ -25,13 +25,13 @@ const injectionMethods = [
 	"hybrid",
 ] as const satisfies readonly string[];
 
-export type InjectionMethod = (typeof injectionMethods)[number];
+type InjectionMethod = (typeof injectionMethods)[number];
 
 function isInjectionMethod(value: unknown): value is InjectionMethod {
 	return injectionMethods.includes(value as InjectionMethod);
 }
 
-export type CreateReactBindingsOptions<T extends InjectionMethod> =
+type CreateReactBindingsOptions<T extends InjectionMethod> =
 	T extends "reactContext"
 		? {
 				readonly injectionMethod: T;
@@ -41,17 +41,16 @@ export type CreateReactBindingsOptions<T extends InjectionMethod> =
 				readonly timeSync: TimeSync;
 			};
 
-export type CreateReactBindingsResult<T extends InjectionMethod> =
-	T extends "closure"
-		? {
-				readonly useTimeSync: UseTimeSync;
-				readonly useTimeSyncRef: UseTimeSyncRef;
-			}
-		: {
-				readonly useTimeSync: UseTimeSync;
-				readonly useTimeSyncRef: UseTimeSyncRef;
-				readonly TimeSyncProvider: TimeSyncProvider;
-			};
+type CreateReactBindingsResult<T extends InjectionMethod> = T extends "closure"
+	? {
+			readonly useTimeSync: UseTimeSync;
+			readonly useTimeSyncRef: UseTimeSyncRef;
+		}
+	: {
+			readonly useTimeSync: UseTimeSync;
+			readonly useTimeSyncRef: UseTimeSyncRef;
+			readonly TimeSyncProvider: TimeSyncProvider;
+		};
 
 // Making flattened, "non-clever" version of the above types so that they're
 // easier to work with internally. The main problem with them is that they don't
