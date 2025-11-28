@@ -79,7 +79,7 @@ export class ReactTimeSync {
 		return this.#timeSync;
 	}
 
-	syncRenderTransformation(hookId: string, newValue: unknown): void {
+	syncTransformation(hookId: string, newValue: unknown): void {
 		if (this.#lifecycle !== "mounted") {
 			throw new Error(
 				"Cannot sync transformation results while system is not mounted",

@@ -212,16 +212,14 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		);
 
 		const merged = useMemo(() => {
-			// Adding type annotation to force TypeScript LSP to show a clean
-			// type, instead of the direct return type from TransformCallback
-			const prev: T = cachedTransformation ?? renderTransformation;
+			const prev = cachedTransformation ?? renderTransformation;
 			return structuralMerge(prev, renderTransformation);
 		}, [cachedTransformation, renderTransformation]);
 
 		// Make sure to load the new merged value in before subscribing, so that
 		// we give the subscription more accurate data for detecting changes
 		useLayoutEffect(() => {
-			reactTs.syncRenderTransformation(hookId, merged);
+			reactTs.syncTransformation(hookId, merged);
 		}, [reactTs, hookId, merged]);
 
 		// Because of how React lifecycles work, this effect event callback
