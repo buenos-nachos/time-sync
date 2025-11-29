@@ -7,14 +7,7 @@ type LifeCycle = "initialized" | "mounted" | "disposed";
 
 type onReactStateSync = () => void;
 
-interface ReactSubscriptionOptions<T> {
-	readonly hookId: string;
-	readonly targetRefreshIntervalMs: number;
-	readonly transform: TransformCallback<T>;
-	readonly onReactStateSync: onReactStateSync;
-}
-
-interface SubscriptionData<T> {
+export interface SubscriptionData<T> {
 	readonly date: ReadonlyDate;
 	readonly cachedTransformation: T;
 }
@@ -22,11 +15,16 @@ interface SubscriptionData<T> {
 interface SubscriptionEntry<T> {
 	readonly onReactStateSync: () => void;
 	readonly transform: TransformCallback<T>;
-	readonly unsubscribe: onReactStateSync;
-
 	// The data value itself is readonly, but the key is being kept mutable on
 	// purpose
 	data: SubscriptionData<T>;
+}
+
+interface ReactSubscriptionOptions<T> {
+	readonly hookId: string;
+	readonly targetRefreshIntervalMs: number;
+	readonly transform: TransformCallback<T>;
+	readonly onReactStateSync: onReactStateSync;
 }
 
 function fallbackSubscriptionTransform(): null {
@@ -46,12 +44,12 @@ function fallbackSubscriptionTransform(): null {
 export class ReactTimeSync {
 	static readonly #stalenessThresholdMs = 200;
 	readonly subscriptions: Map<string, SubscriptionEntry<unknown>>;
-	readonly #fallbackSubscription: SubscriptionEntry<null>;
 
+	#timeSync: TimeSync;
+	#lifecycle: LifeCycle;
+	#fallbackData: SubscriptionData<null>;
 	#dateRefreshBatchId: number | undefined;
 	#dateRefreshIntervalId: NodeJS.Timeout | number | undefined;
-	#lifecycle: LifeCycle;
-	#timeSync: TimeSync;
 
 	constructor(timeSync?: TimeSync) {
 		this.#timeSync = timeSync ?? new TimeSync();
@@ -59,14 +57,9 @@ export class ReactTimeSync {
 		this.#dateRefreshIntervalId = undefined;
 		this.#dateRefreshBatchId = undefined;
 
-		this.#fallbackSubscription = {
-			unsubscribe: noOp,
-			onReactStateSync: noOp,
-			transform: fallbackSubscriptionTransform,
-			data: {
-				cachedTransformation: null,
-				date: this.#timeSync.getStateSnapshot().date,
-			},
+		this.#fallbackData = {
+			cachedTransformation: null,
+			date: this.#timeSync.getStateSnapshot().date,
 		};
 
 		this.#lifecycle = "initialized";
@@ -90,17 +83,17 @@ export class ReactTimeSync {
 
 		// If there's no previous entry, we're assuming that a subscribe is
 		// coming, and we need to pre-seed the transformation to make sure that
-		// we don't do a bunch of redundant work
+		// we don't do a bunch of redundant work inside useTimeSync
 		if (entry === undefined) {
-			const preSeedOverride: SubscriptionEntry<unknown> = {
-				...this.#fallbackSubscription,
+			const seedEntry: SubscriptionEntry<unknown> = {
+				onReactStateSync: noOp,
+				transform: fallbackSubscriptionTransform,
 				data: {
-					...this.#fallbackSubscription.data,
 					cachedTransformation: newValue,
+					date: this.#fallbackData.date,
 				},
 			};
-
-			this.subscriptions.set(hookId, preSeedOverride);
+			this.subscriptions.set(hookId, seedEntry);
 			return;
 		}
 
@@ -108,15 +101,10 @@ export class ReactTimeSync {
 		// already provide one layer of protection for change detection. But it
 		// doesn't hurt to have double book-keeping
 		if (entry.data.cachedTransformation !== newValue) {
-			const entryOverride: SubscriptionEntry<unknown> = {
-				...entry,
-				data: {
-					...entry.data,
-					cachedTransformation: newValue,
-				},
+			entry.data = {
+				date: entry.data.date,
+				cachedTransformation: newValue,
 			};
-
-			this.subscriptions.set(hookId, entryOverride);
 		}
 	}
 
@@ -128,25 +116,26 @@ export class ReactTimeSync {
 		const { hookId, targetRefreshIntervalMs, transform, onReactStateSync } =
 			options;
 
+		const newEntry: SubscriptionEntry<T> = {
+			onReactStateSync,
+			transform,
+			data: this.#fallbackData as SubscriptionData<T>,
+		};
+		this.subscriptions.set(hookId, newEntry);
+
 		// Even though TimeSync's unsubcribe has protections against
 		// double-calls, we should add another layer here, because React
 		// doesn't say whether it reuses hook IDs after a component unmounts,
 		// and removing the same ID multiple times could be destructive
 		let subscribed = true;
-		const newEntry: SubscriptionEntry<T> = {
-			onReactStateSync,
-			transform,
-			data: this.#fallbackSubscription.data as SubscriptionData<T>,
-			unsubscribe: () => {
-				if (!subscribed) {
-					return;
-				}
-				rootUnsubscribe();
-				this.subscriptions.delete(hookId);
-				subscribed = false;
-			},
+		const fullUnsubscribe = () => {
+			if (!subscribed) {
+				return;
+			}
+			rootUnsubscribe();
+			this.subscriptions.delete(hookId);
+			subscribed = false;
 		};
-		this.subscriptions.set(hookId, newEntry);
 
 		const rootUnsubscribe = this.#timeSync.subscribe({
 			targetRefreshIntervalMs,
@@ -173,7 +162,7 @@ export class ReactTimeSync {
 			},
 		});
 
-		return newEntry.unsubscribe;
+		return fullUnsubscribe;
 	}
 
 	getSubscriptionData<T>(hookId: string): SubscriptionData<T> {
@@ -182,7 +171,7 @@ export class ReactTimeSync {
 		}
 
 		const entry = (this.subscriptions.get(hookId) ??
-			this.#fallbackSubscription) as SubscriptionEntry<T>;
+			this.#fallbackData) as SubscriptionEntry<T>;
 		return entry.data;
 	}
 
@@ -198,33 +187,24 @@ export class ReactTimeSync {
 		}
 
 		// Because we can't control how much time can elapse between components
-		// mounting, we need some kind of mechanism for
-		const refreshAllDatesWithoutReactSync = (newDate: ReadonlyDate): void => {
+		// mounting, we need some kind of mechanism for refreshing the fallback
+		// date is fresh so that it can be safely used when a component mounts
+		const refreshFallbackDate = (newDate: ReadonlyDate): void => {
 			const newDateTime = newDate.getTime();
-			const fallbackData = this.#fallbackSubscription.data;
-			if (fallbackData.date.getTime() < newDateTime) {
-				this.#fallbackSubscription.data = {
-					...fallbackData,
+			if (this.#fallbackData.date.getTime() < newDateTime) {
+				this.#fallbackData = {
+					...this.#fallbackData,
 					date: newDate,
 				};
-			}
-
-			for (const entry of this.subscriptions.values()) {
-				if (entry.data.date.getTime() < newDateTime) {
-					entry.data = {
-						...entry.data,
-						date: newDate,
-					};
-				}
 			}
 		};
 		this.#timeSync.subscribe({
 			targetRefreshIntervalMs: refreshRates.idle,
-			onUpdate: refreshAllDatesWithoutReactSync,
+			onUpdate: refreshFallbackDate,
 		});
 		this.#dateRefreshIntervalId = setInterval(() => {
 			const newDate = new ReadonlyDate();
-			refreshAllDatesWithoutReactSync(newDate);
+			refreshFallbackDate(newDate);
 		}, ReactTimeSync.#stalenessThresholdMs);
 
 		return () => {
