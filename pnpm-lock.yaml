@@ -49,7 +49,23 @@ importers:
     devDependencies:
       vitest:
         specifier: 'catalog:'
-        version: 4.0.8(@types/node@24.10.0)(happy-dom@20.0.10)(jsdom@27.2.0)
+        version: 4.0.8(@types/node@24.10.1)(happy-dom@20.0.10)(jsdom@27.2.0)
+
+  packages/time-sync-react:
+    dependencies:
+      '@buenos-nachos/time-sync':
+        specifier: workspace:*
+        version: link:../time-sync
+    devDependencies:
+      '@types/react':
+        specifier: 19.2.0
+        version: 19.2.0
+      react:
+        specifier: 19.2.0
+        version: 19.2.0
+      vitest:
+        specifier: 'catalog:'
+        version: 4.0.8(@types/node@24.10.1)(happy-dom@20.0.10)(jsdom@27.2.0)
 
 packages:
 
@@ -757,6 +773,12 @@ packages:
   '@types/node@24.10.0':
     resolution: {integrity: sha512-qzQZRBqkFsYyaSWXuEHc2WR9c0a0CXwiE5FWUvn7ZM+vdy1uZLfCunD38UzhuB7YN/J11ndbDBcTmOdxJo9Q7A==}
 
+  '@types/node@24.10.1':
+    resolution: {integrity: sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ==}
+
+  '@types/react@19.2.0':
+    resolution: {integrity: sha512-1LOH8xovvsKsCBq1wnT4ntDUdCJKmnEakhsuoUSy6ExlHCkGP2hqnatagYTgFk6oeL0VU31u7SNjunPN+GchtA==}
+
   '@types/whatwg-mimetype@3.0.2':
     resolution: {integrity: sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA==}
 
@@ -867,6 +889,9 @@ packages:
   cssstyle@5.3.3:
     resolution: {integrity: sha512-OytmFH+13/QXONJcC75QNdMtKpceNk3u8ThBjyyYjkEcy/ekBwR1mMAuNvi3gdBPW3N5TlCzQ0WZw8H0lN/bDw==}
     engines: {node: '>=20'}
+
+  csstype@3.2.3:
+    resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
 
   data-urls@6.0.0:
     resolution: {integrity: sha512-BnBS08aLUM+DKamupXs3w2tJJoqU+AkaE/+6vQxi/G/DPmIZFJJp9Dkb1kM03AZx8ADehDUZgsNxju3mPXZYIA==}
@@ -1199,6 +1224,10 @@ packages:
 
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
+
+  react@19.2.0:
+    resolution: {integrity: sha512-tmbWg6W31tQLeB5cdIBOicJDJRR2KzXsV7uSK9iNfLWQ5bIZfxuPEHp7M8wiHyHnn0DD1i7w3Zmin0FtkrwoCQ==}
+    engines: {node: '>=0.10.0'}
 
   read-yaml-file@1.1.0:
     resolution: {integrity: sha512-VIMnQi/Z4HT2Fxuwg5KrY174U1VdUIASQVWXXyqtNRtxSr9IYkn1rsI6Tb6HsrHCmB7gVpNwX6JxPTHcH6IoTA==}
@@ -2146,6 +2175,15 @@ snapshots:
     dependencies:
       undici-types: 7.16.0
 
+  '@types/node@24.10.1':
+    dependencies:
+      undici-types: 7.16.0
+    optional: true
+
+  '@types/react@19.2.0':
+    dependencies:
+      csstype: 3.2.3
+
   '@types/whatwg-mimetype@3.0.2': {}
 
   '@vitest/expect@4.0.8':
@@ -2256,6 +2294,8 @@ snapshots:
       '@csstools/css-syntax-patches-for-csstree': 1.0.19
       css-tree: 3.1.0
     optional: true
+
+  csstype@3.2.3: {}
 
   data-urls@6.0.0:
     dependencies:
@@ -2585,6 +2625,8 @@ snapshots:
 
   queue-microtask@1.2.3: {}
 
+  react@19.2.0: {}
+
   read-yaml-file@1.1.0:
     dependencies:
       graceful-fs: 4.2.11
@@ -2833,6 +2875,18 @@ snapshots:
       '@types/node': 24.10.0
       fsevents: 2.3.3
 
+  vite@7.2.4(@types/node@24.10.1):
+    dependencies:
+      esbuild: 0.25.12
+      fdir: 6.5.0(picomatch@4.0.3)
+      picomatch: 4.0.3
+      postcss: 8.5.6
+      rollup: 4.53.3
+      tinyglobby: 0.2.15
+    optionalDependencies:
+      '@types/node': 24.10.1
+      fsevents: 2.3.3
+
   vitest@4.0.8(@types/node@24.10.0)(happy-dom@20.0.10)(jsdom@27.2.0):
     dependencies:
       '@vitest/expect': 4.0.8
@@ -2857,6 +2911,46 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 24.10.0
+      happy-dom: 20.0.10
+      jsdom: 27.2.0
+    transitivePeerDependencies:
+      - jiti
+      - less
+      - lightningcss
+      - msw
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
+      - tsx
+      - yaml
+
+  vitest@4.0.8(@types/node@24.10.1)(happy-dom@20.0.10)(jsdom@27.2.0):
+    dependencies:
+      '@vitest/expect': 4.0.8
+      '@vitest/mocker': 4.0.8(vite@7.2.4(@types/node@24.10.0))
+      '@vitest/pretty-format': 4.0.8
+      '@vitest/runner': 4.0.8
+      '@vitest/snapshot': 4.0.8
+      '@vitest/spy': 4.0.8
+      '@vitest/utils': 4.0.8
+      debug: 4.4.3
+      es-module-lexer: 1.7.0
+      expect-type: 1.2.2
+      magic-string: 0.30.21
+      pathe: 2.0.3
+      picomatch: 4.0.3
+      std-env: 3.10.0
+      tinybench: 2.9.0
+      tinyexec: 0.3.2
+      tinyglobby: 0.2.15
+      tinyrainbow: 3.0.3
+      vite: 7.2.4(@types/node@24.10.1)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      '@types/node': 24.10.1
       happy-dom: 20.0.10
       jsdom: 27.2.0
     transitivePeerDependencies:

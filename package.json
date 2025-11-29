@@ -27,7 +27,7 @@
 		"changeset:release": "changeset publish",
 		"check:all": "pnpm check:lint && pnpm check:types",
 		"check:lint": "biome check --error-on-warnings .",
-		"check:types": "tsc --noEmit",
+		"check:types": "pnpm --recursive check:types",
 		"format": "biome format --write .",
 		"test": "vitest run",
 		"test:watch": "vitest watch"
@@ -48,6 +48,7 @@
 		"vitest": "catalog:"
 	},
 	"overrides": {
-		"@buenos-nachos/time-sync": "workspace:*"
+		"@buenos-nachos/time-sync": "workspace:*",
+		"@buenos-nachos/time-sync-react": "workspace:*"
 	}
 }
