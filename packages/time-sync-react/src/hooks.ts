@@ -249,7 +249,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		}, [stableSubscribe, targetRefreshIntervalMs]);
 
 		useLayoutEffect(() => {
-			rts.syncTransformation(hookId, merged);
+			rts.updateCachedTransformation(hookId, merged);
 		}, [rts, hookId, merged]);
 
 		useLayoutEffect(() => {

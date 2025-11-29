@@ -74,7 +74,7 @@ export class ReactTimeSync {
 		return this.#timeSync;
 	}
 
-	syncTransformation(hookId: string, newValue: unknown): void {
+	updateCachedTransformation(hookId: string, newValue: unknown): void {
 		if (!this.#isMounted) {
 			throw new Error(
 				"Cannot sync transformation results while system is not mounted",
