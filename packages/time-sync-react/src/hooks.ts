@@ -1,3 +1,8 @@
+/**
+ * @file You might notice that this file is like 70% comments. Didn't want it to
+ * be like that, but the file has to rely on so many hacks and advanced React
+ * features that it's not going to be clear what's going on otherwise.
+ */
 import type { ReadonlyDate, TimeSync } from "@buenos-nachos/time-sync";
 import React, {
 	useCallback,
