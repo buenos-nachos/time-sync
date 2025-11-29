@@ -8,7 +8,7 @@
  * duplicate the comments for the hooks and the properties in bindings.tsx.
  * Otherwise, the info will be erased when the user calls createReactBindings
  */
-import type { ReadonlyDate, TimeSync } from "@buenos-nachos/time-sync";
+import type { ReadonlyDate } from "@buenos-nachos/time-sync";
 import React, {
 	useCallback,
 	useId,
@@ -19,7 +19,11 @@ import React, {
 	useSyncExternalStore,
 } from "react";
 import { useEffectEventPolyfill } from "./hookPolyfills";
-import type { ReactTimeSyncGetter } from "./ReactTimeSync";
+import type {
+	ReactTimeSyncGetter,
+	SafeTimeSync,
+	SubscriptionData,
+} from "./ReactTimeSync";
 import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
 // Copied from bindings.tsx
@@ -32,7 +36,7 @@ import { noOp, structuralMerge, type TransformCallback } from "./utilities";
  * This hook is mainly intended as an escape hatch for when
  * `useTimeSync` won't serve your needs.
  */
-export type UseTimeSyncRef = () => TimeSync;
+export type UseTimeSyncRef = () => SafeTimeSync;
 
 export function createUseTimeSyncRef(
 	getter: ReactTimeSyncGetter,
@@ -213,7 +217,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 			// Literally just doing this to make the linter happy that we're
 			// including an otherwise unused value in the dependency array
 			void forceInvalidator;
-			return rts.getSubscriptionData<T>(hookId);
+			return rts.getSubscriptionData(hookId) as SubscriptionData<T>;
 		}, [rts, hookId, forceInvalidator]);
 		const { date, cachedTransformation } = useSyncExternalStore(
 			stableDummySubscribe,
@@ -265,7 +269,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		}, [reactiveSubscribe, targetRefreshIntervalMs]);
 
 		useLayoutEffect(() => {
-			rts.updateCachedTransformation(hookId, merged);
+			rts.setCachedTransformation(hookId, merged);
 		}, [rts, hookId, merged]);
 
 		useLayoutEffect(() => {

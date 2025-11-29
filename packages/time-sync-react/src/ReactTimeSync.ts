@@ -5,7 +5,7 @@ export type ReactTimeSyncGetter = () => ReactTimeSync;
 
 type onReactStateSync = () => void;
 
-interface SubscriptionData<T> {
+export interface SubscriptionData<T> {
 	readonly date: ReadonlyDate;
 	readonly cachedTransformation: T;
 }
@@ -32,6 +32,17 @@ function isFrozen(sync: TimeSync): boolean {
 	return sync.getStateSnapshot().config.freezeUpdates;
 }
 
+export type SafeTimeSync = Omit<TimeSync, "clearAll">;
+
+interface ReactTimeSyncApi {
+	subscribe: <T>(options: ReactSubscriptionOptions<T>) => () => void;
+	initialize: () => () => void;
+	getTimeSync: () => SafeTimeSync;
+	onComponentMount: () => void;
+	getSubscriptionData: (hookId: string) => SubscriptionData<unknown>;
+	setCachedTransformation: (hookId: string, newValue: unknown) => void;
+}
+
 /**
  * A central class for managing all core state management, communication, and
  * synchronization between time-sync-react hooks and providers.
@@ -42,7 +53,7 @@ function isFrozen(sync: TimeSync): boolean {
 // useState/useReducer) and full-on ref state. We need to make sure that all
 // values are still defined in an immutable, stable way, but we don't always
 // need to trigger re-renders in response to them changing.
-export class ReactTimeSync {
+export class ReactTimeSync implements ReactTimeSyncApi {
 	/**
 	 * Have to store this with type unknown, because we need to be able to store
 	 * arbitrary data, and if we add a type parameter at the class level, that
@@ -50,6 +61,7 @@ export class ReactTimeSync {
 	 */
 	readonly #subscriptions: Map<string, SubscriptionEntry<unknown>>;
 	readonly #timeSync: TimeSync;
+	readonly #safeTimeSync: SafeTimeSync;
 
 	#isMounted: boolean;
 	#fallbackData: SubscriptionData<null>;
@@ -57,24 +69,30 @@ export class ReactTimeSync {
 	#dateRefreshIntervalId: NodeJS.Timeout | number | undefined;
 
 	constructor(timeSync?: TimeSync) {
-		this.#timeSync = timeSync ?? new TimeSync();
+		const sync = timeSync ?? new TimeSync();
+		this.#timeSync = sync;
 		this.#subscriptions = new Map();
 		this.#dateRefreshIntervalId = undefined;
 		this.#dateRefreshBatchId = undefined;
 
-		const snap = this.#timeSync.getStateSnapshot();
+		const snap = sync.getStateSnapshot();
 		this.#fallbackData = { cachedTransformation: null, date: snap.date };
+		this.#safeTimeSync = {
+			getStateSnapshot: () => sync.getStateSnapshot(),
+			subscribe: (options) => sync.subscribe(options),
+		};
+
 		this.#isMounted = false;
 	}
 
-	getTimeSync(): TimeSync {
+	getTimeSync(): SafeTimeSync {
 		if (!this.#isMounted) {
 			throw new Error("Cannot retrieve TimeSync while system is not mounted");
 		}
-		return this.#timeSync;
+		return this.#safeTimeSync;
 	}
 
-	updateCachedTransformation(hookId: string, newValue: unknown): void {
+	setCachedTransformation(hookId: string, newValue: unknown): void {
 		if (!this.#isMounted) {
 			throw new Error(
 				"Cannot sync transformation results while system is not mounted",
@@ -164,14 +182,12 @@ export class ReactTimeSync {
 		return fullUnsubscribe;
 	}
 
-	getSubscriptionData<T>(hookId: string): SubscriptionData<T> {
+	getSubscriptionData(hookId: string): SubscriptionData<unknown> {
 		if (!this.#isMounted) {
 			throw new Error("Cannot access subscription while system is not mounted");
 		}
 
-		const data: SubscriptionData<unknown> =
-			this.#subscriptions.get(hookId)?.data ?? this.#fallbackData;
-		return data as SubscriptionData<T>;
+		return this.#subscriptions.get(hookId)?.data ?? this.#fallbackData;
 	}
 
 	// MUST be called from inside an effect, because it relies on browser APIs.
