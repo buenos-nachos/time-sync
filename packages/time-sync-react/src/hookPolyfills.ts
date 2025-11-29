@@ -6,8 +6,8 @@ import { useCallback, useInsertionEffect, useRef } from "react";
  * only added to the core library in verison 19.2 (October 1, 2025).
  *
  * This polyfill tries to implement the public behavior of useEffectEvent as
- * possible, but it can't do much more than that, because it doesn't have direct
- * access to React internals.
+ * much as possible, but the official version is going to be much more efficient
+ * because it actually has direct access to React internals.
  */
 /* biome-ignore lint:complexity/noBannedTypes -- I don't want to use this type,
    since there is a much more type-safe of doing it for the 99% use case, and
