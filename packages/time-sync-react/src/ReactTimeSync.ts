@@ -3,8 +3,6 @@ import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
 export type ReactTimeSyncGetter = () => ReactTimeSync;
 
-type LifeCycle = "initialized" | "mounted" | "disposed";
-
 type onReactStateSync = () => void;
 
 export interface SubscriptionData<T> {
@@ -31,6 +29,12 @@ function fallbackSubscriptionTransform(): null {
 	return null;
 }
 
+const stalenessThresholdMs = 200;
+
+function isFrozen(sync: TimeSync): boolean {
+	return sync.getStateSnapshot().config.freezeUpdates;
+}
+
 /**
  * A central class for managing all core state management, communication, and
  * synchronization between time-sync-react hooks and providers.
@@ -42,46 +46,45 @@ function fallbackSubscriptionTransform(): null {
 // values are still defined in an immutable, stable way, but we don't always
 // need to trigger re-renders in response to them changing.
 export class ReactTimeSync {
-	static readonly #stalenessThresholdMs = 200;
-	readonly subscriptions: Map<string, SubscriptionEntry<unknown>>;
+	/**
+	 * Have to store this with type unknown, because we need to be able to store
+	 * arbitrary data, and if we add a type parameter at the class level, that
+	 * forces all subscriptions to use the exact same transform type.
+	 */
+	readonly #subscriptions: Map<string, SubscriptionEntry<unknown>>;
 
 	#timeSync: TimeSync;
-	#lifecycle: LifeCycle;
+	#isMounted: boolean;
 	#fallbackData: SubscriptionData<null>;
-	#cleanupProvider: () => void;
 	#dateRefreshBatchId: number | undefined;
 	#dateRefreshIntervalId: NodeJS.Timeout | number | undefined;
 
 	constructor(timeSync?: TimeSync) {
 		this.#timeSync = timeSync ?? new TimeSync();
-		this.subscriptions = new Map();
+		this.#subscriptions = new Map();
 		this.#dateRefreshIntervalId = undefined;
 		this.#dateRefreshBatchId = undefined;
-		this.#cleanupProvider = noOp;
 
-		this.#fallbackData = {
-			cachedTransformation: null,
-			date: this.#timeSync.getStateSnapshot().date,
-		};
-
-		this.#lifecycle = "initialized";
+		const snap = this.#timeSync.getStateSnapshot();
+		this.#fallbackData = { cachedTransformation: null, date: snap.date };
+		this.#isMounted = false;
 	}
 
 	getTimeSync(): TimeSync {
-		if (this.#lifecycle !== "mounted") {
+		if (!this.#isMounted) {
 			throw new Error("Cannot retrieve TimeSync while system is not mounted");
 		}
 		return this.#timeSync;
 	}
 
 	syncTransformation(hookId: string, newValue: unknown): void {
-		if (this.#lifecycle !== "mounted") {
+		if (!this.#isMounted) {
 			throw new Error(
 				"Cannot sync transformation results while system is not mounted",
 			);
 		}
 
-		const entry = this.subscriptions.get(hookId);
+		const entry = this.#subscriptions.get(hookId);
 
 		// If there's no previous entry, we're assuming that a subscribe is
 		// coming, and we need to pre-seed the transformation to make sure that
@@ -95,7 +98,7 @@ export class ReactTimeSync {
 					date: this.#fallbackData.date,
 				},
 			};
-			this.subscriptions.set(hookId, seedEntry);
+			this.#subscriptions.set(hookId, seedEntry);
 			return;
 		}
 
@@ -111,7 +114,7 @@ export class ReactTimeSync {
 	}
 
 	subscribe<T>(options: ReactSubscriptionOptions<T>): () => void {
-		if (this.#lifecycle !== "mounted") {
+		if (!this.#isMounted) {
 			throw new Error("Cannot add subscription while system is not mounted");
 		}
 
@@ -123,7 +126,7 @@ export class ReactTimeSync {
 			transform,
 			data: this.#fallbackData as SubscriptionData<T>,
 		};
-		this.subscriptions.set(hookId, newEntry);
+		this.#subscriptions.set(hookId, newEntry);
 
 		// Even though TimeSync's unsubcribe has protections against
 		// double-calls, we should add another layer here, because React
@@ -135,7 +138,7 @@ export class ReactTimeSync {
 				return;
 			}
 			rootUnsubscribe();
-			this.subscriptions.delete(hookId);
+			this.#subscriptions.delete(hookId);
 			subscribed = false;
 		};
 
@@ -145,7 +148,7 @@ export class ReactTimeSync {
 				// Not accessing newEntry from closure just to be on the safe
 				// side and make sure we can't access a subcription after it's
 				// been removed
-				const entry = this.subscriptions.get(hookId);
+				const entry = this.#subscriptions.get(hookId);
 				if (entry === undefined) {
 					return;
 				}
@@ -168,26 +171,26 @@ export class ReactTimeSync {
 	}
 
 	getSubscriptionData<T>(hookId: string): SubscriptionData<T> {
-		if (this.#lifecycle !== "mounted") {
+		if (!this.#isMounted) {
 			throw new Error("Cannot access subscription while system is not mounted");
 		}
 
 		const data: SubscriptionData<unknown> =
-			this.subscriptions.get(hookId)?.data ?? this.#fallbackData;
+			this.#subscriptions.get(hookId)?.data ?? this.#fallbackData;
 		return data as SubscriptionData<T>;
 	}
 
-	// MUST be called from inside an effect, because it relies on browser APIs
+	// MUST be called from inside an effect, because it relies on browser APIs.
+	// Also, because of that, the expectation is that the useEffect API will
+	// enforce that this method cannot be called a second time without first
+	// unsubscribing
 	onProviderMount(timeSyncOverride?: TimeSync): () => void {
-		// We can't afford to throw an error here because React will double-call
-		// all effects in strict mode
-		if (this.#lifecycle !== "initialized") {
-			return this.#cleanupProvider;
-		}
-
-		this.#lifecycle = "mounted";
 		if (timeSyncOverride !== undefined) {
 			this.#timeSync = timeSyncOverride;
+		}
+
+		if (isFrozen(this.#timeSync)) {
+			return noOp;
 		}
 
 		// Because we can't control how much time can elapse between components
@@ -209,29 +212,33 @@ export class ReactTimeSync {
 		this.#dateRefreshIntervalId = setInterval(() => {
 			const newDate = new ReadonlyDate();
 			refreshFallbackDate(newDate);
-		}, ReactTimeSync.#stalenessThresholdMs);
+		}, stalenessThresholdMs);
 
 		const cleanup = () => {
 			// This also cleans up the subscription registered above
 			this.#timeSync.clearAll();
 			clearInterval(this.#dateRefreshIntervalId);
-			this.subscriptions.clear();
+			this.#subscriptions.clear();
 			if (this.#dateRefreshBatchId !== undefined) {
 				cancelAnimationFrame(this.#dateRefreshBatchId);
 			}
-			this.#lifecycle = "disposed";
+			this.#isMounted = false;
 		};
 
-		this.#cleanupProvider = cleanup;
+		this.#isMounted = true;
 		return cleanup;
 	}
 
 	// MUST be called from inside an effect, because it relies on browser APIs
 	onComponentMount(): void {
-		if (this.#lifecycle !== "mounted") {
+		if (!this.#isMounted) {
 			throw new Error(
 				"Cannot process component initialization while system is not mounted",
 			);
+		}
+
+		if (isFrozen(this.#timeSync)) {
+			return;
 		}
 
 		// Protection to make sure that if a bunch of components mount at the
@@ -246,7 +253,7 @@ export class ReactTimeSync {
 		this.#dateRefreshBatchId = requestAnimationFrame(() => {
 			// Serializing entries before looping just to be extra safe and make
 			// sure there's no risk of infinite loops from the iterator protocol
-			const entries = [...this.subscriptions.values()];
+			const entries = [...this.#subscriptions.values()];
 
 			for (const entry of entries) {
 				const { date, cachedTransformation } = entry.data;

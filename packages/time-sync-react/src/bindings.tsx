@@ -17,7 +17,7 @@ import { ReactTimeSync, type ReactTimeSyncGetter } from "./ReactTimeSync";
 
 export type TimeSyncProvider = FC<{
 	children: ReactNode;
-	timeSyncOverride?: TimeSync;
+	timeSync?: TimeSync;
 }>;
 
 const injectionMethods = [
@@ -109,9 +109,13 @@ export function createReactBindings<T extends InjectionMethod>(
 		}
 
 		case "reactContext": {
-			const fixedRts = new ReactTimeSync();
+			const rtxForProvider = new ReactTimeSync();
 			const rtsContext = createContext<ReactTimeSync | null>(null);
 
+			// Even though we can embed the ReactTimeSync via closure and have
+			// it still work at runtime, we want to define things this way to
+			// FORCE the user to go through context and make the API more
+			// predictable compared to other context-based libraries
 			getter = function useReactTimeSyncContext() {
 				const value = useContext(rtsContext);
 				if (value === null) {
@@ -122,41 +126,44 @@ export function createReactBindings<T extends InjectionMethod>(
 				return value;
 			};
 
-			TimeSyncProvider = ({ children, timeSyncOverride }) => {
-				const [overrideOnMount] = useState(timeSyncOverride);
-
+			// The two TimeSyncProviders look suspiciously the same, and they
+			// actually are right now (with one involving slightly more hoops),
+			// but if we ever provide a way to configure the ReactTimeSync
+			// separately from the vanilla TimeSync (even if indirectly), we
+			// want to keep these paths separate
+			TimeSyncProvider = ({ children, timeSync }) => {
+				const [lockedTimeSyncOverride] = useState(timeSync);
 				useInsertionEffect(() => {
-					return fixedRts.onProviderMount(overrideOnMount);
-				}, [overrideOnMount]);
-
+					return rtxForProvider.onProviderMount(lockedTimeSyncOverride);
+				}, [lockedTimeSyncOverride]);
 				return (
-					<rtsContext.Provider value={fixedRts}>{children}</rtsContext.Provider>
+					<rtsContext.Provider value={rtxForProvider}>
+						{children}
+					</rtsContext.Provider>
 				);
 			};
 			break;
 		}
 
 		case "hybrid": {
-			const fixedRts = new ReactTimeSync(timeSync);
+			const defaultRts = new ReactTimeSync(timeSync);
 
 			// This behavior is almost never used by React developers, but even
 			// if useContext is called outside of a complete UI tree (which you
 			// have to worry about with Astro's islands), the call will still
 			// work as long as there's a meaningful default value
-			const rtsContext = createContext(fixedRts);
-			const useReactTimeSyncContextWithDefault = () => useContext(rtsContext);
+			const rtsContext = createContext(defaultRts);
+			getter = () => useContext(rtsContext);
 
-			getter = useReactTimeSyncContextWithDefault;
-			TimeSyncProvider = ({ children, timeSyncOverride }) => {
-				const rts = useReactTimeSyncContextWithDefault();
-				const [overrideOnMount] = useState(timeSyncOverride);
-
+			TimeSyncProvider = ({ children, timeSync }) => {
+				const [lockedRtsOverride] = useState(() => new ReactTimeSync(timeSync));
 				useInsertionEffect(() => {
-					return rts.onProviderMount(overrideOnMount);
-				}, [rts, overrideOnMount]);
-
+					return lockedRtsOverride.onProviderMount();
+				}, [lockedRtsOverride]);
 				return (
-					<rtsContext.Provider value={rts}>{children}</rtsContext.Provider>
+					<rtsContext.Provider value={lockedRtsOverride}>
+						{children}
+					</rtsContext.Provider>
 				);
 			};
 
