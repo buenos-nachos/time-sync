@@ -181,10 +181,12 @@ export class ReactTimeSync {
 	}
 
 	// MUST be called from inside an effect, because it relies on browser APIs.
-	// Also, because of that, the expectation is that the useEffect API will
-	// enforce that this method cannot be called a second time without first
-	// unsubscribing
-	onProviderMount(): () => void {
+	initialize(): () => void {
+		if (this.#isMounted) {
+			throw new Error("Must call cleanup function before initializing");
+		}
+
+		this.#isMounted = true;
 		if (isFrozen(this.#timeSync)) {
 			return noOp;
 		}
