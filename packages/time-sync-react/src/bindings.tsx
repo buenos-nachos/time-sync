@@ -21,13 +21,13 @@ export type TimeSyncProvider = FC<{
 	timeSync?: TimeSync;
 }>;
 
-export function createTimeSyncProvider(
+function createTimeSyncProvider(
 	context: Context<ReactTimeSync> | Context<ReactTimeSync | null>,
 ): TimeSyncProvider {
 	return ({ children, timeSync }) => {
 		const [lockedRts] = useState(() => new ReactTimeSync(timeSync));
 		useInsertionEffect(() => {
-			return lockedRts.onProviderMount();
+			return lockedRts.initialize();
 		}, [lockedRts]);
 
 		return <context.Provider value={lockedRts}>{children}</context.Provider>;
@@ -148,7 +148,6 @@ export function createReactBindings<T extends InjectionMethod>(
 			// work as long as there's a meaningful default value
 			const rtsContext = createContext(defaultRts);
 			getter = () => useContext(rtsContext);
-
 			TimeSyncProvider = createTimeSyncProvider(rtsContext);
 			break;
 		}
