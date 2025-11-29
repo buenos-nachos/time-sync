@@ -16,6 +16,9 @@
 		"utility",
 		"ui"
 	],
+	"scripts": {
+		"check:types": "tsc --noEmit"
+	},
 	"sideEffects": false,
 	"main": "./src/index.ts",
 	"publishConfig": {
