@@ -203,10 +203,10 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 * memoizing the callback when it shouldn't, but that's it.
 		 */
 		const [, fallbackSync] = useReducer(negate, false);
-		const getSub = createUnstableGetSub<T>(rts, hookId);
+		const unstableGetSub = createUnstableGetSub<T>(rts, hookId);
 		const { date, cachedTransformation } = useSyncExternalStore(
 			stableDummySubscribe,
-			getSub,
+			unstableGetSub,
 		);
 
 		// There's some trade-offs with this memo (notably, if the consumer
@@ -225,15 +225,10 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 			return structuralMerge(prev, renderTransformation);
 		}, [cachedTransformation, renderTransformation]);
 
-		// Make sure to load the new merged value in before subscribing, so that
-		// we give the subscription more accurate data for detecting changes
-		useLayoutEffect(() => {
-			rts.syncTransformation(hookId, merged);
-		}, [rts, hookId, merged]);
-
 		const stableSubscribe = useEffectEvent((targetMs: number) => {
 			const unsub = rts.subscribe({
 				hookId,
+				initialValue: merged,
 				targetRefreshIntervalMs: targetMs,
 				transform: activeTransform,
 				onReactStateSync: () => {
@@ -249,6 +244,10 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		useLayoutEffect(() => {
 			return stableSubscribe(targetRefreshIntervalMs);
 		}, [stableSubscribe, targetRefreshIntervalMs]);
+
+		useLayoutEffect(() => {
+			rts.syncTransformation(hookId, merged);
+		}, [rts, hookId, merged]);
 
 		useLayoutEffect(() => {
 			rts.onComponentMount();

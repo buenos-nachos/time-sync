@@ -20,13 +20,10 @@ interface SubscriptionEntry<T> {
 
 interface ReactSubscriptionOptions<T> {
 	readonly hookId: string;
+	readonly initialValue: T;
 	readonly targetRefreshIntervalMs: number;
 	readonly transform: TransformCallback<T>;
 	readonly onReactStateSync: onReactStateSync;
-}
-
-function fallbackSubscriptionTransform(): null {
-	return null;
 }
 
 const stalenessThresholdMs = 200;
@@ -85,20 +82,7 @@ export class ReactTimeSync {
 		}
 
 		const entry = this.#subscriptions.get(hookId);
-
-		// If there's no previous entry, we're assuming that a subscribe is
-		// coming, and we need to pre-seed the transformation to make sure that
-		// we don't do a bunch of redundant work inside useTimeSync
 		if (entry === undefined) {
-			const seedEntry: SubscriptionEntry<unknown> = {
-				onReactStateSync: noOp,
-				transform: fallbackSubscriptionTransform,
-				data: {
-					cachedTransformation: newValue,
-					date: this.#fallbackData.date,
-				},
-			};
-			this.#subscriptions.set(hookId, seedEntry);
 			return;
 		}
 
@@ -118,15 +102,22 @@ export class ReactTimeSync {
 			throw new Error("Cannot add subscription while system is not mounted");
 		}
 
-		const { hookId, targetRefreshIntervalMs, transform, onReactStateSync } =
-			options;
+		const {
+			hookId,
+			initialValue,
+			targetRefreshIntervalMs,
+			transform,
+			onReactStateSync,
+		} = options;
 
-		const newEntry: SubscriptionEntry<T> = {
+		this.#subscriptions.set(hookId, {
 			onReactStateSync,
 			transform,
-			data: this.#fallbackData as SubscriptionData<T>,
-		};
-		this.#subscriptions.set(hookId, newEntry);
+			data: {
+				cachedTransformation: initialValue,
+				date: this.#fallbackData.date,
+			},
+		});
 
 		// Even though TimeSync's unsubcribe has protections against
 		// double-calls, we should add another layer here, because React
@@ -158,7 +149,10 @@ export class ReactTimeSync {
 				const merged = structuralMerge(oldTransformed, newTransformed);
 
 				if (merged === oldTransformed) {
-					entry.data = { date: newDate, cachedTransformation: oldTransformed };
+					entry.data = {
+						date: newDate,
+						cachedTransformation: oldTransformed,
+					};
 					return;
 				}
 
