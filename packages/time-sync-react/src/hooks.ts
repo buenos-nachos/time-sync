@@ -218,22 +218,30 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		// the consumer the option of memoizing expensive transformations at the
 		// render level without polluting the hook's API with super-fragile
 		// dependency array logic
-		const renderTransformation = useMemo(
+		const newTransformation = useMemo(
 			() => activeTransform(date),
 			[date, activeTransform],
 		);
 
 		const merged = useMemo(() => {
-			const prev = cachedTransformation ?? renderTransformation;
-			return structuralMerge(prev, renderTransformation);
-		}, [cachedTransformation, renderTransformation]);
+			const prev = cachedTransformation ?? newTransformation;
+			return structuralMerge(prev, newTransformation);
+		}, [cachedTransformation, newTransformation]);
 
-		const stableSubscribe = useEffectEvent((targetMs: number) => {
+		// While the contents of reactiveSubscribe will update every render,
+		// the subscription itself is always a one-shot deal, and new
+		// subscriptions will get set up every so often (in most cases, they'll
+		// probably be set up once, total). We need the transform to update
+		// independently, so that even if the subscription fires once, we'll
+		// keep re-syncing the transform logic based on the latest user-supplied
+		// closure values
+		const reactiveTransform = useEffectEvent(activeTransform);
+		const reactiveSubscribe = useEffectEvent((targetMs: number) => {
 			const unsub = rts.subscribe({
 				hookId,
 				initialValue: merged,
 				targetRefreshIntervalMs: targetMs,
-				transform: activeTransform,
+				transform: reactiveTransform,
 				onReactStateSync: () => {
 					if (ejectedNotifyRef.current === noOp) {
 						fallbackSync();
@@ -245,8 +253,8 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 			return unsub;
 		});
 		useLayoutEffect(() => {
-			return stableSubscribe(targetRefreshIntervalMs);
-		}, [stableSubscribe, targetRefreshIntervalMs]);
+			return reactiveSubscribe(targetRefreshIntervalMs);
+		}, [reactiveSubscribe, targetRefreshIntervalMs]);
 
 		useLayoutEffect(() => {
 			rts.updateCachedTransformation(hookId, merged);

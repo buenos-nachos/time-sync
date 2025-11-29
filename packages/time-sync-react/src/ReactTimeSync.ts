@@ -186,13 +186,13 @@ export class ReactTimeSync {
 		}
 
 		// Because we can't control how much time can elapse between components
-		// mounting, we need some kind of mechanism for refreshing the fallback
-		// date is fresh so that it can be safely used when a component mounts
+		// mounting, we need some kind of way of refreshing the fallback date
+		// so that we can guarantee a fresh value when a new component mounts
 		const refreshFallbackDate = (newDate: ReadonlyDate): void => {
 			const newDateTime = newDate.getTime();
 			if (this.#fallbackData.date.getTime() < newDateTime) {
 				this.#fallbackData = {
-					...this.#fallbackData,
+					cachedTransformation: this.#fallbackData.cachedTransformation,
 					date: newDate,
 				};
 			}
