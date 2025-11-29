@@ -8,10 +8,19 @@ describe.concurrent(structuralMerge, () => {
 		return true;
 	}
 
+	describe("General behavior", () => {
+		it("Returns old value untransformed if old value and new value are actually equal", ({
+			expect,
+		}) => {
+			expect.hasAssertions();
+		});
+	});
+
 	describe("Comparing primitives with primitives", () => {
-		it("Always returns the new value", ({ expect }) => {
-			const cases = [
-				["string", "string"],
+		it("Always returns new value when both values are of different types", ({
+			expect,
+		}) => {
+			const cases: readonly TestCase[] = [
 				["string", 1],
 				["string", true],
 				["string", null],
@@ -19,33 +28,27 @@ describe.concurrent(structuralMerge, () => {
 				["string", Symbol()],
 				["string", BigInt(0)],
 
-				[1, 1],
 				[1, true],
 				[1, null],
 				[1, undefined],
 				[1, Symbol()],
 				[1, BigInt(0)],
 
-				[true, true],
 				[true, null],
 				[true, undefined],
 				[true, Symbol()],
 				[true, BigInt(0)],
 
-				[null, null],
 				[null, undefined],
 				[null, Symbol()],
 				[null, BigInt(0)],
 
-				[undefined, undefined],
 				[undefined, Symbol()],
 				[undefined, BigInt(0)],
-
-				[Symbol(), Symbol()],
 				[undefined, BigInt(0)],
 
-				[BigInt(0), BigInt(0)],
-			] as const satisfies readonly TestCase[];
+				[BigInt(0), BigInt(1)],
+			];
 
 			for (const [value1, value2] of cases) {
 				const result1 = structuralMerge(value1, value2);
@@ -54,10 +57,6 @@ describe.concurrent(structuralMerge, () => {
 				expect(result2).toBe(value1);
 			}
 		});
-	});
-
-	it("", ({ expect }) => {
-		expect.hasAssertions();
 	});
 
 	describe("Comparing functions with other values", () => {
@@ -74,6 +73,18 @@ describe.concurrent(structuralMerge, () => {
 			expect(result3).toBe(dummyFunction);
 			const result4 = structuralMerge(dummyFunction, other);
 			expect(result4).toBe(other);
+		});
+	});
+
+	describe("Comparing two JSON-serializable objects", () => {
+		it("", ({ expect }) => {
+			expect.hasAssertions();
+		});
+	});
+
+	describe("Cycle detection", () => {
+		it("", ({ expect }) => {
+			expect.hasAssertions();
 		});
 	});
 });
