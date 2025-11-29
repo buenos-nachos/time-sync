@@ -170,7 +170,10 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		// the state getter while outside a render. We have to eject this
 		// function specifically; trying to force re-rendering via a simple
 		// useReducer hack won't work. Not only will it lack the necessary level
-		// of granularity, but it's not guaranteed the getter will re-run
+		// of granularity, but it's not guaranteed the getter will re-run. Also,
+		// we MUST make sure that useRef is initialized with a function that we
+		// both own and that is defined outside the render so that we can do
+		// simple comparisons to see if the real callback has been loaded yet
 		const ejectedNotifyRef = useRef(noOp);
 		const stableDummySubscribe = useCallback((notifyReact: () => void) => {
 			ejectedNotifyRef.current = notifyReact;
