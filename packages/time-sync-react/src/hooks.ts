@@ -86,7 +86,10 @@ function negate(value: boolean): boolean {
 	return !value;
 }
 
-function createGetSub<T>(
+// Using compiler directive to force this function to give us back a new
+// function reference on every invocation. Only thing is that we needed to
+// create a new function boundary to make this apply only to this operation
+function createUnstableGetSub<T>(
 	rts: ReactTimeSync,
 	hookId: string,
 ): () => SubscriptionData<T> {
@@ -153,7 +156,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 */
 		const { targetRefreshIntervalMs, transform } = options;
 		const activeTransform = (transform ?? identity) as TransformCallback<T>;
-		const reactTs = getter();
+		const rts = getter();
 
 		// This is an abuse of the useId API, but because it gives us a stable
 		// ID that is uniquely associated with the current component instance,
@@ -200,10 +203,10 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 * memoizing the callback when it shouldn't, but that's it.
 		 */
 		const [, fallbackSync] = useReducer(negate, false);
-		const unstableGetSub = createGetSub<T>(reactTs, hookId);
+		const getSub = createUnstableGetSub<T>(rts, hookId);
 		const { date, cachedTransformation } = useSyncExternalStore(
 			stableDummySubscribe,
-			unstableGetSub,
+			getSub,
 		);
 
 		// There's some trade-offs with this memo (notably, if the consumer
@@ -225,19 +228,14 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		// Make sure to load the new merged value in before subscribing, so that
 		// we give the subscription more accurate data for detecting changes
 		useLayoutEffect(() => {
-			reactTs.syncTransformation(hookId, merged);
-		}, [reactTs, hookId, merged]);
+			rts.syncTransformation(hookId, merged);
+		}, [rts, hookId, merged]);
 
-		// Because of how React lifecycles work, this effect event callback
-		// should never be called from inside render logic. While called in a
-		// re-render, it will *always* give you stale date, but it will be
-		// correct by the time that ReactTimeSync needs to use the function
-		const externalTransform = useEffectEvent(activeTransform);
-		useLayoutEffect(() => {
-			const unsub = reactTs.subscribe({
+		const stableSubscribe = useEffectEvent((targetMs: number) => {
+			const unsub = rts.subscribe({
 				hookId,
-				targetRefreshIntervalMs,
-				transform: externalTransform,
+				targetRefreshIntervalMs: targetMs,
+				transform: activeTransform,
 				onReactStateSync: () => {
 					if (ejectedNotifyRef.current === noOp) {
 						fallbackSync();
@@ -246,13 +244,15 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 					}
 				},
 			});
-
 			return unsub;
-		}, [hookId, externalTransform, reactTs, targetRefreshIntervalMs]);
+		});
+		useLayoutEffect(() => {
+			return stableSubscribe(targetRefreshIntervalMs);
+		}, [stableSubscribe, targetRefreshIntervalMs]);
 
 		useLayoutEffect(() => {
-			reactTs.onComponentMount();
-		}, [reactTs]);
+			rts.onComponentMount();
+		}, [rts]);
 
 		return merged;
 	};
