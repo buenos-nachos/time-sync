@@ -115,10 +115,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 *    does mean there's a risk that subscriptions can keep getting torn
 		 *    down and built back up on re-renders. So we have to stabilize
 		 *    those as much as possible.
-		 * 4. We need to bring in a few layout effects to minimize the risks of
-		 *    contradictory dates when a new component mounts, too, which
-		 *    complicates using useSyncExternalStore.
-		 * 5. This isn't documented anywhere, but the way the hook works is that
+		 * 4. This isn't documented anywhere, but the way the hook works is that
 		 *    on mount, it grabs the value from the mutable source via the
 		 *    getter function, and then waits until after the render finishes to
 		 *    fire the subscription callback. In other words, the subscription
@@ -126,10 +123,16 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 *    flickering problems, and also means that by default, it's
 		 *    impossible to "weave" it between useLayoutEffect calls because
 		 *    they'll always outpace it.
+		 * 5. We need to bring in a few layout effects to minimize the risks of
+		 *    contradictory dates when a new component mounts, too, so we
+		 *    suddenly have to start worrying about firing priority and React
+		 *    lifecycles (without being able to interface with them directly,
+		 *    because we're not using class components).
 		 * 6. So, basically we have to do some cursed things to build out an
 		 *    equivalent version of useSyncExternalStore that has two extra
 		 *    features:
-		 *    1. Being able to subscribe at useLayoutEffect speed.
+		 *    1. Being able to subscribe at useLayoutEffect speed (or at least
+		 *       pretend that it can).
 		 *    2. Being able to call any number of hooks between the get and
 		 *       subscribe phases, instead of keeping them glued together.
 		 *
@@ -175,11 +178,12 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 *    source immediately, and then cue up the logic for ejecting the
 		 *    notify callback at useEffect speed
 		 * 2. The layout effect for the subscription fires, and it gets set up.
-		 * 3. Some other layout effect fires, and causes the susbcribers to be
+		 * 3. Some other layout effect fires, and causes all susbcribers to be
 		 *    notified
-		 * 4. But because we haven't had the chance to eject anything yet, we
-		 *    don't have the ability to tell the newly-added state getter to
-		 *    check for a new value. And then we're back to screen tearing.
+		 * 4. We'll have the subscription already, so the new component will be
+		 *    part of the update process. But we won't have had the chance to
+		 *    eject the notification callback yet, so we won't be able to
+		 *    guarantee the consumer correctly updates and avoids screen tearing
 		 *
 		 * The solution is to set up extra state to force a coarse-grained
 		 * re-render with a dummy value, and use that dummy value to invalidate
@@ -188,7 +192,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 * the get result happened to change, we'll be guaranteed to grab it.
 		 */
 		const [forceInvalidator, fallbackSync] = useReducer(negate, false);
-		const getSub = useCallback(() => {
+		const getSubWithInvalidation = useCallback(() => {
 			// Literally just doing this to make the linter happy that we're
 			// including an otherwise unused value in the dependency array
 			void forceInvalidator;
@@ -196,7 +200,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		}, [rts, hookId, forceInvalidator]);
 		const { date, cachedTransformation } = useSyncExternalStore(
 			stableDummySubscribe,
-			getSub,
+			getSubWithInvalidation,
 		);
 
 		// There's some trade-offs with this memo (notably, if the consumer
