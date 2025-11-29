@@ -35,7 +35,7 @@ export function createTimeSyncProvider(
 }
 
 type CreateContextWithGetterResult<T extends TimeSync | undefined> =
-	T extends TimeSync
+	TimeSync extends T
 		? {
 				context: Context<ReactTimeSync>;
 				getter: ReactTimeSyncGetter;
@@ -48,7 +48,7 @@ type CreateContextWithGetterResult<T extends TimeSync | undefined> =
 export function createContextWithGetter<T extends TimeSync | undefined>(
 	defaultValue: T,
 ): CreateContextWithGetterResult<T> {
-	if (defaultValue === null) {
+	if (defaultValue === undefined) {
 		const context = createContext<ReactTimeSync | undefined>(undefined);
 		return {
 			context,
@@ -144,6 +144,8 @@ function validateCreateReactBindingsOptions(
 	}
 }
 
+// The goal of this function is basically to wire up all the individual helpers
+// while providing nice, polished TypeScript types for good developer experience
 export function createReactBindings<T extends InjectionMethod>(
 	options: CreateReactBindingsOptions<T>,
 ): CreateReactBindingsResult<T> {
