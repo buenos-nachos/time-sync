@@ -5,7 +5,7 @@ export type ReactTimeSyncGetter = () => ReactTimeSync;
 
 type onReactStateSync = () => void;
 
-export interface SubscriptionData<T> {
+interface SubscriptionData<T> {
 	readonly date: ReadonlyDate;
 	readonly cachedTransformation: T;
 }

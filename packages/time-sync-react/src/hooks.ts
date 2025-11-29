@@ -3,6 +3,10 @@
  * be like that, but the file has to rely on so many hacks, undocumented (but
  * stable) behavior, and advanced React features that it's not going to be clear
  * what's going on otherwise.
+ *
+ * Also, because of how we generate the hooks for the end-consumer, we have to
+ * duplicate the comments for the hooks and the properties in bindings.tsx.
+ * Otherwise, the info will be erased when the user calls createReactBindings
  */
 import type { ReadonlyDate, TimeSync } from "@buenos-nachos/time-sync";
 import React, {
@@ -18,6 +22,16 @@ import { useEffectEventPolyfill } from "./hookPolyfills";
 import type { ReactTimeSyncGetter } from "./ReactTimeSync";
 import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
+// Copied from bindings.tsx
+/**
+ * Exposes the raw TimeSync instance without binding it to React
+ * state. The TimeSync itself is safe to pass around inside a
+ * render, but ALL of its methods must be called from inside event
+ * handlers or useEffect calls.
+ *
+ * This hook is mainly intended as an escape hatch for when
+ * `useTimeSync` won't serve your needs.
+ */
 export type UseTimeSyncRef = () => TimeSync;
 
 export function createUseTimeSyncRef(
@@ -34,6 +48,9 @@ const useEffectEvent: typeof React.useEffectEvent =
 		? useEffectEventPolyfill
 		: React.useEffectEvent;
 
+/**
+ * @todo Need to figure out the best way to describe this
+ */
 export type UseTimeSyncOptions<T> = Readonly<{
 	/**
 	 * The ideal interval of time, in milliseconds, that defines how often the
@@ -259,4 +276,18 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 	};
 }
 
+// Copied from bindings.tsx
+/**
+ * Sets up a new TimeSync subscription using the specified
+ * interval, and ensures that the component will be able to
+ * re-render as the TimeSync instance updates its internal state
+ * and notifies subcribers.
+ *
+ * The returned value is fully bound to React's lifecycles, and is
+ * always safe to reference inside render logic, event handlers, and
+ * effects.
+ *
+ * See the `UseTimeSyncOptions` type for more info on what each
+ * property does.
+ */
 export type UseTimeSync = ReturnType<typeof createUseTimeSync>;

@@ -1,3 +1,7 @@
+/**
+ * @file When updating the comments for the useTimeSync and useTimeSyncRef
+ * hooks, be sure to copy them to hooks.ts as well.
+ */
 import type { TimeSync } from "@buenos-nachos/time-sync";
 import {
 	type Context,
@@ -16,12 +20,15 @@ import {
 } from "./hooks";
 import { ReactTimeSync, type ReactTimeSyncGetter } from "./ReactTimeSync";
 
+/**
+ * @todo Need to figure out the best way to describe this
+ */
 export type TimeSyncProvider = FC<{
 	children: ReactNode;
 	timeSync?: TimeSync;
 }>;
 
-export function createTimeSyncProvider(
+function createTimeSyncProvider(
 	context: Context<ReactTimeSync> | Context<ReactTimeSync | undefined>,
 ): TimeSyncProvider {
 	return ({ children, timeSync }) => {
@@ -45,7 +52,7 @@ type CreateContextWithGetterResult<T extends TimeSync | undefined> =
 				getter: ReactTimeSyncGetter;
 			};
 
-export function createContextWithGetter<T extends TimeSync | undefined>(
+function createContextWithGetter<T extends TimeSync | undefined>(
 	defaultValue: T,
 ): CreateContextWithGetterResult<T> {
 	if (defaultValue === undefined) {
@@ -82,6 +89,9 @@ const injectionMethods = [
 	"hybrid",
 ] as const satisfies readonly string[];
 
+/**
+ * @todo Need to figure out the best way to describe this
+ */
 export type InjectionMethod = (typeof injectionMethods)[number];
 
 function isInjectionMethod(value: unknown): value is InjectionMethod {
@@ -98,14 +108,44 @@ type CreateReactBindingsOptions<T extends InjectionMethod> =
 				readonly timeSync: TimeSync;
 			};
 
+// TypeScript's LSP ensures that even if we only add comments to one property
+// in the union, the info will still be copied to any properties with the same
+// name in other union members
 type CreateReactBindingsResult<T extends InjectionMethod> = T extends "closure"
 	? {
 			readonly useTimeSync: UseTimeSync;
 			readonly useTimeSyncRef: UseTimeSyncRef;
 		}
 	: {
+			/**
+			 * Sets up a new TimeSync subscription using the specified
+			 * interval, and ensures that the component will be able to
+			 * re-render as the TimeSync instance updates its internal state
+			 * and notifies subcribers.
+			 *
+			 * The returned value is fully bound to React's lifecycles, and is
+			 * always safe to reference inside render logic, event handlers, and
+			 * effects.
+			 *
+			 * See the `UseTimeSyncOptions` type for more info on what each
+			 * property does.
+			 */
 			readonly useTimeSync: UseTimeSync;
+
+			/**
+			 * Exposes the raw TimeSync instance without binding it to React
+			 * state. The TimeSync itself is safe to pass around inside a
+			 * render, but ALL of its methods must be called from inside event
+			 * handlers or useEffect calls.
+			 *
+			 * This hook is mainly intended as an escape hatch for when
+			 * `useTimeSync` won't serve your needs.
+			 */
 			readonly useTimeSyncRef: UseTimeSyncRef;
+
+			/**
+			 * @todo Need to figure out the best way to describe this
+			 */
 			readonly TimeSyncProvider: TimeSyncProvider;
 		};
 

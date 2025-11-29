@@ -1,5 +1,9 @@
 import type { ReadonlyDate } from "@buenos-nachos/time-sync";
 
+/**
+ * A callback that receives a ReadonlyDate instance, and can transform it into
+ * any arbitrary value.
+ */
 // This type originally had a more sophisticated signature to prevent it from
 // returning promises. But now React now has support for consuming promises
 // from inside a render via Suspsense and `use`. A promise is probably a mistake
