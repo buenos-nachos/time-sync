@@ -1,6 +1,7 @@
 {
-	"name": "@buenos-nachos/time-sync",
-	"version": "0.3.0",
+	"name": "@buenos-nachos/time-sync-react",
+	"private": true,
+	"version": "0.0.0",
 	"license": "MIT",
 	"type": "module",
 	"packageManager": "pnpm@10.17.0",
@@ -9,9 +10,10 @@
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/buenos-nachos/time-sync.git",
-		"directory": "packages/time-sync"
+		"directory": "packages/time-sync-react"
 	},
 	"keywords": [
+		"react",
 		"typescript",
 		"utility",
 		"ui"
@@ -27,7 +29,16 @@
 		"module": "./dist/index.mjs",
 		"types": "./dist/index.d.ts"
 	},
+	"dependencies": {
+		"@buenos-nachos/time-sync": "workspace:*"
+	},
 	"devDependencies": {
+		"@types/react": "19.2.0",
+		"react": "19.2.0",
 		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"@buenos-nachos/time-sync": "0.4.0",
+		"react": ">= 18.0.0"
 	}
 }
