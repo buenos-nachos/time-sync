@@ -14,6 +14,41 @@ export type TransformCallback<T> = (date: ReadonlyDate) => T;
    actually want a completely empty function body. */
 export function noOp(..._: readonly unknown[]): void {}
 
+function isOldValuePotentiallyReusable<T = unknown>(
+	oldValue: T,
+	newValue: T,
+): boolean {
+	switch (typeof newValue) {
+		case "boolean":
+		case "number":
+		case "bigint":
+		case "string":
+		case "undefined":
+		case "symbol": {
+			return false;
+		}
+
+		// If the new value is a function, we don't have a way of checking
+		// whether the new function and old function are fully equivalent. While
+		// we can stringify the function bodies and compare those, we have no
+		// way of knowing if they're from the same execution context or have the
+		// same closure values. Have to err on always returning the new value,
+		// but also, computing a function via useTimeSync seems SUPER niche?
+		case "function": {
+			return false;
+		}
+
+		// Have to catch null, since its typeof value is "object"
+		case "object": {
+			if (newValue === null || typeof oldValue !== "object") {
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
 // Composite tracker isn't meant to track all non-primitives; just
 // non-primitives that rely on value nesting
 function structuralMergeWithCycleDetection<T = unknown>(
@@ -38,34 +73,9 @@ function structuralMergeWithCycleDetection<T = unknown>(
 		return newValue;
 	}
 
-	// Handle all cases we can get from the typeof operator; only arrays and
-	// objects will be left afterwards
-	switch (typeof newValue) {
-		case "boolean":
-		case "number":
-		case "bigint":
-		case "string":
-		case "undefined":
-		case "symbol": {
-			return newValue;
-		}
-
-		// If the new value is a function, we don't have a way of checking
-		// whether the new function and old function are fully equivalent. While
-		// we can stringify the function bodies and compare those, we have no
-		// way of knowing if they're from the same execution context or have the
-		// same closure values. Have to err on always returning the new value,
-		// but also, computing a function via useTimeSync seems SUPER niche?
-		case "function": {
-			return newValue;
-		}
-
-		// Have to catch null, since its typeof value is "object"
-		case "object": {
-			if (newValue === null || typeof oldValue !== "object") {
-				return newValue;
-			}
-		}
+	// Only arrays and objects should be be left afterwards
+	if (!isOldValuePotentiallyReusable(oldValue, newValue)) {
+		return newValue;
 	}
 
 	// No idea why Object.keys requires a type assertion, but this doesn't
@@ -140,6 +150,12 @@ function structuralMergeWithCycleDetection<T = unknown>(
 }
 
 export function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
+	// Quick check for primitive values to avoid array allocation for the
+	// tracker and avoid recursion
+	if (!isOldValuePotentiallyReusable(oldValue, newValue)) {
+		return newValue;
+	}
+
 	const compositeTracker: unknown[] = [];
 	return structuralMergeWithCycleDetection(
 		compositeTracker,
