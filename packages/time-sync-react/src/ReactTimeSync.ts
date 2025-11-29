@@ -119,7 +119,7 @@ export class ReactTimeSync {
 			},
 		});
 
-		// Even though TimeSync's unsubcribe has protections against
+		// Even though TimeSync's unsubscribe has protections against
 		// double-calls, we should add another layer here, because React
 		// doesn't say whether it reuses hook IDs after a component unmounts,
 		// and removing the same ID multiple times could be destructive
@@ -137,7 +137,7 @@ export class ReactTimeSync {
 			targetRefreshIntervalMs,
 			onUpdate: (newDate) => {
 				// Not accessing newEntry from closure just to be on the safe
-				// side and make sure we can't access a subcription after it's
+				// side and make sure we can't access a subscription after it's
 				// been removed
 				const entry = this.#subscriptions.get(hookId);
 				if (entry === undefined) {

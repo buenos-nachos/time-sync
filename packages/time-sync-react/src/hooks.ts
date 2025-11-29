@@ -195,7 +195,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 *    source immediately, and then cue up the logic for ejecting the
 		 *    notify callback at useEffect speed
 		 * 2. The layout effect for the subscription fires, and it gets set up.
-		 * 3. Some other layout effect fires, and causes all susbcribers to be
+		 * 3. Some other layout effect fires, and causes all subscribers to be
 		 *    notified
 		 * 4. We'll have the subscription already, so the new component will be
 		 *    part of the update process. But we won't have had the chance to
@@ -281,7 +281,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
  * Sets up a new TimeSync subscription using the specified
  * interval, and ensures that the component will be able to
  * re-render as the TimeSync instance updates its internal state
- * and notifies subcribers.
+ * and notifies subscribers.
  *
  * The returned value is fully bound to React's lifecycles, and is
  * always safe to reference inside render logic, event handlers, and

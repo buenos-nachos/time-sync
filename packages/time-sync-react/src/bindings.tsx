@@ -121,7 +121,7 @@ type CreateReactBindingsResult<T extends InjectionMethod> = T extends "closure"
 			 * Sets up a new TimeSync subscription using the specified
 			 * interval, and ensures that the component will be able to
 			 * re-render as the TimeSync instance updates its internal state
-			 * and notifies subcribers.
+			 * and notifies subscribers.
 			 *
 			 * The returned value is fully bound to React's lifecycles, and is
 			 * always safe to reference inside render logic, event handlers, and

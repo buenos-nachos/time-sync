@@ -3,7 +3,7 @@ import { useCallback, useInsertionEffect, useRef } from "react";
 /**
  * Implemented to enable support for React on versions 18 (released March
  * 29, 2022) up to version 19.1.1 (released July 28, 2025). useEffectEvent was
- * only added to the core library in verison 19.2 (October 1, 2025).
+ * only added to the core library in version 19.2 (October 1, 2025).
  *
  * This polyfill tries to implement the public behavior of useEffectEvent as
  * much as possible, but the official version is going to be much more efficient
