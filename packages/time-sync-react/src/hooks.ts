@@ -14,11 +14,7 @@ import React, {
 	useSyncExternalStore,
 } from "react";
 import { useEffectEventPolyfill } from "./hookPolyfills";
-import type {
-	ReactTimeSync,
-	ReactTimeSyncGetter,
-	SubscriptionData,
-} from "./ReactTimeSync";
+import type { ReactTimeSyncGetter } from "./ReactTimeSync";
 import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
 export type UseTimeSyncRef = () => TimeSync;
@@ -84,17 +80,6 @@ function identity<T>(value: T): T {
 // Should also be defined outside the hook to optimize useReducer behavior
 function negate(value: boolean): boolean {
 	return !value;
-}
-
-// Using compiler directive to force this function to give us back a new
-// function reference on every invocation. Only thing is that we needed to
-// create a new function boundary to make this apply only to this operation
-function createUnstableGetSub<T>(
-	rts: ReactTimeSync,
-	hookId: string,
-): () => SubscriptionData<T> {
-	"use no memo";
-	return () => rts.getSubscriptionData<T>(hookId);
 }
 
 // The setup here is a little bit wonkier than the one for useTimeSyncRef
@@ -195,21 +180,22 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 *    don't have the ability to tell the newly-added state getter to
 		 *    check for a new value. And then we're back to screen tearing.
 		 *
-		 * The solution is to force a coarse-grained re-render (useState also
-		 * works, but useReducer gives us more options for minimizing GC
-		 * generation on each render). And then deliberately keep the state
-		 * getter UN-memoized. React will automatically re-call the getter on
+		 * The solution is to set up extra state to force a coarse-grained
+		 * re-render with a dummy value, and use that dummy value to invalidate
+		 * the state getter. React will automatically re-call the getter on
 		 * the new render because it'll receive a new function reference, and if
-		 * the value happened to change, we'll still have access to it.
-		 *
-		 * We have to do a little more work to prevent the React Compiler from
-		 * memoizing the callback when it shouldn't, but that's it.
+		 * the value happened to change, we'll be guaranteed to grab it.
 		 */
-		const [, fallbackSync] = useReducer(negate, false);
-		const unstableGetSub = createUnstableGetSub<T>(rts, hookId);
+		const [forceInvalidator, fallbackSync] = useReducer(negate, false);
+		const getSub = useCallback(() => {
+			// Literally just doing this to make the linter happy that we're
+			// including an otherwise unused value in the dependency array
+			void forceInvalidator;
+			return rts.getSubscriptionData<T>(hookId);
+		}, [rts, hookId, forceInvalidator]);
 		const { date, cachedTransformation } = useSyncExternalStore(
 			stableDummySubscribe,
-			unstableGetSub,
+			getSub,
 		);
 
 		// There's some trade-offs with this memo (notably, if the consumer
