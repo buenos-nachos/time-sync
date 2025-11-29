@@ -185,7 +185,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 * re-render with a dummy value, and use that dummy value to invalidate
 		 * the state getter. React will automatically re-call the getter on
 		 * the new render because it'll receive a new function reference, and if
-		 * the value happened to change, we'll be guaranteed to grab it.
+		 * the get result happened to change, we'll be guaranteed to grab it.
 		 */
 		const [forceInvalidator, fallbackSync] = useReducer(negate, false);
 		const getSub = useCallback(() => {
