@@ -21,8 +21,8 @@ export type TimeSyncProvider = FC<{
 	timeSync?: TimeSync;
 }>;
 
-function createTimeSyncProvider(
-	context: Context<ReactTimeSync> | Context<ReactTimeSync | null>,
+export function createTimeSyncProvider(
+	context: Context<ReactTimeSync> | Context<ReactTimeSync | undefined>,
 ): TimeSyncProvider {
 	return ({ children, timeSync }) => {
 		const [lockedRts] = useState(() => new ReactTimeSync(timeSync));
@@ -32,6 +32,48 @@ function createTimeSyncProvider(
 
 		return <context.Provider value={lockedRts}>{children}</context.Provider>;
 	};
+}
+
+type CreateContextWithGetterResult<T extends TimeSync | undefined> =
+	T extends TimeSync
+		? {
+				context: Context<ReactTimeSync>;
+				getter: ReactTimeSyncGetter;
+			}
+		: {
+				context: Context<ReactTimeSync | undefined>;
+				getter: ReactTimeSyncGetter;
+			};
+
+export function createContextWithGetter<T extends TimeSync | undefined>(
+	defaultValue: T,
+): CreateContextWithGetterResult<T> {
+	if (defaultValue === null) {
+		const context = createContext<ReactTimeSync | undefined>(undefined);
+		return {
+			context,
+			getter: () => {
+				const value = useContext(context);
+				if (value === undefined) {
+					throw new Error(
+						"Bindings were created with injection method `reactContext`, but TimeSyncProvider is not mounted anywhere in the application",
+					);
+				}
+				return value;
+			},
+		} as CreateContextWithGetterResult<T>;
+	}
+
+	// This behavior is almost never used by React developers, but even if
+	// useContext is called outside of a complete UI tree (which you have to
+	// worry about with Astro's islands), the call will still work as long as
+	// there's a meaningful default value
+	const defaultRts = new ReactTimeSync(defaultValue);
+	const context = createContext(defaultRts);
+	return {
+		context,
+		getter: () => useContext(context),
+	} as CreateContextWithGetterResult<T>;
 }
 
 const injectionMethods = [
@@ -113,42 +155,26 @@ export function createReactBindings<T extends InjectionMethod>(
 	// to get more complicated and nuanced over time. Code duplication is better
 	// than bad abstractions right now
 	let TimeSyncProvider: TimeSyncProvider | undefined;
-	let getter: ReactTimeSyncGetter;
+	let get: ReactTimeSyncGetter;
 	switch (injectionMethod) {
 		case "closure": {
 			const fixedRts = new ReactTimeSync(timeSync);
-			getter = () => fixedRts;
+			get = () => fixedRts;
 			TimeSyncProvider = undefined;
 			break;
 		}
 
 		case "reactContext": {
-			const rtsContext = createContext<ReactTimeSync | null>(null);
-
-			getter = function useReactTimeSyncContext() {
-				const value = useContext(rtsContext);
-				if (value === null) {
-					throw new Error(
-						"Bindings were created with injection method `reactContext`, but TimeSyncProvider is not mounted anywhere in the application",
-					);
-				}
-				return value;
-			};
-
-			TimeSyncProvider = createTimeSyncProvider(rtsContext);
+			const { context, getter } = createContextWithGetter(undefined);
+			get = getter;
+			TimeSyncProvider = createTimeSyncProvider(context);
 			break;
 		}
 
 		case "hybrid": {
-			const defaultRts = new ReactTimeSync(timeSync);
-
-			// This behavior is almost never used by React developers, but even
-			// if useContext is called outside of a complete UI tree (which you
-			// have to worry about with Astro's islands), the call will still
-			// work as long as there's a meaningful default value
-			const rtsContext = createContext(defaultRts);
-			getter = () => useContext(rtsContext);
-			TimeSyncProvider = createTimeSyncProvider(rtsContext);
+			const { context, getter } = createContextWithGetter(timeSync);
+			get = getter;
+			TimeSyncProvider = createTimeSyncProvider(context);
 			break;
 		}
 
@@ -161,8 +187,8 @@ export function createReactBindings<T extends InjectionMethod>(
 	}
 
 	const result: FlatCreateReactBindingsResult = {
-		useTimeSync: createUseTimeSync(getter),
-		useTimeSyncRef: createUseTimeSyncRef(getter),
+		useTimeSync: createUseTimeSync(get),
+		useTimeSyncRef: createUseTimeSyncRef(get),
 	};
 	// Only add the key at runtime if we actually have a meaningful value
 	if (TimeSyncProvider !== undefined) {
