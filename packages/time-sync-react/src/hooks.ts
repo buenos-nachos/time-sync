@@ -14,7 +14,11 @@ import React, {
 	useSyncExternalStore,
 } from "react";
 import { useEffectEventPolyfill } from "./hookPolyfills";
-import type { ReactTimeSyncGetter } from "./ReactTimeSync";
+import type {
+	ReactTimeSync,
+	ReactTimeSyncGetter,
+	SubscriptionData,
+} from "./ReactTimeSync";
 import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
 export type UseTimeSyncRef = () => TimeSync;
@@ -80,6 +84,14 @@ function identity<T>(value: T): T {
 // Should also be defined outside the hook to optimize useReducer behavior
 function negate(value: boolean): boolean {
 	return !value;
+}
+
+function createGetSub<T>(
+	rts: ReactTimeSync,
+	hookId: string,
+): () => SubscriptionData<T> {
+	"use no memo";
+	return () => rts.getSubscriptionData<T>(hookId);
 }
 
 // The setup here is a little bit wonkier than the one for useTimeSyncRef
@@ -184,25 +196,14 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 * the new render because it'll receive a new function reference, and if
 		 * the value happened to change, we'll still have access to it.
 		 *
-		 * @todo 2025-11-27 - Verify that this still works with the React
-		 * compiler. It hopefully should, since React should be smart enough to
-		 * know it shouldn't memoize results from mutable sources. But who knows
-		 * – this is abusing undocumented behavior.
-		 *
-		 * Worst case scenario, we do something like this to FORCE the compiler
-		 * to avoid memoizing:
-		 *
-		 * function createGetCacheEntry<T>(rts: ReactTimeSync, hookId: string) {
-		 *   // React compiler directives only work at the beginning of a
-		 *   // function body, so we have to introduce a new boundary.
-		 *   "use no memo";
-		 *   return () => rts.getCacheEntry<T>(hookId);
-		 * }
+		 * We have to do a little more work to prevent the React Compiler from
+		 * memoizing the callback when it shouldn't, but that's it.
 		 */
 		const [, fallbackSync] = useReducer(negate, false);
+		const unstableGetSub = createGetSub<T>(reactTs, hookId);
 		const { date, cachedTransformation } = useSyncExternalStore(
 			stableDummySubscribe,
-			() => reactTs.getSubscriptionData<T>(hookId),
+			unstableGetSub,
 		);
 
 		// There's some trade-offs with this memo (notably, if the consumer
@@ -233,7 +234,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		// correct by the time that ReactTimeSync needs to use the function
 		const externalTransform = useEffectEvent(activeTransform);
 		useLayoutEffect(() => {
-			return reactTs.subscribe({
+			const unsub = reactTs.subscribe({
 				hookId,
 				targetRefreshIntervalMs,
 				transform: externalTransform,
@@ -245,6 +246,8 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 					}
 				},
 			});
+
+			return unsub;
 		}, [hookId, externalTransform, reactTs, targetRefreshIntervalMs]);
 
 		useLayoutEffect(() => {
