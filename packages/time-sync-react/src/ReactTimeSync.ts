@@ -52,8 +52,8 @@ export class ReactTimeSync {
 	 * forces all subscriptions to use the exact same transform type.
 	 */
 	readonly #subscriptions: Map<string, SubscriptionEntry<unknown>>;
+	readonly #timeSync: TimeSync;
 
-	#timeSync: TimeSync;
 	#isMounted: boolean;
 	#fallbackData: SubscriptionData<null>;
 	#dateRefreshBatchId: number | undefined;
@@ -184,11 +184,7 @@ export class ReactTimeSync {
 	// Also, because of that, the expectation is that the useEffect API will
 	// enforce that this method cannot be called a second time without first
 	// unsubscribing
-	onProviderMount(timeSyncOverride?: TimeSync): () => void {
-		if (timeSyncOverride !== undefined) {
-			this.#timeSync = timeSyncOverride;
-		}
-
+	onProviderMount(): () => void {
 		if (isFrozen(this.#timeSync)) {
 			return noOp;
 		}
