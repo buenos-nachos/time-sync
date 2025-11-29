@@ -2,13 +2,14 @@ import { describe, it } from "vitest";
 import { structuralMerge } from "./utilities";
 
 describe.concurrent(structuralMerge, () => {
-	it("", ({ expect }) => {
-		expect.hasAssertions();
-	});
+	type TestCase = readonly [value1: unknown, value2: unknown];
+
+	function dummyFunction(): boolean {
+		return true;
+	}
 
 	describe("Comparing primitives with primitives", () => {
 		it("Always returns the new value", ({ expect }) => {
-			type TestCase = readonly [value1: unknown, value2: unknown];
 			const cases = [
 				["string", "string"],
 				["string", 1],
@@ -52,6 +53,27 @@ describe.concurrent(structuralMerge, () => {
 				const result2 = structuralMerge(value2, value1);
 				expect(result2).toBe(value1);
 			}
+		});
+	});
+
+	it("", ({ expect }) => {
+		expect.hasAssertions();
+	});
+
+	describe("Comparing functions with other values", () => {
+		it("Always returns new value if at least one value is a function", ({
+			expect,
+		}) => {
+			const result1 = structuralMerge(undefined, dummyFunction);
+			expect(result1).toBe(dummyFunction);
+			const result2 = structuralMerge(dummyFunction, undefined);
+			expect(result2).toBe(undefined);
+
+			const other = () => false;
+			const result3 = structuralMerge(other, dummyFunction);
+			expect(result3).toBe(dummyFunction);
+			const result4 = structuralMerge(dummyFunction, other);
+			expect(result4).toBe(other);
 		});
 	});
 });
