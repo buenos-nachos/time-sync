@@ -82,7 +82,7 @@ const injectionMethods = [
 	"hybrid",
 ] as const satisfies readonly string[];
 
-type InjectionMethod = (typeof injectionMethods)[number];
+export type InjectionMethod = (typeof injectionMethods)[number];
 
 function isInjectionMethod(value: unknown): value is InjectionMethod {
 	return injectionMethods.includes(value as InjectionMethod);

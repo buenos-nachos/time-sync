@@ -183,7 +183,7 @@ export class ReactTimeSync {
 	// MUST be called from inside an effect, because it relies on browser APIs.
 	initialize(): () => void {
 		if (this.#isMounted) {
-			throw new Error("Must call cleanup function before initializing");
+			throw new Error("Must call cleanup function before re-initializing");
 		}
 
 		this.#isMounted = true;
