@@ -172,9 +172,9 @@ export class ReactTimeSync {
 			throw new Error("Cannot access subscription while system is not mounted");
 		}
 
-		const entry = (this.subscriptions.get(hookId) ??
-			this.#fallbackData) as SubscriptionEntry<T>;
-		return entry.data;
+		const data: SubscriptionData<unknown> =
+			this.subscriptions.get(hookId)?.data ?? this.#fallbackData;
+		return data as SubscriptionData<T>;
 	}
 
 	// MUST be called from inside an effect, because it relies on browser APIs
