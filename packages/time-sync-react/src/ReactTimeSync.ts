@@ -48,6 +48,7 @@ export class ReactTimeSync {
 	#timeSync: TimeSync;
 	#lifecycle: LifeCycle;
 	#fallbackData: SubscriptionData<null>;
+	#cleanupProvider: () => void;
 	#dateRefreshBatchId: number | undefined;
 	#dateRefreshIntervalId: NodeJS.Timeout | number | undefined;
 
@@ -56,6 +57,7 @@ export class ReactTimeSync {
 		this.subscriptions = new Map();
 		this.#dateRefreshIntervalId = undefined;
 		this.#dateRefreshBatchId = undefined;
+		this.#cleanupProvider = noOp;
 
 		this.#fallbackData = {
 			cachedTransformation: null,
@@ -177,8 +179,10 @@ export class ReactTimeSync {
 
 	// MUST be called from inside an effect, because it relies on browser APIs
 	onProviderMount(timeSyncOverride?: TimeSync): () => void {
+		// We can't afford to throw an error here because React will double-call
+		// all effects in strict mode
 		if (this.#lifecycle !== "initialized") {
-			return noOp;
+			return this.#cleanupProvider;
 		}
 
 		this.#lifecycle = "mounted";
@@ -207,7 +211,7 @@ export class ReactTimeSync {
 			refreshFallbackDate(newDate);
 		}, ReactTimeSync.#stalenessThresholdMs);
 
-		return () => {
+		const cleanup = () => {
 			// This also cleans up the subscription registered above
 			this.#timeSync.clearAll();
 			clearInterval(this.#dateRefreshIntervalId);
@@ -217,6 +221,9 @@ export class ReactTimeSync {
 			}
 			this.#lifecycle = "disposed";
 		};
+
+		this.#cleanupProvider = cleanup;
+		return cleanup;
 	}
 
 	// MUST be called from inside an effect, because it relies on browser APIs
