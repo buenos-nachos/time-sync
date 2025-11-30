@@ -498,7 +498,7 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		const elapsed = new ReadonlyDate().getTime() - date.getTime();
+		const elapsed = Date.now() - date.getTime();
 		const timeBeforeNextUpdate = fastest - elapsed;
 
 		// Clear previous interval sight unseen just to be on the safe side
