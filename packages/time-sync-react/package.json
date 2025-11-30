@@ -34,8 +34,7 @@
 	},
 	"devDependencies": {
 		"@types/react": "19.2.0",
-		"react": "19.2.0",
-		"vitest": "catalog:"
+		"react": "19.2.0"
 	},
 	"peerDependencies": {
 		"@buenos-nachos/time-sync": "0.4.0",
