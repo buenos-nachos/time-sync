@@ -1,5 +1,10 @@
 import { ReadonlyDate, refreshRates, TimeSync } from "@buenos-nachos/time-sync";
-import { noOp, structuralMerge, type TransformCallback } from "./utilities";
+import {
+	debounce,
+	noOp,
+	structuralMerge,
+	type TransformCallback,
+} from "./utilities";
 
 export type ReactTimeSyncGetter = () => ReactTimeSync;
 
@@ -107,6 +112,13 @@ interface ReactTimeSyncApi {
 // need to trigger re-renders in response to them changing.
 export class ReactTimeSync implements ReactTimeSyncApi {
 	/**
+	 * Must be debounced during initialization. Otherwise, we'll do a lot of
+	 * thrashing if multiple components mount at the same time and end up
+	 * calling this method a bunch in the same UI commit cycle.
+	 */
+	readonly onComponentMount: () => void;
+
+	/**
 	 * Have to store this with type unknown, because we need to be able to store
 	 * arbitrary data, and if we add a type parameter at the class level, that
 	 * forces all subscriptions to use the exact same transform type.
@@ -117,7 +129,6 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 
 	#isMounted: boolean;
 	#fallbackData: SubscriptionData<null>;
-	#dateRefreshBatchId: number | undefined;
 	#dateRefreshIntervalId: NodeJS.Timeout | number | undefined;
 
 	constructor(timeSync?: TimeSync) {
@@ -125,7 +136,11 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		this.#timeSync = sync;
 		this.#subscriptions = new Map();
 		this.#dateRefreshIntervalId = undefined;
-		this.#dateRefreshBatchId = undefined;
+
+		this.onComponentMount = debounce(
+			() => this.#rawOnComponentMount(),
+			stalenessThresholdMs,
+		);
 
 		const snap = sync.getStateSnapshot();
 		this.#fallbackData = { cachedTransformation: null, date: snap.date };
@@ -135,6 +150,39 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		};
 
 		this.#isMounted = false;
+	}
+
+	// This method is expected to be called from a useLayoutEffect call, so
+	// it's vital that all logic is defined synchronously. Otherwise, we risk
+	// screen flickering or other bugs from the UI being able to be painted
+	// before all the work is done
+	#rawOnComponentMount(): void {
+		if (!this.#isMounted) {
+			throw new Error(
+				"Cannot process component initialization while system is not mounted",
+			);
+		}
+
+		if (isFrozen(this.#timeSync)) {
+			return;
+		}
+
+		// Serializing entries before looping just to be extra safe and make
+		// sure there's no risk of infinite loops from the iterator protocol
+		const entries = [...this.#subscriptions.values()];
+
+		for (const entry of entries) {
+			const { date, cachedTransformation } = entry.data;
+			const newTransform = entry.transform(date);
+			const merged = structuralMerge(cachedTransformation, newTransform);
+
+			if (cachedTransformation === merged) {
+				continue;
+			}
+
+			entry.data = { date: date, cachedTransformation: merged };
+			entry.onReactStateSync();
+		}
 	}
 
 	getTimeSync(): SafeTimeSync {
@@ -284,56 +332,10 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 			this.#timeSync.clearAll();
 			clearInterval(this.#dateRefreshIntervalId);
 			this.#subscriptions.clear();
-			if (this.#dateRefreshBatchId !== undefined) {
-				cancelAnimationFrame(this.#dateRefreshBatchId);
-			}
 			this.#isMounted = false;
 		};
 
 		this.#isMounted = true;
 		return cleanup;
-	}
-
-	// MUST be called from inside an effect, because it relies on browser APIs
-	onComponentMount(): void {
-		if (!this.#isMounted) {
-			throw new Error(
-				"Cannot process component initialization while system is not mounted",
-			);
-		}
-
-		if (isFrozen(this.#timeSync)) {
-			return;
-		}
-
-		// Protection to make sure that if a bunch of components mount at the
-		// same time, only one of them will actually cause a batch-resync
-		if (this.#dateRefreshBatchId !== undefined) {
-			cancelAnimationFrame(this.#dateRefreshBatchId);
-		}
-
-		// Code assumes that all entries will always have an up to date .date
-		// property thanks to onProviderMount, and that only the transformations
-		// could be out of sync
-		this.#dateRefreshBatchId = requestAnimationFrame(() => {
-			// Serializing entries before looping just to be extra safe and make
-			// sure there's no risk of infinite loops from the iterator protocol
-			const entries = [...this.#subscriptions.values()];
-
-			for (const entry of entries) {
-				const { date, cachedTransformation } = entry.data;
-				const newTransform = entry.transform(date);
-				const merged = structuralMerge(cachedTransformation, newTransform);
-
-				if (cachedTransformation === merged) {
-					continue;
-				}
-
-				entry.data = { date: date, cachedTransformation: merged };
-				entry.onReactStateSync();
-			}
-
-			this.#dateRefreshBatchId = undefined;
-		});
 	}
 }

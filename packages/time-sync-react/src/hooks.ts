@@ -216,7 +216,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 			// whatsoever, the React Compiler will optimize the function the
 			// wrong way and cause bugs.
 			void depArrayInvalidator;
-			return rts.getSubscriptionData(hookId);
+			return rts.getSubscriptionData<T>(hookId);
 		}, [rts, hookId, depArrayInvalidator]);
 		const { date, cachedTransformation } = useSyncExternalStore(
 			stableDummySubscribe,
@@ -235,14 +235,14 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		);
 
 		const merged = useMemo(() => {
-			const prev = (cachedTransformation ?? newTransformation) as T;
+			const prev = cachedTransformation ?? newTransformation;
 			return structuralMerge(prev, newTransformation);
 		}, [cachedTransformation, newTransformation]);
 
 		// While the contents of reactiveSubscribe will update every render,
 		// the subscription itself is always a one-shot deal, and new
-		// subscriptions will get set up every so often (in most cases, they'll
-		// probably be set up once total). We need the transform to update
+		// subscriptions will only get set up every so often (in some cases,
+		// they'll be set up once total). We need the transform to update
 		// independently, so that even if the subscription fires once, we'll
 		// keep re-syncing the transform logic based on the latest user-supplied
 		// closure values
