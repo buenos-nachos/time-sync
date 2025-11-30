@@ -151,8 +151,8 @@ export class ReadonlyDate extends Date implements ReadonlyDateApi {
 		 */
 		if (initValue === undefined) {
 			super();
-			const constructorOverrideForTestCorrectness = new Date();
-			super.setTime(constructorOverrideForTestCorrectness.getTime());
+			const overrideForTestCorrectness = Date.now();
+			super.setTime(overrideForTestCorrectness);
 			return;
 		}
 
