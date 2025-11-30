@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.3.1
+
+### Patch Changes
+
+- 5fce018: switched internal implementations to use Date.now more often to reduce memory usage
+
 ## 0.3.0
 
 ### Minor Changes
