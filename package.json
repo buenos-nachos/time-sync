@@ -29,6 +29,7 @@
 		"check:dependencies": "knip",
 		"check:lint": "biome check --error-on-warnings . && prettier --check --ignore-unknown '**' '!**/*.{js,ts,jsx,tsx}'",
 		"check:types": "pnpm --recursive check:types",
+		"fix:dependencies": "knip --fix",
 		"format": "biome format --write .",
 		"test": "vitest run",
 		"test:watch": "vitest watch"
