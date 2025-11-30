@@ -27,7 +27,7 @@
 		"changeset:release": "changeset publish",
 		"check:all": "pnpm check:dependencies && pnpm check:lint && pnpm check:types",
 		"check:dependencies": "knip",
-		"check:lint": "biome check --error-on-warnings . && prettier --check --ignore-unknown '**' '!**/*.{js,ts,jsx,tsx}'",
+		"check:lint": "biome check --error-on-warnings . && prettier --check --ignore-unknown '**' '!**/*.{json,jsonc,js,ts,jsx,tsx}' '!./pnpm-workspace.yaml'",
 		"check:types": "pnpm --recursive check:types",
 		"fix:dependencies": "knip --fix",
 		"format": "biome format --write .",
