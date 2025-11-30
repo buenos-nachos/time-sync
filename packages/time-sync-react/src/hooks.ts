@@ -8,7 +8,7 @@
  * duplicate the comments for the hooks and the properties in bindings.tsx.
  * Otherwise, the info will be erased when the user calls createReactBindings
  */
-import type { ReadonlyDate, TimeSync } from "@buenos-nachos/time-sync";
+import type { ReadonlyDate } from "@buenos-nachos/time-sync";
 import React, {
 	useCallback,
 	useId,
@@ -19,7 +19,7 @@ import React, {
 	useSyncExternalStore,
 } from "react";
 import { useEffectEventPolyfill } from "./hookPolyfills";
-import type { ReactTimeSyncGetter } from "./ReactTimeSync";
+import type { ReactTimeSyncGetter, SafeTimeSync } from "./ReactTimeSync";
 import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
 // Copied from bindings.tsx
@@ -32,7 +32,7 @@ import { noOp, structuralMerge, type TransformCallback } from "./utilities";
  * This hook is mainly intended as an escape hatch for when
  * `useTimeSync` won't serve your needs.
  */
-export type UseTimeSyncRef = () => TimeSync;
+export type UseTimeSyncRef = () => SafeTimeSync;
 
 export function createUseTimeSyncRef(
 	getter: ReactTimeSyncGetter,
@@ -208,13 +208,16 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 * the new render because it'll receive a new function reference, and if
 		 * the get result happened to change, we'll be guaranteed to grab it.
 		 */
-		const [forceInvalidator, fallbackSync] = useReducer(negate, false);
+		const [depArrayInvalidator, fallbackSync] = useReducer(negate, false);
 		const getSubWithInvalidation = useCallback(() => {
 			// Literally just doing this to make the linter happy that we're
-			// including an otherwise unused value in the dependency array
-			void forceInvalidator;
-			return rts.getSubscriptionData<T>(hookId);
-		}, [rts, hookId, forceInvalidator]);
+			// including an otherwise unused value in the dependency array. The
+			// big worry is that if this value isn't referenced in the function
+			// whatsoever, the React Compiler will optimize the function the
+			// wrong way and cause bugs.
+			void depArrayInvalidator;
+			return rts.getSubscriptionData(hookId);
+		}, [rts, hookId, depArrayInvalidator]);
 		const { date, cachedTransformation } = useSyncExternalStore(
 			stableDummySubscribe,
 			getSubWithInvalidation,
@@ -232,14 +235,14 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		);
 
 		const merged = useMemo(() => {
-			const prev = cachedTransformation ?? newTransformation;
+			const prev = (cachedTransformation ?? newTransformation) as T;
 			return structuralMerge(prev, newTransformation);
 		}, [cachedTransformation, newTransformation]);
 
 		// While the contents of reactiveSubscribe will update every render,
 		// the subscription itself is always a one-shot deal, and new
 		// subscriptions will get set up every so often (in most cases, they'll
-		// probably be set up once, total). We need the transform to update
+		// probably be set up once total). We need the transform to update
 		// independently, so that even if the subscription fires once, we'll
 		// keep re-syncing the transform logic based on the latest user-supplied
 		// closure values
@@ -250,7 +253,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 				initialValue: merged,
 				targetRefreshIntervalMs: targetMs,
 				transform: reactiveTransform,
-				onReactStateSync: () => {
+				onStateSync: () => {
 					if (ejectedNotifyRef.current === noOp) {
 						fallbackSync();
 					} else {
@@ -265,7 +268,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		}, [reactiveSubscribe, targetRefreshIntervalMs]);
 
 		useLayoutEffect(() => {
-			rts.updateCachedTransformation(hookId, merged);
+			rts.invalidateTransformation(hookId, merged);
 		}, [rts, hookId, merged]);
 
 		useLayoutEffect(() => {
