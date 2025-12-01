@@ -30,7 +30,8 @@ export const refreshRates = Object.freeze({
 export interface Configuration {
 	/**
 	 * Indicates whether the TimeSync instance should be frozen for Snapshot
-	 * tests.
+	 * tests. Highly encouraged that you use this together with
+	 * `initialDate`.
 	 *
 	 * Defaults to false.
 	 */
@@ -44,7 +45,7 @@ export interface Configuration {
 	 * subscription, this minimum will be used instead.
 	 *
 	 * It is highly recommended that you only modify this value if you have a
-	 * good reason. Updating this value to be too low and make the event loop
+	 * good reason. Updating this value to be too low can make the event loop
 	 * get really hot and really tank performance elsewhere in an application.
 	 *
 	 * Defaults to 200ms.
@@ -55,9 +56,11 @@ export interface Configuration {
 	 * Indicates whether the same `onUpdate` callback (by reference) should be
 	 * called multiple time if registered by multiple systems.
 	 *
-	 * Defaults to true. If this value is flipped to false, each onUpdate
-	 * callback will receive the subscription context for the FIRST subscriber
-	 * that registered the onUpdate callback.
+	 * If this value is flipped to false, each onUpdate callback will receive
+	 * the subscription context for the FIRST subscriber that registered the
+	 * onUpdate callback.
+	 *
+	 * Defaults to true.
 	 */
 	readonly allowDuplicateOnUpdateCalls: boolean;
 }
@@ -66,16 +69,6 @@ export interface Configuration {
  * The set of options that can be used to instantiate a TimeSync.
  */
 export interface InitOptions extends Configuration {
-	/**
-	 * Indicates whether the TimeSync instance should be frozen for snapshot
-	 * tests. Highly encouraged that you use this together with
-	 * `initialDate`.
-	 *
-	 *  Defaults to false.
-	 */
-	// Duplicated property to override the LSP comment
-	readonly freezeUpdates: boolean;
-
 	/**
 	 * The Date object to use when initializing TimeSync to make the
 	 * constructor more pure and deterministic.
@@ -203,8 +196,16 @@ interface TimeSyncApi {
 	 * intervals. Depending on how TimeSync is instantiated, it may choose to
 	 * de-duplicate these function calls on each round of updates.
 	 *
-	 * @throws {RangeError} If the provided interval is not either a positive
-	 * integer or positive infinity.
+	 * If a value of Number.POSITIVE_INFINITY is used, the subscription will be
+	 * considered "idle". Idle subscriptions cannot trigger updates on their
+	 * own, but can stay in the loop as otherupdates get dispatched from via
+	 * other subscriptions.
+	 *
+	 * Consider using the refreshRates object from this package for a set of
+	 * commonly-used intervals.
+	 *
+	 * @throws {RangeError} If the provided interval is neither a positive
+	 * integer nor positive infinity.
 	 * @returns An unsubscribe callback. Calling the callback more than once
 	 * results in a no-op.
 	 */
