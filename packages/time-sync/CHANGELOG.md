@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.3.2
+
+### Patch Changes
+
+- b8fbaf8: cleanup up comments and types for exported class, methods, and types.
+
 ## 0.3.1
 
 ### Patch Changes
