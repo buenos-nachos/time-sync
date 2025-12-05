@@ -135,9 +135,8 @@ export interface Snapshot {
  * TimeSync.
  *
  * For performance reasons, this object has ZERO readonly guarantees enforced at
- * runtime. A few properties are flagged as readonly at the type level, but
- * misuse of this value has a risk of breaking a TimeSync instance's internal
- * state. Proceed with caution.
+ * runtime. All properties are defined as readonly at the type level, but an
+ * accidental mutation can still slip through.
  */
 export interface SubscriptionContext {
 	/**
@@ -163,12 +162,6 @@ export interface SubscriptionContext {
 	readonly timeSync: TimeSync;
 
 	/**
-	 * Indicates whether the subscription is still live. Will be mutated to be
-	 * false when a subscription is
-	 */
-	isSubscribed: boolean;
-
-	/**
 	 * Indicates when the last time the subscription had its explicit interval
 	 * "satisfied".
 	 *
@@ -176,7 +169,7 @@ export interface SubscriptionContext {
 	 * the active interval is set to fire every second, you may need to know
 	 * which update actually happened five minutes later.
 	 */
-	intervalLastFulfilledAt: ReadonlyDate | null;
+	readonly intervalLastFulfilledAt: ReadonlyDate | null;
 }
 
 /**
@@ -439,7 +432,7 @@ export class TimeSync implements TimeSyncApi {
 			// first context in a sub array gets removed by unsubscribing, we
 			// want what was the the second element to still be up to date
 			let shouldCallOnUpdate = true;
-			for (const context of subs) {
+			for (const ctx of subs as readonly Writeable<SubscriptionContext>[]) {
 				// We're not doing anything more sophisticated here because
 				// we're assuming that any systems that can clear out the
 				// subscriptions will handle cleaning up each context, too
@@ -448,17 +441,15 @@ export class TimeSync implements TimeSyncApi {
 					break outer;
 				}
 
-				const comparisonDate =
-					context.intervalLastFulfilledAt ?? context.registeredAt;
+				const comparisonDate = ctx.intervalLastFulfilledAt ?? ctx.registeredAt;
 				const isIntervalMatch =
-					dateTime - comparisonDate.getTime() >=
-					context.targetRefreshIntervalMs;
+					dateTime - comparisonDate.getTime() >= ctx.targetRefreshIntervalMs;
 				if (isIntervalMatch) {
-					context.intervalLastFulfilledAt = date;
+					ctx.intervalLastFulfilledAt = date;
 				}
 
 				if (shouldCallOnUpdate) {
-					onUpdate(date, context);
+					onUpdate(date, ctx);
 					shouldCallOnUpdate = config.allowDuplicateOnUpdateCalls;
 				}
 			}
@@ -586,7 +577,6 @@ export class TimeSync implements TimeSyncApi {
 		// Have to define this as a writeable to avoid a chicken-and-the-egg
 		// problem for the unsubscribe callback
 		const context: Writeable<SubscriptionContext> = {
-			isSubscribed: true,
 			timeSync: this,
 			unsubscribe: noOp,
 			registeredAt: new ReadonlyDate(),
@@ -604,7 +594,6 @@ export class TimeSync implements TimeSyncApi {
 		const subsOnSetup = this.#subscriptions;
 		const unsubscribe = (): void => {
 			if (!subscribed || this.#subscriptions !== subsOnSetup) {
-				context.isSubscribed = false;
 				subscribed = false;
 				return;
 			}
@@ -631,7 +620,6 @@ export class TimeSync implements TimeSyncApi {
 				subscriberCount: Math.max(0, this.#latestSnapshot.subscriberCount - 1),
 			});
 
-			context.isSubscribed = false;
 			subscribed = false;
 		};
 		context.unsubscribe = unsubscribe;
@@ -671,12 +659,6 @@ export class TimeSync implements TimeSyncApi {
 		// As long as we clean things the internal state, it's safe not to
 		// bother calling each unsubscribe callback. Not calling them one by
 		// one actually has much better time complexity
-		for (const subArray of this.#subscriptions.values()) {
-			for (const ctx of subArray) {
-				ctx.isSubscribed = false;
-			}
-		}
-
 		this.#subscriptions.clear();
 
 		// We swap the map out so that the unsubscribe callbacks can detect
