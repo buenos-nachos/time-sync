@@ -131,7 +131,6 @@ describe(TimeSync, () => {
 
 				const expectedCtx: SubscriptionContext = {
 					unsubscribe,
-					isSubscribed: true,
 					timeSync: sync,
 					intervalLastFulfilledAt: dateAfter,
 					registeredAt: dateBefore,
@@ -563,28 +562,6 @@ describe(TimeSync, () => {
 			const dateAfter = sync.getStateSnapshot().date;
 			expect(dateAfter).not.toEqual(dateBefore);
 		});
-
-		it("Mutates the isLive context value to be false on unsubscribe", async ({
-			expect,
-		}) => {
-			const sync = new TimeSync();
-
-			let ejectedContext: SubscriptionContext | undefined;
-			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
-				ejectedContext = ctx;
-			});
-
-			const unsub = sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneMinute,
-			});
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(ejectedContext?.isSubscribed).toBe(true);
-
-			unsub();
-			expect(ejectedContext?.isSubscribed).toBe(false);
-		});
 	});
 
 	describe("Subscriptions: context values", () => {
@@ -827,7 +804,6 @@ describe(TimeSync, () => {
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
 			expect(ejectedContext).toEqual<SubscriptionContext>({
-				isSubscribed: true,
 				intervalLastFulfilledAt: null,
 				registeredAt: snapBefore,
 				targetRefreshIntervalMs: refreshRates.oneHour,
@@ -840,7 +816,6 @@ describe(TimeSync, () => {
 
 			const snapAfter = sync.getStateSnapshot().date;
 			expect(ejectedContext).toEqual<SubscriptionContext>({
-				isSubscribed: true,
 				intervalLastFulfilledAt: snapAfter,
 				registeredAt: snapBefore,
 				targetRefreshIntervalMs: refreshRates.oneHour,
@@ -1085,28 +1060,6 @@ describe(TimeSync, () => {
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			expect(sharedOnUpdate).not.toHaveBeenCalled();
-		});
-
-		it("Mutates the isLive context value to be false", async ({ expect }) => {
-			const sync = new TimeSync();
-
-			let ejectedContext: SubscriptionContext | undefined;
-			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
-				if (ejectedContext === undefined) {
-					ejectedContext = ctx;
-				}
-			});
-
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneMinute,
-			});
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(ejectedContext?.isSubscribed).toBe(true);
-
-			sync.clearAll();
-			expect(ejectedContext?.isSubscribed).toBe(false);
 		});
 	});
 

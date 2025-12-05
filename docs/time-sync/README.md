@@ -174,16 +174,9 @@ const intervalForNextSubscription = refreshRates.oneHour;
 
 // Each onUpdate function also exposes a second context argument. This provides
 // information about the specific subscription that was registered, but also
-// provides values that make it easier to create reusable functions that don't
-// need to rely on closure
+// provides a mechanism for defining reusable subscription callbacks that
+// don't require closure to get all data dependencies
 function processOnUpdate(date: ReadonlyDate, ctx: SubscriptionContext): void {
-	// Indicates whether the subscription is still active. This value will
-	// be mutated to false the moment an unsubscribe call or .clearAll call
-	// happen. This value is mainly here in case you need to eject values from
-	// the context and need to track whether the subscription still exists. This
-	// value is never read internally, so mutating it yourself won't break anything
-	ctx.isSubscribed;
-
 	// A reference to the TimeSync instance that the subscription was registered
 	// with. Can be used to grab snapshots or even register new subscriptions
 	ctx.timeSync;
@@ -211,7 +204,7 @@ function processOnUpdate(date: ReadonlyDate, ctx: SubscriptionContext): void {
 	// to all subscribers can get expensive. You can perform this check to
 	// see whether the update being processed actually matches the interval
 	// that was explicitly requested
-	// ctx.intervalLastFulfilledAt;
+	ctx.intervalLastFulfilledAt;
 	const matchesRequestedInterval = date === ctx.intervalLastFulfilledAt;
 	if (matchesRequestedInterval) {
 		runExpensiveFunction(date);
