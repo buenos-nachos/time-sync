@@ -2,7 +2,7 @@
 
 ## 0.4.0
 
-### Minor Changes
+### Breaking Changes
 
 - 663479e: Removed `isSubscribed` property from context and made all other context properties readonly.
 
@@ -20,7 +20,7 @@
 
 ## 0.3.0
 
-### Minor Changes
+### Breaking Changes
 
 - 122f6c1: Updated `SubscriptionContext.timeSync` type to be readonly and non-nullable, and renamed `SubscriptionContext.isLive` to `SubscriptionContext.isSubscribed`.
 
