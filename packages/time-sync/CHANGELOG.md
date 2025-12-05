@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.4.0
+
+### Minor Changes
+
+- 663479e: Removed `isSubscribed` property from context and made all other context properties readonly.
+
 ## 0.3.2
 
 ### Patch Changes
