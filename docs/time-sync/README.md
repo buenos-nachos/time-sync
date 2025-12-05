@@ -174,7 +174,7 @@ const intervalForNextSubscription = refreshRates.oneHour;
 
 // Each onUpdate function also exposes a second context argument. This provides
 // information about the specific subscription that was registered, but also
-// provides a mechanism for defining reusable subscription callbacks that 
+// provides a mechanism for defining reusable subscription callbacks that
 // don't require closure to get all data dependencies
 function processOnUpdate(date: ReadonlyDate, ctx: SubscriptionContext): void {
 	// A reference to the TimeSync instance that the subscription was registered
