@@ -70,8 +70,8 @@ export interface Configuration {
  */
 export interface InitOptions extends Configuration {
 	/**
-	 * The Date object to use when initializing TimeSync to make the
-	 * constructor more pure and deterministic.
+	 * The Date object to use when initializing TimeSync to make the constructor
+	 * more pure and deterministic.
 	 */
 	readonly initialDate: Date;
 }
@@ -114,9 +114,15 @@ export interface SubscriptionInitOptions {
  */
 export interface Snapshot {
 	/**
+	 * Indicates when the TimeSync last issued an update (in absolute monotonic
+	 * time relative to the system).
+	 */
+	readonly lastUpdatedAt: bigint;
+
+	/**
 	 * The date that was last dispatched to all subscribers.
 	 */
-	readonly date: ReadonlyDate;
+	readonly latestDate: ReadonlyDate;
 
 	/**
 	 * The number of subscribers registered with TimeSync.
@@ -140,49 +146,52 @@ export interface Snapshot {
  */
 export interface SubscriptionContext {
 	/**
-	 * The interval that the subscription was registered with.
-	 */
-	readonly targetRefreshIntervalMs: number;
-
-	/**
-	 * The unsubscribe callback associated with a subscription. This is the same
-	 * callback returned by `TimeSync.subscribe`.
-	 */
-	readonly unsubscribe: () => void;
-
-	/**
-	 * A timestamp of when the subscription was first set up.
-	 */
-	readonly registeredAt: ReadonlyDate;
-
-	/**
 	 * A reference to the TimeSync instance that the subscription was registered
 	 * with.
 	 */
 	readonly timeSync: TimeSync;
 
 	/**
-	 * Indicates when the last time the subscription had its explicit interval
-	 * "satisfied".
+	 * The effective refresh interval for the subscription.
 	 *
-	 * For example, if a subscription is registered for every five minutes, but
-	 * the active interval is set to fire every second, you may need to know
-	 * which update actually happened five minutes later.
+	 * This value may be the target refresh interval, or it may be a minimum that
+	 * the TimeSync was configured to allow.
 	 */
-	readonly intervalLastFulfilledAt: ReadonlyDate | null;
+	readonly refreshIntervalMs: number;
 
 	/**
-	 * A monotonic time value defined relative to when the TimeSync instance was
-	 * first instantiated.
+	 * The unsubscribe callback associated with a subscription.
 	 *
-	 * TimeSync uses monotonic time to ensure that there are never any edge cases
-	 * around the host computer changing time zones (e.g., a phone on a plane
-	 * ride across the country). The same monotonic delta is exposed for use
-	 * cases where high accuracy is necessary, but in many cases (espeically for
-	 * UI programming) you SHOULD be showing the date value generated based on
-	 * the host computer's environment.
+	 * This is the exact same callback returned by `TimeSync.subscribe`.
 	 */
-	readonly monotonicDelta: bigint;
+	readonly unsubscribe: () => void;
+
+	/**
+	 * A timestamp of when the subscription was first set up.
+	 *
+	 * This timestamp is mainly intended for display purposes, and cannot make
+	 * guarantees about always being correct. See `registeredAtMontonic` if you
+	 * need an accurate value.
+	 */
+	readonly registeredAt: ReadonlyDate;
+
+	/**
+	 * A clock-accurate timestamp of when the subscription was registered. Value
+	 * is always defined relative to the system time.
+	 */
+	readonly registeredAtMonotonic: bigint;
+
+	/**
+	 * Indicates whether the update being dispatched explicitly fulfills the
+	 * interval that was used when setting up the subscription.
+	 */
+	readonly fulfillsTargetInterval: boolean;
+
+	/**
+	 * A monotonic time value defined relative to when the last update was
+	 * dispatched by TimeSync.
+	 */
+	readonly deltaSinceLastUpdate: bigint;
 }
 
 /**
@@ -246,10 +255,21 @@ function noOp(..._: readonly unknown[]): void {}
 const defaultMinimumRefreshIntervalMs = 200;
 
 function getMonotonicSystemTime(): bigint {
+	// If we're on a server, then we can use the built-in hrtime process, which
+	// is available in Node, Deno, and Bun.
 	if (typeof window === "undefined") {
 		return process.hrtime.bigint();
 	}
-	return BigInt(window.performance.now());
+
+	// performance.now gives back a number with a fractional component that goes
+	// to 9 decimal places. Bigints will throw if you try to create them from
+	// a fractional value, but there's also a tiny risk that if we multiply the
+	// number enough times to remove the fractional component, some data might be
+	// lost. Stringifying looks hokey, but seems like the best option for
+	// preserving accuracy.
+	const source = window.performance.now();
+	const strBigint = String(source).replace(".", "");
+	return BigInt(strBigint);
 }
 
 /**
@@ -293,6 +313,8 @@ export class TimeSync implements TimeSyncApi {
 	 * time when the TimeSync was instantiated.
 	 */
 	readonly #monotonicTimeOnInit: bigint;
+
+	#monotonicTimeOnLastUpdate: bigint | null;
 
 	/**
 	 * Stores all refresh intervals actively associated with an onUpdate
@@ -375,6 +397,7 @@ export class TimeSync implements TimeSyncApi {
 		this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 		this.#intervalId = undefined;
 		this.#monotonicTimeOnInit = getMonotonicSystemTime();
+		this.#monotonicTimeOnLastUpdate = null;
 
 		let date: ReadonlyDate;
 		if (initialDate instanceof ReadonlyDate) {
@@ -395,27 +418,19 @@ export class TimeSync implements TimeSyncApi {
 			allowDuplicateOnUpdateCalls,
 		};
 		const initialSnapshot: Snapshot = {
-			date,
+			latestDate: date,
 			subscriberCount: 0,
 			config: Object.freeze(config),
 		};
 		this.#latestSnapshot = Object.freeze(initialSnapshot);
 	}
 
-	#getMonotonicDelta(): bigint {
-		const { freezeUpdates } = this.#latestSnapshot.config;
-		if (freezeUpdates) {
-			return this.#monotonicTimeOnInit;
-		}
-		const newTime = getMonotonicSystemTime();
-		return newTime - this.#monotonicTimeOnInit;
-	}
-
 	#setSnapshot(update: Partial<Snapshot>): boolean {
-		const { date, subscriberCount, config } = this.#latestSnapshot;
+		const { latestDate: date, subscriberCount, config } = this.#latestSnapshot;
 		const noNeedForUpdates =
 			config.freezeUpdates ||
-			(update.date === date && update.subscriberCount === subscriberCount);
+			(update.latestDate === date &&
+				update.subscriberCount === subscriberCount);
 		if (noNeedForUpdates) {
 			return false;
 		}
@@ -430,7 +445,7 @@ export class TimeSync implements TimeSyncApi {
 			// because it felt like too much work for an internal implementation
 			// detail
 			config,
-			date: update.date ?? date,
+			latestDate: update.latestDate ?? date,
 			subscriberCount: update.subscriberCount ?? subscriberCount,
 		};
 
@@ -442,37 +457,37 @@ export class TimeSync implements TimeSyncApi {
 		// It's more important that we copy the date object into a separate
 		// variable here than normal, because need make sure the `this` context
 		// can't magically change between updates and cause subscribers to
-		// receive different values (e.g., one of the subscribers calls the
-		// invalidate method)
-		const { date, config } = this.#latestSnapshot;
+		// receive different values
+		const { latestDate: date, config } = this.#latestSnapshot;
+		const { freezeUpdates, allowDuplicateOnUpdateCalls } = config;
 
-		// We still need to let the logic go through if the current fastest
-		// interval is Infinity, so that we can support letting any arbitrary
-		// consumer invalidate the date immediately
 		const subscriptionsPaused =
-			config.freezeUpdates || this.#subscriptions.size === 0;
+			freezeUpdates ||
+			this.#subscriptions.size === 0 ||
+			this.#fastestRefreshInterval === Number.POSITIVE_INFINITY;
 		if (subscriptionsPaused) {
 			return;
 		}
 
 		const dateTime = date.getTime();
+		const newMonotonic = getMonotonicSystemTime();
 
 		/**
 		 * Two things:
 		 * 1. Even though the context arrays are defined as readonly (which
-		 * removes on the worst edge cases during dispatching), the
+		 * removes one of the worst edge cases during dispatching), the
 		 * subscriptions map itself is still mutable, so there are a few edge
 		 * cases we need to deal with. While the risk of infinite loops should
 		 * be much lower, there's still the risk that an onUpdate callback could
 		 * add a subscriber for an interval that wasn't registered before, which
-		 * the iterator protocol will pick up. Need to make a local,
+		 * the iterator protocol will pick up. We need to make a local,
 		 * fixed-length copy of the map entries before starting iteration. Any
 		 * subscriptions added during update will just have to wait until the
 		 * next round of updates.
 		 *
 		 * 2. The trade off of the serialization is that we do lose the ability
 		 * to auto-break the loop if one of the subscribers ends up resetting
-		 * all state, because we'll still have local copies of entries. We need
+		 * all state, because we'll still have local copies of entries. We also need
 		 * to check on each iteration to see if we should continue.
 		 */
 		const subsBeforeUpdate = this.#subscriptions;
@@ -481,7 +496,7 @@ export class TimeSync implements TimeSyncApi {
 			// Even if duplicate onUpdate calls are disabled, we still need to
 			// iterate through everything and update any internal data. If the
 			// first context in a sub array gets removed by unsubscribing, we
-			// want what was the the second element to still be up to date
+			// want what was the the second context to still be up to date
 			let shouldCallOnUpdate = true;
 			for (const ctx of subs as readonly Writeable<SubscriptionContext>[]) {
 				// We're not doing anything more sophisticated here because
@@ -494,14 +509,14 @@ export class TimeSync implements TimeSyncApi {
 
 				const comparisonDate = ctx.intervalLastFulfilledAt ?? ctx.registeredAt;
 				const isIntervalMatch =
-					dateTime - comparisonDate.getTime() >= ctx.targetRefreshIntervalMs;
+					dateTime - comparisonDate.getTime() >= ctx.refreshIntervalMs;
 				if (isIntervalMatch) {
 					ctx.intervalLastFulfilledAt = date;
 				}
 
 				if (shouldCallOnUpdate) {
 					onUpdate(date, ctx);
-					shouldCallOnUpdate = config.allowDuplicateOnUpdateCalls;
+					shouldCallOnUpdate = allowDuplicateOnUpdateCalls;
 				}
 			}
 		}
@@ -524,7 +539,9 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		const wasChanged = this.#setSnapshot({ date: new ReadonlyDate() });
+		const wasChanged = this.#setSnapshot({
+			latestDate: new ReadonlyDate(),
+		});
 		if (wasChanged) {
 			this.#notifyAllSubscriptions();
 		}
@@ -532,7 +549,7 @@ export class TimeSync implements TimeSyncApi {
 
 	#onFastestIntervalChange(): void {
 		const fastest = this.#fastestRefreshInterval;
-		const { date, config } = this.#latestSnapshot;
+		const { latestDate: date, config } = this.#latestSnapshot;
 		const updatesShouldStop =
 			config.freezeUpdates || fastest === Number.POSITIVE_INFINITY;
 		if (updatesShouldStop) {
@@ -548,7 +565,9 @@ export class TimeSync implements TimeSyncApi {
 		clearInterval(this.#intervalId);
 
 		if (timeBeforeNextUpdate <= 0) {
-			const wasChanged = this.#setSnapshot({ date: new ReadonlyDate() });
+			const wasChanged = this.#setSnapshot({
+				latestDate: new ReadonlyDate(),
+			});
 			if (wasChanged) {
 				this.#notifyAllSubscriptions();
 			}
@@ -593,7 +612,7 @@ export class TimeSync implements TimeSyncApi {
 		// immediately falls apart if this isn't guaranteed.
 		for (const entries of this.#subscriptions.values()) {
 			const subFastest =
-				entries[0]?.targetRefreshIntervalMs ?? Number.POSITIVE_INFINITY;
+				entries[0]?.refreshIntervalMs ?? Number.POSITIVE_INFINITY;
 			if (subFastest < newFastest) {
 				newFastest = subFastest;
 			}
@@ -625,15 +644,20 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		// Have to define this as a writeable to avoid a chicken-and-the-egg
+		// Have to define context as a writeable to avoid a chicken-and-the-egg
 		// problem for the unsubscribe callback
+		const currentMonotonic = getMonotonicSystemTime();
 		const context: Writeable<SubscriptionContext> = {
-			timeSync: this,
+			// These two are dummy values and should be overwritten before an update
+			// is dispatched to the consumer
 			unsubscribe: noOp,
-			intervalLastFulfilledAt: null,
+			deltaSinceLastUpdate: currentMonotonic,
+
+			timeSync: this,
+			fulfillsTargetInterval: false,
 			registeredAt: new ReadonlyDate(),
-			monotonicDelta: this.#getMonotonicDelta(),
-			targetRefreshIntervalMs: Math.max(
+			monotonicRegisteredAt: currentMonotonic,
+			refreshIntervalMs: Math.max(
 				config.minimumRefreshIntervalMs,
 				targetRefreshIntervalMs,
 			),
@@ -668,7 +692,7 @@ export class TimeSync implements TimeSyncApi {
 				subsOnSetup.set(onUpdate, filtered);
 			}
 
-			void this.#setSnapshot({
+			this.#setSnapshot({
 				subscriberCount: Math.max(0, this.#latestSnapshot.subscriberCount - 1),
 			});
 
@@ -682,14 +706,11 @@ export class TimeSync implements TimeSyncApi {
 			contexts = [...prev];
 		} else {
 			contexts = [];
-			subsOnSetup.set(onUpdate, contexts);
 		}
 
 		subsOnSetup.set(onUpdate, contexts);
 		contexts.push(context);
-		contexts.sort(
-			(e1, e2) => e1.targetRefreshIntervalMs - e2.targetRefreshIntervalMs,
-		);
+		contexts.sort((e1, e2) => e1.refreshIntervalMs - e2.refreshIntervalMs);
 
 		this.#setSnapshot({
 			subscriberCount: this.#latestSnapshot.subscriberCount + 1,

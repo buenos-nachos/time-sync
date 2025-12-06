@@ -143,7 +143,10 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		);
 
 		const snap = sync.getStateSnapshot();
-		this.#fallbackData = { cachedTransformation: null, date: snap.date };
+		this.#fallbackData = {
+			cachedTransformation: null,
+			date: snap.latestDate,
+		};
 		this.#safeTimeSync = {
 			getStateSnapshot: () => sync.getStateSnapshot(),
 			subscribe: (options) => sync.subscribe(options),

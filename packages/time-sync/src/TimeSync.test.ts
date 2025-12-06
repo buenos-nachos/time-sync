@@ -74,7 +74,7 @@ describe(TimeSync, () => {
 			];
 			for (const initialDate of dates) {
 				const sync = new TimeSync({ initialDate });
-				const snap = sync.getStateSnapshot().date;
+				const snap = sync.getStateSnapshot().latestDate;
 				expect(snap).toEqual(initialDate);
 			}
 		});
@@ -94,15 +94,15 @@ describe(TimeSync, () => {
 		}) => {
 			const initialDate = setInitialTime("November 5, 2025");
 			const sync = new TimeSync({ initialDate });
-			const initialSnap = sync.getStateSnapshot().date;
+			const initialSnap = sync.getStateSnapshot().latestDate;
 			expect(initialSnap).toEqual(initialDate);
 
 			await vi.advanceTimersByTimeAsync(5 * refreshRates.oneSecond);
-			const newSnap1 = sync.getStateSnapshot().date;
+			const newSnap1 = sync.getStateSnapshot().latestDate;
 			expect(newSnap1).toEqual(initialSnap);
 
 			await vi.advanceTimersByTimeAsync(500 * refreshRates.oneSecond);
-			const newSnap2 = sync.getStateSnapshot().date;
+			const newSnap2 = sync.getStateSnapshot().latestDate;
 			expect(newSnap2).toEqual(initialSnap);
 		});
 
@@ -118,7 +118,7 @@ describe(TimeSync, () => {
 				const sync = new TimeSync();
 				const onUpdate = vi.fn();
 
-				const dateBefore = sync.getStateSnapshot().date;
+				const dateBefore = sync.getStateSnapshot().latestDate;
 				const unsubscribe = sync.subscribe({
 					onUpdate,
 					targetRefreshIntervalMs: rate,
@@ -126,7 +126,7 @@ describe(TimeSync, () => {
 				expect(onUpdate).not.toHaveBeenCalled();
 
 				await vi.advanceTimersByTimeAsync(rate);
-				const dateAfter = sync.getStateSnapshot().date;
+				const dateAfter = sync.getStateSnapshot().latestDate;
 				expect(onUpdate).toHaveBeenCalledTimes(1);
 
 				const expectedCtx: SubscriptionContext = {
@@ -553,13 +553,13 @@ describe(TimeSync, () => {
 			await vi.advanceTimersByTimeAsync(refreshRates.oneHour);
 			expect(dummyOnUpdate).not.toHaveBeenCalled();
 
-			const dateBefore = sync.getStateSnapshot().date;
+			const dateBefore = sync.getStateSnapshot().latestDate;
 			void sync.subscribe({
 				onUpdate: dummyOnUpdate,
 				targetRefreshIntervalMs: refreshRates.oneMinute,
 			});
 
-			const dateAfter = sync.getStateSnapshot().date;
+			const dateAfter = sync.getStateSnapshot().latestDate;
 			expect(dateAfter).not.toEqual(dateBefore);
 		});
 	});
@@ -625,7 +625,7 @@ describe(TimeSync, () => {
 
 		it("Exposes when the subscription was first set up", async ({ expect }) => {
 			const sync = new TimeSync();
-			const start = sync.getStateSnapshot().date;
+			const start = sync.getStateSnapshot().latestDate;
 
 			let ejectedDate: Date | undefined;
 			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
@@ -661,7 +661,7 @@ describe(TimeSync, () => {
 			});
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			const snapAfter = sync.getStateSnapshot().date;
+			const snapAfter = sync.getStateSnapshot().latestDate;
 
 			expect(onUpdate).toHaveBeenCalledTimes(2);
 			expect(fulfilledValues).toEqual([null, snapAfter]);
@@ -782,7 +782,7 @@ describe(TimeSync, () => {
 			expect,
 		}) => {
 			const sync = new TimeSync();
-			const snapBefore = sync.getStateSnapshot().date;
+			const snapBefore = sync.getStateSnapshot().latestDate;
 
 			let ejectedContext: SubscriptionContext | undefined;
 			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
@@ -814,7 +814,7 @@ describe(TimeSync, () => {
 			const remainingSecondsToOneHour = refreshRates.oneHour - 1000;
 			await vi.advanceTimersByTimeAsync(remainingSecondsToOneHour);
 
-			const snapAfter = sync.getStateSnapshot().date;
+			const snapAfter = sync.getStateSnapshot().latestDate;
 			expect(ejectedContext).toEqual<SubscriptionContext>({
 				intervalLastFulfilledAt: snapAfter,
 				registeredAt: snapBefore,
@@ -839,7 +839,7 @@ describe(TimeSync, () => {
 
 			const snap = sync.getStateSnapshot();
 			expect(snap).toEqual<Snapshot>({
-				date: initialDate,
+				latestDate: initialDate,
 				subscriberCount: 0,
 				config: {
 					freezeUpdates: false,
@@ -855,7 +855,7 @@ describe(TimeSync, () => {
 			const sync = new TimeSync({ initialDate: override });
 
 			const snap = sync.getStateSnapshot();
-			expect(snap.date).toEqual(override);
+			expect(snap.latestDate).toEqual(override);
 		});
 
 		it("Reflects the minimum refresh interval used on init", ({ expect }) => {
@@ -899,7 +899,10 @@ describe(TimeSync, () => {
 
 			expect(onUpdate).toHaveBeenCalledTimes(1);
 			const newSnap = sync.getStateSnapshot();
-			expect(onUpdate).toHaveBeenCalledWith(newSnap.date, expect.any(Object));
+			expect(onUpdate).toHaveBeenCalledWith(
+				newSnap.latestDate,
+				expect.any(Object),
+			);
 			expect(newSnap).not.toEqual(initialSnap);
 		});
 
@@ -976,7 +979,7 @@ describe(TimeSync, () => {
 			const copyBeforeMutations = { ...snap, config: { ...config } };
 
 			const mutationSource: Snapshot = {
-				date: new ReadonlyDate("April 1, 1970"),
+				latestDate: new ReadonlyDate("April 1, 1970"),
 				subscriberCount: Number.POSITIVE_INFINITY,
 				config: {
 					freezeUpdates: true,
@@ -987,7 +990,7 @@ describe(TimeSync, () => {
 
 			const mutations: readonly (() => void)[] = [
 				() => {
-					snap.date = mutationSource.date;
+					snap.latestDate = mutationSource.latestDate;
 				},
 				() => {
 					snap.subscriberCount = mutationSource.subscriberCount;
@@ -1087,7 +1090,7 @@ describe(TimeSync, () => {
 
 			const snap = sync.getStateSnapshot();
 			expect(snap.subscriberCount).toBe(0);
-			expect(snap.date).toEqual(initialDate);
+			expect(snap.latestDate).toEqual(initialDate);
 		});
 	});
 
@@ -1096,7 +1099,7 @@ describe(TimeSync, () => {
 			expect,
 		}) => {
 			const sync = new TimeSync();
-			const snapBefore = sync.getStateSnapshot().date;
+			const snapBefore = sync.getStateSnapshot().latestDate;
 
 			let dateFromUpdate = snapBefore;
 			const onUpdate = vi.fn((newDate) => {
@@ -1179,7 +1182,7 @@ describe(TimeSync, () => {
 			const snap1 = sync1.getStateSnapshot();
 			const sync2 = new TimeSync({
 				...snap1.config,
-				initialDate: snap1.date,
+				initialDate: snap1.latestDate,
 			});
 
 			const snap2 = sync2.getStateSnapshot();
