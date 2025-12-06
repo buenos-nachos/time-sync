@@ -404,7 +404,7 @@ export class TimeSync implements TimeSyncApi {
 		return true;
 	}
 
-	#notifyAllSubscriptions(): void {
+	#processSubscriptionUpdate(): void {
 		// It's more important that we copy the date object into a separate
 		// variable here than normal, because need make sure the `this` context
 		// can't magically change between updates and cause subscribers to
@@ -499,7 +499,7 @@ export class TimeSync implements TimeSyncApi {
 			...this.#latestSnapshot,
 			date: newDate,
 		});
-		this.#notifyAllSubscriptions();
+		this.#processSubscriptionUpdate();
 	};
 
 	#onFastestIntervalChange(): void {
@@ -522,7 +522,7 @@ export class TimeSync implements TimeSyncApi {
 		if (timeBeforeNextUpdate <= 0) {
 			const wasChanged = this.#setSnapshot({ date: new ReadonlyDate() });
 			if (wasChanged) {
-				this.#notifyAllSubscriptions();
+				this.#processSubscriptionUpdate();
 			}
 			this.#intervalId = setInterval(this.#onTick, fastest);
 			return;
