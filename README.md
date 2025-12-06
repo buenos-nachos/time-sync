@@ -19,6 +19,7 @@ In other words, `time-sync` aims to make time more obvious, less magical, and ea
 
 - 🔄 **Keep things in sync** – `time-sync` ensures that different systems on one device can't ever get out of sync with each other.
 - 📸 **No more snapshot flakes** – `time-sync` makes it easy to freeze the date to a specific value to ensure that your snapshot tests stay deterministic. The upcoming UI framework bindings will have out-of-the-box support for platforms like Storybook.
+- 🕔 **Monotonic state** - All of `time-sync`'s internal state is driven by monotonic time, to ensure that it can't ever break from the user's device changing timezones.
 - 📦 **As few dependencies as possible** – The vanilla version of `time-sync` has zero runtime dependencies. Each package for binding it to a framework aims to have the vanilla `time-sync` package and that framework as its only two dependencies.
 
 ### Coming soon
