@@ -170,6 +170,19 @@ export interface SubscriptionContext {
 	 * which update actually happened five minutes later.
 	 */
 	readonly intervalLastFulfilledAt: ReadonlyDate | null;
+
+	/**
+	 * A monotonic time value defined relative to when the TimeSync instance was
+	 * first instantiated.
+	 *
+	 * TimeSync uses monotonic time to ensure that there are never any edge cases
+	 * around the host computer changing time zones (e.g., a phone on a plane
+	 * ride across the country). The same monotonic delta is exposed for use
+	 * cases where high accuracy is necessary, but in many cases (espeically for
+	 * UI programming) you SHOULD be showing the date value generated based on
+	 * the host computer's environment.
+	 */
+	readonly monotonicDelta: bigint;
 }
 
 /**
@@ -232,6 +245,13 @@ function noOp(..._: readonly unknown[]): void {}
 
 const defaultMinimumRefreshIntervalMs = 200;
 
+function getMonotonicSystemTime(): bigint {
+	if (typeof window === "undefined") {
+		return process.hrtime.bigint();
+	}
+	return BigInt(window.performance.now());
+}
+
 /**
  * One thing that was considered was giving TimeSync the ability to flip which
  * kinds of dates it uses, and let it use native dates instead of readonly
@@ -268,6 +288,12 @@ const defaultMinimumRefreshIntervalMs = 200;
  * some parts of the screen.)
  */
 export class TimeSync implements TimeSyncApi {
+	/**
+	 * The reference point for all monotonic time calculations, defined as the
+	 * time when the TimeSync was instantiated.
+	 */
+	readonly #monotonicTimeOnInit: bigint;
+
 	/**
 	 * Stores all refresh intervals actively associated with an onUpdate
 	 * callback (along with their associated unsubscribe callbacks).
@@ -348,24 +374,49 @@ export class TimeSync implements TimeSyncApi {
 		this.#subscriptions = new Map();
 		this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 		this.#intervalId = undefined;
+		this.#monotonicTimeOnInit = getMonotonicSystemTime();
 
-		// Not defined inline to avoid wonkiness that Object.freeze introduces
-		// when you rename a property on a frozen object
+		let date: ReadonlyDate;
+		if (initialDate instanceof ReadonlyDate) {
+			date = initialDate;
+		} else if (initialDate) {
+			date = new ReadonlyDate(initialDate);
+		} else {
+			date = new ReadonlyDate();
+		}
+
+		// Could've put all of this on one delaration, but Object.freeze introduces
+		// weird edge cases around TypeScript assignability. If we ever rename any
+		// of these properties, Object.freeze would introduce a new type boundary
+		// and would prevent the properties here from being auto-renamed by the IDE
+		const config: Configuration = {
+			freezeUpdates,
+			minimumRefreshIntervalMs,
+			allowDuplicateOnUpdateCalls,
+		};
 		const initialSnapshot: Snapshot = {
+			date,
 			subscriberCount: 0,
-			date: initialDate ? new ReadonlyDate(initialDate) : new ReadonlyDate(),
-			config: Object.freeze({
-				freezeUpdates,
-				minimumRefreshIntervalMs,
-				allowDuplicateOnUpdateCalls,
-			}),
+			config: Object.freeze(config),
 		};
 		this.#latestSnapshot = Object.freeze(initialSnapshot);
 	}
 
+	#getMonotonicDelta(): bigint {
+		const { freezeUpdates } = this.#latestSnapshot.config;
+		if (freezeUpdates) {
+			return this.#monotonicTimeOnInit;
+		}
+		const newTime = getMonotonicSystemTime();
+		return newTime - this.#monotonicTimeOnInit;
+	}
+
 	#setSnapshot(update: Partial<Snapshot>): boolean {
 		const { date, subscriberCount, config } = this.#latestSnapshot;
-		if (config.freezeUpdates) {
+		const noNeedForUpdates =
+			config.freezeUpdates ||
+			(update.date === date && update.subscriberCount === subscriberCount);
+		if (noNeedForUpdates) {
 			return false;
 		}
 
@@ -375,8 +426,8 @@ export class TimeSync implements TimeSyncApi {
 		// type, it WON'T rename the runtime properties. Object.freeze
 		// introduces an extra type boundary that break the linking
 		const updated: Snapshot = {
-			// Always reject any new configs because trying to remove them at
-			// the type level isn't worth it for an internal implementation
+			// Always reject any new configs. This isn't reflected at the type level
+			// because it felt like too much work for an internal implementation
 			// detail
 			config,
 			date: update.date ?? date,
@@ -579,8 +630,9 @@ export class TimeSync implements TimeSyncApi {
 		const context: Writeable<SubscriptionContext> = {
 			timeSync: this,
 			unsubscribe: noOp,
-			registeredAt: new ReadonlyDate(),
 			intervalLastFulfilledAt: null,
+			registeredAt: new ReadonlyDate(),
+			monotonicDelta: this.#getMonotonicDelta(),
 			targetRefreshIntervalMs: Math.max(
 				config.minimumRefreshIntervalMs,
 				targetRefreshIntervalMs,
@@ -639,7 +691,7 @@ export class TimeSync implements TimeSyncApi {
 			(e1, e2) => e1.targetRefreshIntervalMs - e2.targetRefreshIntervalMs,
 		);
 
-		void this.#setSnapshot({
+		this.#setSnapshot({
 			subscriberCount: this.#latestSnapshot.subscriberCount + 1,
 		});
 
@@ -664,6 +716,6 @@ export class TimeSync implements TimeSyncApi {
 		// We swap the map out so that the unsubscribe callbacks can detect
 		// whether their functionality is still relevant
 		this.#subscriptions = new Map();
-		void this.#setSnapshot({ subscriberCount: 0 });
+		this.#setSnapshot({ subscriberCount: 0 });
 	}
 }
