@@ -482,18 +482,24 @@ export class TimeSync implements TimeSyncApi {
 	 * is one of them.
 	 */
 	readonly #onTick = (): void => {
-		// Defensive step to make sure that an invalid tick wasn't started
-		const { config } = this.#latestSnapshot;
+		const { config, date } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
+			// Defensive step to make sure that an invalid tick wasn't started
 			clearInterval(this.#intervalId);
 			this.#intervalId = undefined;
 			return;
 		}
 
-		const wasChanged = this.#setSnapshot({ date: new ReadonlyDate() });
-		if (wasChanged) {
-			this.#notifyAllSubscriptions();
+		const newDate = new ReadonlyDate();
+		if (newDate.getTime() === date.getTime()) {
+			return;
 		}
+
+		this.#latestSnapshot = freezeSnapshot({
+			...this.#latestSnapshot,
+			date: newDate,
+		});
+		this.#notifyAllSubscriptions();
 	};
 
 	#onFastestIntervalChange(): void {
