@@ -380,30 +380,6 @@ export class TimeSync implements TimeSyncApi {
 		this.#latestSnapshot = Object.freeze(initialSnapshot);
 	}
 
-	#setSnapshot(update: Partial<Snapshot>): boolean {
-		const { date, subscriberCount, config } = this.#latestSnapshot;
-		if (config.freezeUpdates) {
-			return false;
-		}
-
-		// Avoiding both direct property assignment or spread syntax because
-		// Object.freeze causes weird TypeScript LSP issues around assignability
-		// where trying to rename a property. If you rename a property on a
-		// type, it WON'T rename the runtime properties. Object.freeze
-		// introduces an extra type boundary that break the linking
-		const updated: Snapshot = {
-			// Always reject any new configs because trying to remove them at
-			// the type level isn't worth it for an internal implementation
-			// detail
-			config,
-			date: update.date ?? date,
-			subscriberCount: update.subscriberCount ?? subscriberCount,
-		};
-
-		this.#latestSnapshot = Object.freeze(updated);
-		return true;
-	}
-
 	#processSubscriptionUpdate(): void {
 		// It's more important that we copy the date object into a separate
 		// variable here than normal, because need make sure the `this` context
@@ -520,10 +496,15 @@ export class TimeSync implements TimeSyncApi {
 		clearInterval(this.#intervalId);
 
 		if (timeBeforeNextUpdate <= 0) {
-			const wasChanged = this.#setSnapshot({ date: new ReadonlyDate() });
-			if (wasChanged) {
+			const newDate = new ReadonlyDate();
+			if (newDate.getTime() !== date.getTime()) {
+				this.#latestSnapshot = freezeSnapshot({
+					...this.#latestSnapshot,
+					date: newDate,
+				});
 				this.#processSubscriptionUpdate();
 			}
+
 			this.#intervalId = setInterval(this.#onTick, fastest);
 			return;
 		}
