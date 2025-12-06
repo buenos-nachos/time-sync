@@ -230,6 +230,23 @@ interface TimeSyncApi {
    actually want a completely empty function body. */
 function noOp(..._: readonly unknown[]): void {}
 
+/**
+ * This function is just a convenience for us to sidestep some problems around
+ * TypeScript's LSP and Object.freeze. Because Object.freeze can accept any
+ * arbitrary type, it basically acts as a "type boundary" between the left and
+ * right sides of any snapshot assignments.
+ *
+ * That means that if you rename a property a a value that is passed to
+ * Object.freeze, the LSP can't auto-rename it, and you potentially get missing
+ * properties. This is a bit hokey, but because the function is defined strictly
+ * in terms of concrete snapshots, any value passed to this function won't have
+ * to worry about mismatches.
+ */
+function freezeSnapshot(snap: Snapshot): Snapshot {
+	Object.freeze(snap.config);
+	return Object.freeze(snap);
+}
+
 const defaultMinimumRefreshIntervalMs = 200;
 
 /**
@@ -616,7 +633,8 @@ export class TimeSync implements TimeSyncApi {
 				subsOnSetup.set(onUpdate, filtered);
 			}
 
-			void this.#setSnapshot({
+			this.#latestSnapshot = freezeSnapshot({
+				...this.#latestSnapshot,
 				subscriberCount: Math.max(0, this.#latestSnapshot.subscriberCount - 1),
 			});
 
@@ -639,7 +657,8 @@ export class TimeSync implements TimeSyncApi {
 			(e1, e2) => e1.targetRefreshIntervalMs - e2.targetRefreshIntervalMs,
 		);
 
-		void this.#setSnapshot({
+		this.#latestSnapshot = freezeSnapshot({
+			...this.#latestSnapshot,
 			subscriberCount: this.#latestSnapshot.subscriberCount + 1,
 		});
 
@@ -664,6 +683,9 @@ export class TimeSync implements TimeSyncApi {
 		// We swap the map out so that the unsubscribe callbacks can detect
 		// whether their functionality is still relevant
 		this.#subscriptions = new Map();
-		void this.#setSnapshot({ subscriberCount: 0 });
+		this.#latestSnapshot = freezeSnapshot({
+			...this.#latestSnapshot,
+			subscriberCount: 0,
+		});
 	}
 }
