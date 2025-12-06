@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.4.1
+
+### Patch Changes
+
+- 5f37f1a: refactored class to remove private setSnapshost method
+
 ## 0.4.0
 
 ### Breaking Changes
