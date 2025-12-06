@@ -384,15 +384,13 @@ export class TimeSync implements TimeSyncApi {
 		// It's more important that we copy the date object into a separate
 		// variable here than normal, because need make sure the `this` context
 		// can't magically change between updates and cause subscribers to
-		// receive different values (e.g., one of the subscribers calls the
-		// invalidate method)
+		// receive different values
 		const { date, config } = this.#latestSnapshot;
 
-		// We still need to let the logic go through if the current fastest
-		// interval is Infinity, so that we can support letting any arbitrary
-		// consumer invalidate the date immediately
 		const subscriptionsPaused =
-			config.freezeUpdates || this.#subscriptions.size === 0;
+			config.freezeUpdates ||
+			this.#subscriptions.size === 0 ||
+			this.#fastestRefreshInterval === Number.POSITIVE_INFINITY;
 		if (subscriptionsPaused) {
 			return;
 		}
