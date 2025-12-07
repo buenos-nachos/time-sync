@@ -460,6 +460,98 @@ export class TimeSync implements TimeSyncApi {
 		}
 	}
 
+	/**
+	 * The logic that should happen at each step in TimeSync's active interval.
+	 *
+	 * Defined as an arrow function so that we can just pass it directly to
+	 * setInterval without needing to make a new wrapper function each time. We
+	 * don't have many situations where we can lose the `this` context, but this
+	 * is one of them.
+	 */
+	readonly #onTick = (): void => {
+		const { config, date } = this.#latestSnapshot;
+		if (config.freezeUpdates) {
+			// Defensive step to make sure that an invalid tick wasn't started
+			clearInterval(this.#intervalId);
+			this.#intervalId = undefined;
+			return;
+		}
+
+		// Equality should be our only condition for not dispatching an update. It
+		// is possible for newDate to have a time before the date in the snapshot
+		// if the time zones changed, and we should still dispatch an update in that
+		// case. But we don't have to worry about too many edge cases because all
+		// versions of setInterval (browser and server) are already monotonic
+		const newDate = new ReadonlyDate();
+		if (newDate.getTime() === date.getTime()) {
+			return;
+		}
+
+		this.#latestSnapshot = freezeSnapshot({
+			...this.#latestSnapshot,
+			date: newDate,
+			lastUpdatedAtMs: getMonotonicTimeMs() - this.#initializedAtMs,
+		});
+		this.#notifyAllSubscriptions();
+	};
+
+	#onFastestIntervalChange(): void {
+		const fastest = this.#fastestRefreshInterval;
+		const { date, config } = this.#latestSnapshot;
+
+		const updatesShouldStop =
+			config.freezeUpdates ||
+			this.#subscriptions.size === 0 ||
+			fastest === Number.POSITIVE_INFINITY;
+		if (updatesShouldStop) {
+			clearInterval(this.#intervalId);
+			this.#intervalId = undefined;
+			return;
+		}
+
+		const elapsed = Date.now() - date.getTime();
+		const timeBeforeNextUpdate = fastest - elapsed;
+
+		// Clear previous interval sight unseen just to be on the safe side
+		clearInterval(this.#intervalId);
+
+		if (timeBeforeNextUpdate <= 0) {
+			const newDate = new ReadonlyDate();
+			if (newDate.getTime() !== date.getTime()) {
+				this.#latestSnapshot = freezeSnapshot({
+					...this.#latestSnapshot,
+					date: newDate,
+				});
+				this.#notifyAllSubscriptions();
+			}
+
+			this.#intervalId = setInterval(this.#onTick, fastest);
+			return;
+		}
+
+		// Most common case for this branch is the very first subscription
+		// getting added, but there's still the small chance that the fastest
+		// interval could change right after an update got flushed
+		if (timeBeforeNextUpdate === fastest) {
+			this.#intervalId = setInterval(this.#onTick, timeBeforeNextUpdate);
+			return;
+		}
+
+		// Otherwise, use interval as pseudo-timeout, and then go back to using
+		// it as a normal interval afterwards
+		this.#intervalId = setInterval(() => {
+			clearInterval(this.#intervalId);
+
+			// Need to set up interval before ticking in the tiny, tiny chance
+			// that ticking would cause the TimeSync instance to be reset. We
+			// don't want to start a new interval right after we've lost our
+			// ability to do cleanup. The timer won't start getting processed
+			// until the function leaves scope anyway
+			this.#intervalId = setInterval(this.#onTick, fastest);
+			this.#onTick();
+		}, timeBeforeNextUpdate);
+	}
+
 	#updateFastestInterval(): void {
 		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
@@ -486,31 +578,11 @@ export class TimeSync implements TimeSyncApi {
 		}
 	}
 
-	// Defined as an arrow function because the logic here doesn't change based
-	// on the subscriber, so better to have a single function for everything that
-	// also can't lose its `this` context
-	readonly #removeSubscriptionForFrozenUpdates = (): void => {
-		const oldCount = this.#latestSnapshot.subscriberCount;
-		const newCount = Math.max(0, oldCount - 1);
-		this.#latestSnapshot = freezeSnapshot({
-			...this.#latestSnapshot,
-			subscriberCount: newCount,
-		});
-	};
-
 	subscribe(options: SubscriptionInitOptions): () => void {
-		const { config } = this.#latestSnapshot;
-		if (config.freezeUpdates) {
-			this.#latestSnapshot = freezeSnapshot({
-				...this.#latestSnapshot,
-				subscriberCount: this.#latestSnapshot.subscriberCount + 1,
-			});
-			return this.#removeSubscriptionForFrozenUpdates;
-		}
-
 		// Destructuring properties so that they can't be fiddled with after
 		// this function call ends
 		const { targetRefreshIntervalMs, onUpdate } = options;
+		const { config } = this.#latestSnapshot;
 
 		const isTargetValid =
 			targetRefreshIntervalMs === Number.POSITIVE_INFINITY ||
@@ -522,53 +594,58 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		const currentTime = getMonotonicTimeMs();
-
-		let subscribed = true;
 		const subsOnSetup = this.#subscriptions;
+		let subscribed = true;
 		const ctx: SubscriptionContext = {
 			timeSync: this,
-			registeredAtMs: currentTime - this.#initializedAtMs,
+			registeredAtMs: getMonotonicTimeMs() - this.#initializedAtMs,
 			refreshIntervalMs: Math.max(
 				config.minimumRefreshIntervalMs,
 				targetRefreshIntervalMs,
 			),
 
 			unsubscribe: () => {
-				if (!subscribed || this.#subscriptions !== subsOnSetup) {
-					subscribed = false;
-					return;
-				}
+				// Not super conventional, but basically using try/finally as a form of
+				// Go's defer. There are a lot of branches we need to worry about for
+				// the unsubscribe callback, and we need to make sure we flip subscribed
+				// to false after each one
+				try {
+					if (!subscribed || this.#subscriptions !== subsOnSetup) {
+						return;
+					}
+					const contexts = subsOnSetup.get(onUpdate);
+					if (contexts === undefined) {
+						return;
+					}
+					const filtered = contexts.filter(
+						(c) => c.unsubscribe !== ctx.unsubscribe,
+					);
+					if (filtered.length === contexts.length) {
+						return;
+					}
 
-				const contexts = subsOnSetup.get(onUpdate);
-				if (contexts === undefined) {
-					return;
-				}
-				const filtered = contexts.filter(
-					(c) => c.unsubscribe !== ctx.unsubscribe,
-				);
-				if (filtered.length === contexts.length) {
-					return;
-				}
+					this.#latestSnapshot = freezeSnapshot({
+						...this.#latestSnapshot,
+						subscriberCount: Math.max(
+							0,
+							this.#latestSnapshot.subscriberCount - 1,
+						),
+					});
 
-				if (filtered.length === 0) {
+					if (filtered.length > 0) {
+						// No need to sort on removal because everything gets sorted as
+						// it enters the subscriptions map
+						subsOnSetup.set(onUpdate, filtered);
+						return;
+					}
+
 					subsOnSetup.delete(onUpdate);
-					this.#updateFastestInterval();
-				} else {
-					// No need to sort on removal because everything gets sorted as
-					// it enters the subscriptions map
-					subsOnSetup.set(onUpdate, filtered);
+					if (!config.freezeUpdates) {
+						this.#updateFastestInterval();
+					}
+				} finally {
+					subscribed = false;
 				}
-
-				this.#latestSnapshot = freezeSnapshot({
-					...this.#latestSnapshot,
-					subscriberCount: Math.max(
-						0,
-						this.#latestSnapshot.subscriberCount - 1,
-					),
-				});
-
-				subscribed = false;
 			},
 		};
 		Object.freeze(ctx);
@@ -576,13 +653,12 @@ export class TimeSync implements TimeSyncApi {
 		let newContexts: SubscriptionContext[];
 		const prevContexts = subsOnSetup.get(onUpdate);
 		if (prevContexts !== undefined) {
-			newContexts = [...prevContexts];
+			newContexts = [...prevContexts, ctx];
 		} else {
-			newContexts = [];
+			newContexts = [ctx];
 		}
 
 		subsOnSetup.set(onUpdate, newContexts);
-		newContexts.push(ctx);
 		newContexts.sort((c1, c2) => c1.refreshIntervalMs - c2.refreshIntervalMs);
 
 		this.#latestSnapshot = freezeSnapshot({
@@ -590,7 +666,9 @@ export class TimeSync implements TimeSyncApi {
 			subscriberCount: this.#latestSnapshot.subscriberCount + 1,
 		});
 
-		this.#updateFastestInterval();
+		if (!config.freezeUpdates) {
+			this.#updateFastestInterval();
+		}
 		return ctx.unsubscribe;
 	}
 
@@ -611,6 +689,7 @@ export class TimeSync implements TimeSyncApi {
 		// We swap the map out so that the unsubscribe callbacks can detect
 		// whether their functionality is still relevant
 		this.#subscriptions = new Map();
+
 		this.#latestSnapshot = freezeSnapshot({
 			...this.#latestSnapshot,
 			subscriberCount: 0,
