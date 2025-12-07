@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.5.0
+
+### Minor Changes
+
+- c3986e9: revamped all state management and APIs to be based on monotonic time
+
 ## 0.4.1
 
 ### Patch Changes
