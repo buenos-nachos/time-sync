@@ -139,11 +139,7 @@ export interface Snapshot {
 
 /**
  * An object with information about a specific subscription registered with
- * TimeSync.
- *
- * For performance reasons, this object has ZERO readonly guarantees enforced at
- * runtime. All properties are defined as readonly at the type level, but an
- * accidental mutation can still slip through.
+ * TimeSync. The entire context is frozen at runtime.
  */
 export interface SubscriptionContext {
 	/**
@@ -474,7 +470,7 @@ export class TimeSync implements TimeSyncApi {
 	 * is one of them.
 	 */
 	readonly #onTick = (): void => {
-		const { config, date } = this.#latestSnapshot;
+		const { config } = this.#latestSnapshot;
 		if (config.freezeUpdates) {
 			// Defensive step to make sure that an invalid tick wasn't started
 			clearInterval(this.#intervalId);
@@ -482,30 +478,22 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		// Equality should be our only condition for not dispatching an update. It
-		// is possible for newDate to have a time before the date in the snapshot
-		// if the time zones changed, and we should still dispatch an update in that
-		// case. But we don't have to worry about too many edge cases because all
-		// versions of setInterval (browser and server) are already monotonic
-		const newDate = new ReadonlyDate();
-		if (newDate.getTime() === date.getTime()) {
-			return;
-		}
-
+		// onTick is expected to be called in response to monotonic time changes
+		// (either from calculating them manually to decide when to call onTick
+		// synchronously or from letting setInterval handle the calls). So while
+		// this edge case should basically be impossible, we need to make sure that
+		// we always dispatch a date, even if its time is exactly the same.
 		this.#latestSnapshot = freezeSnapshot({
 			...this.#latestSnapshot,
-			date: newDate,
+			date: new ReadonlyDate(),
 			lastUpdatedAtMs: getMonotonicTimeMs() - this.#initializedAtMs,
 		});
 		this.#notifyAllSubscriptions();
 	};
 
-	/**
-	 * @todo Still need to update this one to be based on monotonic time.
-	 */
 	#onFastestIntervalChange(): void {
 		const fastest = this.#fastestRefreshInterval;
-		const { date, config } = this.#latestSnapshot;
+		const { lastUpdatedAtMs, config } = this.#latestSnapshot;
 
 		const updatesShouldStop =
 			config.freezeUpdates ||
@@ -517,36 +505,30 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		const elapsed = Date.now() - date.getTime();
+		const newTime = getMonotonicTimeMs();
+		const elapsed = newTime - (lastUpdatedAtMs ?? this.#initializedAtMs);
 		const timeBeforeNextUpdate = fastest - elapsed;
 
-		// Clear previous interval sight unseen just to be on the safe side
+		// Clear previous interval no matter what just to be on the safe side
 		clearInterval(this.#intervalId);
 
 		if (timeBeforeNextUpdate <= 0) {
-			const newDate = new ReadonlyDate();
-			if (newDate.getTime() !== date.getTime()) {
-				this.#latestSnapshot = freezeSnapshot({
-					...this.#latestSnapshot,
-					date: newDate,
-				});
-				this.#notifyAllSubscriptions();
-			}
-
+			this.#onTick();
 			this.#intervalId = setInterval(this.#onTick, fastest);
 			return;
 		}
 
 		// Most common case for this branch is the very first subscription
 		// getting added, but there's still the small chance that the fastest
-		// interval could change right after an update got flushed
+		// interval could change right after an update got flushed, so there would
+		// be zero elapsed time to worry about
 		if (timeBeforeNextUpdate === fastest) {
 			this.#intervalId = setInterval(this.#onTick, timeBeforeNextUpdate);
 			return;
 		}
 
-		// Otherwise, use interval as pseudo-timeout, and then go back to using
-		// it as a normal interval afterwards
+		// Otherwise, use setInterval as pseudo-timeout to resolve the remaining
+		// time as a one-time update, and then go back to using normal intervals
 		this.#intervalId = setInterval(() => {
 			clearInterval(this.#intervalId);
 
@@ -631,12 +613,10 @@ export class TimeSync implements TimeSyncApi {
 						return;
 					}
 
+					const dropped = Math.max(0, this.#latestSnapshot.subscriberCount - 1);
 					this.#latestSnapshot = freezeSnapshot({
 						...this.#latestSnapshot,
-						subscriberCount: Math.max(
-							0,
-							this.#latestSnapshot.subscriberCount - 1,
-						),
+						subscriberCount: dropped,
 					});
 
 					if (filtered.length > 0) {
