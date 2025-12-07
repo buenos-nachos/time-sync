@@ -17,15 +17,19 @@ In other words, `time-sync` aims to make time more obvious, less magical, and ea
 
 ## Features
 
+### Core library
+
 - 🔄 **Keep things in sync** – `time-sync` ensures that different systems on one device can't ever get out of sync with each other.
 - 📸 **No more snapshot flakes** – `time-sync` makes it easy to freeze the date to a specific value to ensure that your snapshot tests stay deterministic. The upcoming UI framework bindings will have out-of-the-box support for platforms like Storybook.
-- 📦 **As few dependencies as possible** – The vanilla version of `time-sync` has zero runtime dependencies. Each package for binding it to a framework aims to have the vanilla `time-sync` package and that framework as its only two dependencies.
+- 🕔 **Monotonic state** - All of `time-sync`'s core state is driven by monotonic updates, so you don't have to worry about it breaking if the user changes their time zone.
+- 📦 **Zero dependencies** – `time-sync` has zero runtime dependencies and can be used on server and client.
 
-### Coming soon
+### UI integrations (coming soon)
 
 - 🖥️ **Bindings for popular UI frameworks** – `time-sync` will be launching bindings for React in the next few weeks. Solid.js bindings will launch soon after. Other frameworks may be added based on demand/interest.
 - 🏝️ **Astro islands** – All the packages for binding `time-sync` to a UI framework aim to support Astro out of the box. This includes support for islands and the ability to mix the bindings with `.astro` files.
 - 💿 **Mix and match UI frameworks** – The React and Solid.js packages are being designed so that they can be used together in a single Astro project. Any future framework bindings will aim to have the same support.
+- 🤝 **Minimal dependencies** – Every package for binding `time-sync` to a UI library/framework aims to have the library/framework and `time-sync` as its only two dependencies.
 
 ## Quick start
 
