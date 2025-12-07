@@ -259,8 +259,13 @@ function getMonotonicTimeMs(): number {
  * to worry about mismatches.
  */
 function freezeSnapshot(snap: Snapshot): Snapshot {
-	Object.freeze(snap.config);
-	return Object.freeze(snap);
+	if (!Object.isFrozen(snap.config)) {
+		Object.freeze(snap.config);
+	}
+	if (!Object.isFrozen(snap)) {
+		Object.freeze(snap);
+	}
+	return snap;
 }
 
 const defaultMinimumRefreshIntervalMs = 200;
@@ -495,6 +500,9 @@ export class TimeSync implements TimeSyncApi {
 		this.#notifyAllSubscriptions();
 	};
 
+	/**
+	 * @todo Still need to update this one to be based on monotonic time.
+	 */
 	#onFastestIntervalChange(): void {
 		const fastest = this.#fastestRefreshInterval;
 		const { date, config } = this.#latestSnapshot;
@@ -559,11 +567,10 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		const prevFastest = this.#fastestRefreshInterval;
-		let newFastest = Number.POSITIVE_INFINITY;
-
 		// This setup requires that every interval array stay sorted. It
 		// immediately falls apart if this isn't guaranteed.
+		const prevFastest = this.#fastestRefreshInterval;
+		let newFastest = Number.POSITIVE_INFINITY;
 		for (const contexts of this.#subscriptions.values()) {
 			const subFastest =
 				contexts[0]?.refreshIntervalMs ?? Number.POSITIVE_INFINITY;
@@ -582,7 +589,7 @@ export class TimeSync implements TimeSyncApi {
 		// Destructuring properties so that they can't be fiddled with after
 		// this function call ends
 		const { targetRefreshIntervalMs, onUpdate } = options;
-		const { config } = this.#latestSnapshot;
+		const { minimumRefreshIntervalMs } = this.#latestSnapshot.config;
 
 		const isTargetValid =
 			targetRefreshIntervalMs === Number.POSITIVE_INFINITY ||
@@ -600,7 +607,7 @@ export class TimeSync implements TimeSyncApi {
 			timeSync: this,
 			registeredAtMs: getMonotonicTimeMs() - this.#initializedAtMs,
 			refreshIntervalMs: Math.max(
-				config.minimumRefreshIntervalMs,
+				minimumRefreshIntervalMs,
 				targetRefreshIntervalMs,
 			),
 
@@ -640,9 +647,7 @@ export class TimeSync implements TimeSyncApi {
 					}
 
 					subsOnSetup.delete(onUpdate);
-					if (!config.freezeUpdates) {
-						this.#updateFastestInterval();
-					}
+					this.#updateFastestInterval();
 				} finally {
 					subscribed = false;
 				}
@@ -650,12 +655,18 @@ export class TimeSync implements TimeSyncApi {
 		};
 		Object.freeze(ctx);
 
+		// We need to make sure that each array for tracking subscriptions is
+		// readonly, and because dispatching updates should be far more common than
+		// adding subscriptions, we're placing the immutable copying here to
+		// minimize overall pressure on the system.
 		let newContexts: SubscriptionContext[];
+		let addedNewInterval = false;
 		const prevContexts = subsOnSetup.get(onUpdate);
 		if (prevContexts !== undefined) {
 			newContexts = [...prevContexts, ctx];
 		} else {
 			newContexts = [ctx];
+			addedNewInterval = true;
 		}
 
 		subsOnSetup.set(onUpdate, newContexts);
@@ -666,7 +677,7 @@ export class TimeSync implements TimeSyncApi {
 			subscriberCount: this.#latestSnapshot.subscriberCount + 1,
 		});
 
-		if (!config.freezeUpdates) {
+		if (addedNewInterval) {
 			this.#updateFastestInterval();
 		}
 		return ctx.unsubscribe;
