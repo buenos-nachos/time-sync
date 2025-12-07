@@ -961,6 +961,7 @@ describe(TimeSync, () => {
 			const mutationSource: Snapshot = {
 				date: new ReadonlyDate("April 1, 1970"),
 				subscriberCount: Number.POSITIVE_INFINITY,
+				lastUpdatedAtMs: 1_000_000,
 				config: {
 					freezeUpdates: true,
 					minimumRefreshIntervalMs: Number.POSITIVE_INFINITY,
@@ -971,6 +972,9 @@ describe(TimeSync, () => {
 			const mutations: readonly (() => void)[] = [
 				() => {
 					snap.date = mutationSource.date;
+				},
+				() => {
+					snap.lastUpdatedAtMs = mutationSource.lastUpdatedAtMs;
 				},
 				() => {
 					snap.subscriberCount = mutationSource.subscriberCount;
