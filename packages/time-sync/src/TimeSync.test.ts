@@ -7,7 +7,6 @@ import {
 	type SubscriptionContext,
 	TimeSync,
 } from "./TimeSync";
-import type { Writeable } from "./utilities";
 
 const invalidIntervals: readonly number[] = [
 	Number.NaN,
@@ -971,6 +970,7 @@ describe(TimeSync, () => {
 
 			// We have readonly modifiers on the types, but we need to make sure
 			// nothing can break at runtime
+			type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
 			const snap = sync.getStateSnapshot() as Writeable<Snapshot>;
 			const config = snap.config as Writeable<Configuration>;
 			const copyBeforeMutations = { ...snap, config: { ...config } };
