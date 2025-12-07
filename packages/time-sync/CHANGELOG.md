@@ -2,9 +2,11 @@
 
 ## 0.5.0
 
-### Minor Changes
+### Breaking Changes
 
 - c3986e9: revamped all state management and APIs to be based on monotonic time
+- c3986e9: Removed `registeredAt` and `intervalLastFulfilledAt` properties from `SubscriptionContext` and added monotonic `registeredAtMs`
+- c3986e9: Added monotonic `lastUpdatedAt` property to `Snapshot` type.
 
 ## 0.4.1
 
