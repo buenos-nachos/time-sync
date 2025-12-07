@@ -302,6 +302,10 @@ const defaultMinimumRefreshIntervalMs = 200;
  * some parts of the screen.)
  */
 export class TimeSync implements TimeSyncApi {
+	/**
+	 * The monotonic time in milliseconds from when the TimeSync instance was
+	 * first instantiated.
+	 */
 	readonly #initializedAtMs: number;
 
 	/**
@@ -623,10 +627,10 @@ export class TimeSync implements TimeSyncApi {
 						// No need to sort on removal because everything gets sorted as
 						// it enters the subscriptions map
 						subsOnSetup.set(onUpdate, filtered);
-						return;
+					} else {
+						subsOnSetup.delete(onUpdate);
 					}
 
-					subsOnSetup.delete(onUpdate);
 					this.#updateFastestInterval();
 				} finally {
 					subscribed = false;
@@ -640,13 +644,11 @@ export class TimeSync implements TimeSyncApi {
 		// adding subscriptions, we're placing the immutable copying here to
 		// minimize overall pressure on the system.
 		let newContexts: SubscriptionContext[];
-		let addedNewInterval = false;
 		const prevContexts = subsOnSetup.get(onUpdate);
 		if (prevContexts !== undefined) {
 			newContexts = [...prevContexts, ctx];
 		} else {
 			newContexts = [ctx];
-			addedNewInterval = true;
 		}
 
 		subsOnSetup.set(onUpdate, newContexts);
@@ -657,9 +659,7 @@ export class TimeSync implements TimeSyncApi {
 			subscriberCount: this.#latestSnapshot.subscriberCount + 1,
 		});
 
-		if (addedNewInterval) {
-			this.#updateFastestInterval();
-		}
+		this.#updateFastestInterval();
 		return ctx.unsubscribe;
 	}
 

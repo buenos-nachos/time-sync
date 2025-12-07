@@ -763,45 +763,45 @@ describe(TimeSync, () => {
 			expect,
 		}) => {
 			const sync = new TimeSync();
-			const snapBefore = sync.getStateSnapshot().date;
 
 			let ejectedContext: SubscriptionContext | undefined;
 			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
 				ejectedContext = ctx;
 			});
 
+			// Registering all three with the exact same callback. That way, if either
+			// of the others get processed, their contexts should overwrite the
+			// ejected context and make the tests fail
 			const unsub = sync.subscribe({
 				onUpdate,
 				targetRefreshIntervalMs: refreshRates.oneHour,
 			});
-			void sync.subscribe({
+			sync.subscribe({
 				onUpdate,
 				targetRefreshIntervalMs: refreshRates.oneMinute,
 			});
-			void sync.subscribe({
+			sync.subscribe({
 				onUpdate,
 				targetRefreshIntervalMs: refreshRates.oneSecond,
 			});
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneSecond);
 			expect(ejectedContext).toEqual<SubscriptionContext>({
-				intervalLastFulfilledAt: null,
-				registeredAt: snapBefore,
-				targetRefreshIntervalMs: refreshRates.oneHour,
+				refreshIntervalMs: refreshRates.oneHour,
 				timeSync: sync,
 				unsubscribe: unsub,
+				registeredAtMs: 0,
 			});
 
-			const remainingSecondsToOneHour = refreshRates.oneHour - 1000;
+			const remainingSecondsToOneHour =
+				refreshRates.oneHour - refreshRates.oneSecond;
 			await vi.advanceTimersByTimeAsync(remainingSecondsToOneHour);
 
-			const snapAfter = sync.getStateSnapshot().date;
 			expect(ejectedContext).toEqual<SubscriptionContext>({
-				intervalLastFulfilledAt: snapAfter,
-				registeredAt: snapBefore,
-				targetRefreshIntervalMs: refreshRates.oneHour,
+				refreshIntervalMs: refreshRates.oneHour,
 				timeSync: sync,
 				unsubscribe: unsub,
+				registeredAtMs: 0,
 			});
 		});
 	});
@@ -822,6 +822,7 @@ describe(TimeSync, () => {
 			expect(snap).toEqual<Snapshot>({
 				date: initialDate,
 				subscriberCount: 0,
+				lastUpdatedAtMs: null,
 				config: {
 					freezeUpdates: false,
 					minimumRefreshIntervalMs,
@@ -1053,7 +1054,7 @@ describe(TimeSync, () => {
 	 * Not sure how to codify that in tests yet, but ideally it should be.
 	 */
 	describe("Freezing updates on init", () => {
-		it("Never updates internal state, no matter how many subscribers subscribe", ({
+		it("Always updates internal state to reflect subscription count", async ({
 			expect,
 		}) => {
 			const initialDate = new Date("August 25, 1832");
@@ -1067,8 +1068,9 @@ describe(TimeSync, () => {
 				});
 			}
 
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
 			const snap = sync.getStateSnapshot();
-			expect(snap.subscriberCount).toBe(0);
+			expect(snap.subscriberCount).toBe(1000);
 			expect(snap.date).toEqual(initialDate);
 		});
 	});
@@ -1198,30 +1200,29 @@ describe(TimeSync, () => {
 			expect(snap3).toBe(0);
 		});
 
-		it("Lets consumers detect whether an update corresponds to the subscription they explicitly set up", async ({
+		it("Does not break update cadence if system time jumps around", async ({
 			expect,
 		}) => {
-			const sync = new TimeSync();
-			const innerOnUpdate = vi.fn();
+			const initialDate = setInitialTime("2022-03-15T08:00:00Z");
+			const sync = new TimeSync({ initialDate });
+			const thirtyMinutes = 30 * refreshRates.oneMinute;
 
-			void sync.subscribe({
-				targetRefreshIntervalMs: refreshRates.oneMinute,
-				onUpdate: (date, ctx) => {
-					const intervalMatches =
-						date.getTime() === ctx.intervalLastFulfilledAt?.getTime();
-					if (intervalMatches) {
-						innerOnUpdate();
-					}
-				},
-			});
+			const onUpdate = vi.fn();
+			sync.subscribe({ onUpdate, targetRefreshIntervalMs: thirtyMinutes });
 
-			void sync.subscribe({
-				targetRefreshIntervalMs: refreshRates.thirtySeconds,
-				onUpdate: vi.fn(),
-			});
+			await vi.advanceTimersByTimeAsync(thirtyMinutes);
+			expect(onUpdate).toHaveBeenCalledTimes(1);
 
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(innerOnUpdate).toHaveBeenCalledTimes(1);
+			// Go one hour into the past and then advance 30 minutes to go back to
+			// where we started
+			vi.setSystemTime("2022-03-15T07:30:00Z");
+			await vi.advanceTimersByTimeAsync(thirtyMinutes);
+			expect(onUpdate).toHaveBeenCalledTimes(2);
+
+			// Go one day into the past and then advance another 30 minutes
+			vi.setSystemTime("2022-03-14T08:00:00Z");
+			await vi.advanceTimersByTimeAsync(thirtyMinutes);
+			expect(onUpdate).toHaveBeenCalledTimes(3);
 		});
 	});
 });
