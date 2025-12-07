@@ -131,9 +131,8 @@ describe(TimeSync, () => {
 				const expectedCtx: SubscriptionContext = {
 					unsubscribe,
 					timeSync: sync,
-					intervalLastFulfilledAt: dateAfter,
-					registeredAt: dateBefore,
-					targetRefreshIntervalMs: rate,
+					refreshIntervalMs: rate,
+					registeredAtMs: 0,
 				};
 				expect(onUpdate).toHaveBeenCalledWith(dateAfter, expectedCtx);
 
@@ -587,20 +586,19 @@ describe(TimeSync, () => {
 			expect,
 		}) => {
 			const sync = new TimeSync();
-			const interval = refreshRates.oneMinute;
 
 			let ejectedInterval: number | undefined;
 			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
-				ejectedInterval = ctx.targetRefreshIntervalMs;
+				ejectedInterval = ctx.refreshIntervalMs;
 			});
 
-			void sync.subscribe({
+			sync.subscribe({
 				onUpdate,
-				targetRefreshIntervalMs: interval,
+				targetRefreshIntervalMs: refreshRates.oneMinute,
 			});
 
-			await vi.advanceTimersByTimeAsync(interval);
-			expect(ejectedInterval).toBe(interval);
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(ejectedInterval).toBe(refreshRates.oneMinute);
 		});
 
 		it("Exposes exact same unsubscribe callback as the one returned from the subscribe call", async ({
@@ -622,48 +620,32 @@ describe(TimeSync, () => {
 			expect(ejectedUnsub).toBe(unsub);
 		});
 
-		it("Exposes when the subscription was first set up", async ({ expect }) => {
-			const sync = new TimeSync();
-			const start = sync.getStateSnapshot().date;
-
-			let ejectedDate: Date | undefined;
-			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
-				ejectedDate = ctx.registeredAt;
-			});
-
-			void sync.subscribe({
-				onUpdate,
-				targetRefreshIntervalMs: refreshRates.oneMinute,
-			});
-
-			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			expect(ejectedDate).toEqual(start);
-		});
-
-		it("Indicates when the last requested interval was fulfilled", async ({
+		it("Exposes when the subscription was first set up, relative to the TimeSync instantiation", async ({
 			expect,
 		}) => {
 			const sync = new TimeSync();
 
-			const fulfilledValues: (ReadonlyDate | null)[] = [];
-			const onUpdate = vi.fn((_: unknown, ctx: SubscriptionContext) => {
-				fulfilledValues.push(ctx.intervalLastFulfilledAt);
-			});
-
+			let ejectedSetupTime1: number | undefined;
 			void sync.subscribe({
-				onUpdate,
 				targetRefreshIntervalMs: refreshRates.oneMinute,
-			});
-			void sync.subscribe({
-				onUpdate: vi.fn(),
-				targetRefreshIntervalMs: refreshRates.thirtySeconds,
+				onUpdate: (_, ctx) => {
+					ejectedSetupTime1 = ctx.registeredAtMs;
+				},
 			});
 
 			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
-			const snapAfter = sync.getStateSnapshot().date;
+			expect(ejectedSetupTime1).toEqual(0);
 
-			expect(onUpdate).toHaveBeenCalledTimes(2);
-			expect(fulfilledValues).toEqual([null, snapAfter]);
+			let ejectedSetupTime2: number | undefined;
+			void sync.subscribe({
+				targetRefreshIntervalMs: refreshRates.oneMinute,
+				onUpdate: (_, ctx) => {
+					ejectedSetupTime2 = ctx.registeredAtMs;
+				},
+			});
+
+			await vi.advanceTimersByTimeAsync(refreshRates.oneMinute);
+			expect(ejectedSetupTime2).toEqual(refreshRates.oneMinute);
 		});
 	});
 
