@@ -51,7 +51,7 @@ interface ReactTimeSyncApi {
 	 * single uninterrupted UI tree (or in some cases, maybe there won't be a
 	 * provider at all).
 	 */
-	onProviderMount: () => () => void;
+	initialize: () => () => void;
 
 	/**
 	 * Exposes a stable version of ReactTimeSync's underlying TimeSync instance
@@ -129,11 +129,6 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		this.#isProviderMounted = false;
 	}
 
-	readonly #clearMountThrottleId = (): void => {
-		clearTimeout(this.#componentMountThrottleId);
-		this.#componentMountThrottleId = undefined;
-	};
-
 	// This method is expected to be called from a useLayoutEffect call, so
 	// it's vital that all logic is defined synchronously. Otherwise, we risk
 	// screen flickering or other bugs from the UI being able to be painted
@@ -175,8 +170,20 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		// macrotask queue so that if a bunch of components mount at the same time,
 		// you have the wait for a repaint before being able to have this method
 		// process anything again
-		this.#componentMountThrottleId = setTimeout(this.#clearMountThrottleId, 0);
-		return this.#clearMountThrottleId;
+		const newId = setTimeout(() => {
+			clearTimeout(this.#componentMountThrottleId);
+			this.#componentMountThrottleId = undefined;
+		}, 0);
+		this.#componentMountThrottleId = newId;
+		return () => {
+			// Adding this check to prevent race conditions from previous cleanups
+			// wiping out a timeout that was started by a different component
+			if (this.#componentMountThrottleId !== newId) {
+				return;
+			}
+			clearTimeout(this.#componentMountThrottleId);
+			this.#componentMountThrottleId = undefined;
+		};
 	}
 
 	getTimeSync(): TimeSync {
@@ -292,7 +299,7 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 	}
 
 	// MUST be called from inside an effect, because it relies on browser APIs.
-	onProviderMount(): () => void {
+	initialize(): () => void {
 		if (this.#isProviderMounted) {
 			throw new Error("Must call cleanup function before re-initializing");
 		}
@@ -306,13 +313,7 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		// mounting, we need some kind of way of refreshing the fallback date
 		// so that we can guarantee a fresh value when a new component mounts
 		const refreshFallbackDate = (newDate: ReadonlyDate): void => {
-			const newDateTime = newDate.getTime();
-			if (this.#fallbackData.date.getTime() < newDateTime) {
-				this.#fallbackData = {
-					cachedTransformation: this.#fallbackData.cachedTransformation,
-					date: newDate,
-				};
-			}
+			this.#fallbackData = { ...this.#fallbackData, date: newDate };
 		};
 		this.#timeSync.subscribe({
 			targetRefreshIntervalMs: refreshRates.idle,
@@ -326,7 +327,13 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		const cleanup = () => {
 			// This also cleans up the subscription registered above
 			this.#timeSync.clearAll();
+
 			clearInterval(this.#dateRefreshIntervalId);
+			this.#dateRefreshIntervalId = undefined;
+
+			clearTimeout(this.#componentMountThrottleId);
+			this.#componentMountThrottleId = undefined;
+
 			this.#subscriptions.clear();
 			this.#isProviderMounted = false;
 		};

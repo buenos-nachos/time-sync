@@ -34,53 +34,11 @@ function createTimeSyncProvider(
 	return ({ children, timeSync }) => {
 		const [lockedRts] = useState(() => new ReactTimeSync(timeSync));
 		useInsertionEffect(() => {
-			return lockedRts.onProviderMount();
+			return lockedRts.initialize();
 		}, [lockedRts]);
 
 		return <context.Provider value={lockedRts}>{children}</context.Provider>;
 	};
-}
-
-type CreateContextWithGetterResult<T extends TimeSync | undefined> =
-	TimeSync extends T
-		? {
-				context: Context<ReactTimeSync>;
-				getter: ReactTimeSyncGetter;
-			}
-		: {
-				context: Context<ReactTimeSync | undefined>;
-				getter: ReactTimeSyncGetter;
-			};
-
-function createContextWithGetter<T extends TimeSync | undefined>(
-	defaultValue: T,
-): CreateContextWithGetterResult<T> {
-	if (defaultValue === undefined) {
-		const context = createContext<ReactTimeSync | undefined>(undefined);
-		return {
-			context,
-			getter: () => {
-				const value = useContext(context);
-				if (value === undefined) {
-					throw new Error(
-						"Bindings were created with injection method `reactContext`, but TimeSyncProvider is not mounted anywhere in the application",
-					);
-				}
-				return value;
-			},
-		} as CreateContextWithGetterResult<T>;
-	}
-
-	// This behavior is almost never used by React developers, but even if
-	// useContext is called outside of a complete UI tree (which you have to
-	// worry about with Astro's islands), the call will still work as long as
-	// there's a meaningful default value
-	const defaultRts = new ReactTimeSync(defaultValue);
-	const context = createContext(defaultRts);
-	return {
-		context,
-		getter: () => useContext(context),
-	} as CreateContextWithGetterResult<T>;
 }
 
 const injectionMethods = [
@@ -203,27 +161,44 @@ export function createReactBindings<T extends InjectionMethod>(
 			const fixedRts = new ReactTimeSync(timeSync);
 			get = () => fixedRts;
 			TimeSyncProvider = undefined;
+			fixedRts.initialize();
 			break;
 		}
 
 		case "reactContext": {
-			const { context, getter } = createContextWithGetter(undefined);
-			get = getter;
+			const context = createContext<ReactTimeSync | undefined>(undefined);
+			get = function useReactTimeSyncContext() {
+				const value = useContext(context);
+				if (value === undefined) {
+					throw new Error(
+						"Bindings were created with injection method `reactContext`, but TimeSyncProvider is not mounted anywhere in the application",
+					);
+				}
+				return value;
+			};
 			TimeSyncProvider = createTimeSyncProvider(context);
 			break;
 		}
 
 		case "hybrid": {
-			const { context, getter } = createContextWithGetter(timeSync);
-			get = getter;
+			// This behavior is almost never used by React developers, but even if
+			// useContext is called outside of a complete UI tree (which you have to
+			// worry about with Astro's islands), the call will still work as long as
+			// there's a meaningful default value
+			const defaultRts = new ReactTimeSync(timeSync);
+			const context = createContext(defaultRts);
+			get = function useReactTimeSyncContextWithDefault() {
+				return useContext(context);
+			};
 			TimeSyncProvider = createTimeSyncProvider(context);
+			defaultRts.initialize();
 			break;
 		}
 
 		default: {
-			const exhaust: never = injectionMethod;
-			throw new Error(
-				`Impossible case encountered: cannot process injection method ${exhaust}`,
+			const exhaustCheck: never = injectionMethod;
+			throw new RangeError(
+				`Impossible case encountered: cannot process injection method ${exhaustCheck}`,
 			);
 		}
 	}
