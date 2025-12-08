@@ -129,11 +129,6 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		this.#isProviderMounted = false;
 	}
 
-	readonly #clearMountThrottleId = (): void => {
-		clearTimeout(this.#componentMountThrottleId);
-		this.#componentMountThrottleId = undefined;
-	};
-
 	// This method is expected to be called from a useLayoutEffect call, so
 	// it's vital that all logic is defined synchronously. Otherwise, we risk
 	// screen flickering or other bugs from the UI being able to be painted
@@ -175,8 +170,20 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		// macrotask queue so that if a bunch of components mount at the same time,
 		// you have the wait for a repaint before being able to have this method
 		// process anything again
-		this.#componentMountThrottleId = setTimeout(this.#clearMountThrottleId, 0);
-		return this.#clearMountThrottleId;
+		const newId = setTimeout(() => {
+			clearTimeout(this.#componentMountThrottleId);
+			this.#componentMountThrottleId = undefined;
+		}, 0);
+		this.#componentMountThrottleId = newId;
+		return () => {
+			// Adding this check to prevent race conditions from previous cleanups
+			// wiping out a timeout that was started by a different component
+			if (this.#componentMountThrottleId !== newId) {
+				return;
+			}
+			clearTimeout(this.#componentMountThrottleId);
+			this.#componentMountThrottleId = undefined;
+		};
 	}
 
 	getTimeSync(): TimeSync {
