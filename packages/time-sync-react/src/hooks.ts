@@ -268,11 +268,11 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		}, [reactiveSubscribe, targetRefreshIntervalMs]);
 
 		useLayoutEffect(() => {
-			rts.invalidateTransformation(hookId, merged);
+			return rts.invalidateTransformation(hookId, merged);
 		}, [rts, hookId, merged]);
 
 		useLayoutEffect(() => {
-			rts.onComponentMount();
+			return rts.onComponentMount();
 		}, [rts]);
 
 		return merged;

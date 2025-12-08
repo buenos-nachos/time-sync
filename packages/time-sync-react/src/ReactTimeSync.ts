@@ -90,7 +90,7 @@ interface ReactTimeSyncApi {
 	 *
 	 * If there is no entry associated with the ID, the method does nothing.
 	 */
-	invalidateTransformation: (hookId: string, newValue: unknown) => void;
+	invalidateTransformation: (hookId: string, newValue: unknown) => () => void;
 }
 
 /**
@@ -186,7 +186,7 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		return this.#timeSync;
 	}
 
-	invalidateTransformation(hookId: string, newValue: unknown): void {
+	invalidateTransformation(hookId: string, newValue: unknown): () => void {
 		if (!this.#isProviderMounted) {
 			throw new Error(
 				"Cannot sync transformation results while system is not mounted",
@@ -195,7 +195,7 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 
 		const entry = this.#subscriptions.get(hookId);
 		if (entry === undefined) {
-			return;
+			return noOp;
 		}
 
 		// This method is expected to be called from useEffect, which will
@@ -207,6 +207,8 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 				cachedTransformation: newValue,
 			};
 		}
+
+		return noOp;
 	}
 
 	subscribe<T>(options: SubscriptionInit<T>): () => void {
