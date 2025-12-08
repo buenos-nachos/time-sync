@@ -51,7 +51,7 @@ interface ReactTimeSyncApi {
 	 * single uninterrupted UI tree (or in some cases, maybe there won't be a
 	 * provider at all).
 	 */
-	onProviderMount: () => () => void;
+	initialize: () => () => void;
 
 	/**
 	 * Exposes a stable version of ReactTimeSync's underlying TimeSync instance
@@ -299,7 +299,7 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 	}
 
 	// MUST be called from inside an effect, because it relies on browser APIs.
-	onProviderMount(): () => void {
+	initialize(): () => void {
 		if (this.#isProviderMounted) {
 			throw new Error("Must call cleanup function before re-initializing");
 		}
