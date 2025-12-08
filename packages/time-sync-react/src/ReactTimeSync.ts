@@ -1,14 +1,7 @@
 import { ReadonlyDate, refreshRates, TimeSync } from "@buenos-nachos/time-sync";
-import {
-	debounce,
-	noOp,
-	structuralMerge,
-	type TransformCallback,
-} from "./utilities";
+import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
 export type ReactTimeSyncGetter = () => ReactTimeSync;
-
-type onReactStateSync = () => void;
 
 interface SubscriptionData<T> {
 	readonly date: ReadonlyDate;
@@ -19,7 +12,8 @@ interface SubscriptionEntry<T> {
 	readonly onReactStateSync: () => void;
 	readonly transform: TransformCallback<T>;
 	// The data value itself MUST be readonly, but the key is being kept mutable
-	// on purpose. It will keep getting swapped out over time.
+	// on purpose. We'll be swapping in different values over time, but by keeping
+	// the values themselves readonly, they become render-safe
 	data: SubscriptionData<T>;
 }
 
@@ -28,7 +22,7 @@ interface SubscriptionInit<T> {
 	readonly initialValue: T;
 	readonly targetRefreshIntervalMs: number;
 	readonly transform: TransformCallback<T>;
-	readonly onStateSync: onReactStateSync;
+	readonly onStateSync: () => void;
 }
 
 const stalenessThresholdMs = 200;
@@ -36,8 +30,6 @@ const stalenessThresholdMs = 200;
 function isFrozen(sync: TimeSync): boolean {
 	return sync.getStateSnapshot().config.freezeUpdates;
 }
-
-export type SafeTimeSync = Omit<TimeSync, "clearAll">;
 
 interface ReactTimeSyncApi {
 	/**
@@ -54,23 +46,24 @@ interface ReactTimeSyncApi {
 	/**
 	 * @todo Figure out when and how this function is expected to be called.
 	 *
-	 * Right now, it's at least expected to be called from ReactTimeSync, but
-	 * some of the nuances might need to change to support use cases like Astro,
-	 * there there won't be a single uninterrupted UI tree.
+	 * Some of the nuances might need to change to support use cases like Astro
+	 * (and the name of the method probably will, too), since there won't be a
+	 * single uninterrupted UI tree (or in some cases, maybe there won't be a
+	 * provider at all).
 	 */
-	initialize: () => () => void;
+	onProviderMount: () => () => void;
 
 	/**
 	 * Exposes a stable version of ReactTimeSync's underlying TimeSync instance
 	 * that is safe to use anywhere in UI code.
 	 */
-	getTimeSync: () => SafeTimeSync;
+	getTimeSync: () => TimeSync;
 
 	/**
 	 * The callback that should always be called from a layout effect when
 	 * useTimeSync is mounted.
 	 */
-	onComponentMount: () => void;
+	onComponentMount: () => () => void;
 
 	/**
 	 * Attempts to grab the transformation and date currently registered with
@@ -97,7 +90,7 @@ interface ReactTimeSyncApi {
 	 *
 	 * If there is no entry associated with the ID, the method does nothing.
 	 */
-	invalidateTransformation: (hookId: string, newValue: unknown) => void;
+	invalidateTransformation: (hookId: string, newValue: unknown) => () => void;
 }
 
 /**
@@ -112,65 +105,58 @@ interface ReactTimeSyncApi {
 // need to trigger re-renders in response to them changing.
 export class ReactTimeSync implements ReactTimeSyncApi {
 	/**
-	 * Must be debounced during initialization. Otherwise, we'll do a lot of
-	 * thrashing if multiple components mount at the same time and end up
-	 * calling this method a bunch in the same UI commit cycle.
-	 */
-	readonly onComponentMount: () => void;
-
-	/**
 	 * Have to store this with type unknown, because we need to be able to store
 	 * arbitrary data, and if we add a type parameter at the class level, that
 	 * forces all subscriptions to use the exact same transform type.
 	 */
 	readonly #subscriptions: Map<string, SubscriptionEntry<unknown>>;
 	readonly #timeSync: TimeSync;
-	readonly #safeTimeSync: SafeTimeSync;
 
-	#isMounted: boolean;
+	#isProviderMounted: boolean;
 	#fallbackData: SubscriptionData<null>;
 	#dateRefreshIntervalId: NodeJS.Timeout | number | undefined;
+	#componentMountThrottleId: NodeJS.Timeout | number | undefined;
 
 	constructor(timeSync?: TimeSync) {
 		const sync = timeSync ?? new TimeSync();
 		this.#timeSync = sync;
 		this.#subscriptions = new Map();
 		this.#dateRefreshIntervalId = undefined;
-
-		this.onComponentMount = debounce(
-			() => this.#rawOnComponentMount(),
-			stalenessThresholdMs,
-		);
+		this.#componentMountThrottleId = undefined;
 
 		const snap = sync.getStateSnapshot();
 		this.#fallbackData = { cachedTransformation: null, date: snap.date };
-		this.#safeTimeSync = {
-			getStateSnapshot: () => sync.getStateSnapshot(),
-			subscribe: (options) => sync.subscribe(options),
-		};
-
-		this.#isMounted = false;
+		this.#isProviderMounted = false;
 	}
+
+	readonly #clearMountThrottleId = (): void => {
+		clearTimeout(this.#componentMountThrottleId);
+		this.#componentMountThrottleId = undefined;
+	};
 
 	// This method is expected to be called from a useLayoutEffect call, so
 	// it's vital that all logic is defined synchronously. Otherwise, we risk
 	// screen flickering or other bugs from the UI being able to be painted
 	// before all the work is done
-	#rawOnComponentMount(): void {
-		if (!this.#isMounted) {
+	onComponentMount(): () => void {
+		if (!this.#isProviderMounted) {
 			throw new Error(
 				"Cannot process component initialization while system is not mounted",
 			);
 		}
 
-		if (isFrozen(this.#timeSync)) {
-			return;
+		// Throttle the mounting logic so that if we have multiple ReactTimeSync
+		// consumers mount at the same time, we'll only process one mount in a given
+		// commit cycle
+		const shouldProceed =
+			!isFrozen(this.#timeSync) && this.#componentMountThrottleId === undefined;
+		if (!shouldProceed) {
+			return noOp;
 		}
 
 		// Serializing entries before looping just to be extra safe and make
 		// sure there's no risk of infinite loops from the iterator protocol
 		const entries = [...this.#subscriptions.values()];
-
 		for (const entry of entries) {
 			const { date, cachedTransformation } = entry.data;
 			const newTransform = entry.transform(date);
@@ -183,17 +169,25 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 			entry.data = { date: date, cachedTransformation: merged };
 			entry.onReactStateSync();
 		}
+
+		// Immediately queue up the throttle to be cleared at the browser's nearest
+		// possible convenience, but still force the update to go through the
+		// macrotask queue so that if a bunch of components mount at the same time,
+		// you have the wait for a repaint before being able to have this method
+		// process anything again
+		this.#componentMountThrottleId = setTimeout(this.#clearMountThrottleId, 0);
+		return this.#clearMountThrottleId;
 	}
 
-	getTimeSync(): SafeTimeSync {
-		if (!this.#isMounted) {
+	getTimeSync(): TimeSync {
+		if (!this.#isProviderMounted) {
 			throw new Error("Cannot retrieve TimeSync while system is not mounted");
 		}
-		return this.#safeTimeSync;
+		return this.#timeSync;
 	}
 
-	invalidateTransformation(hookId: string, newValue: unknown): void {
-		if (!this.#isMounted) {
+	invalidateTransformation(hookId: string, newValue: unknown): () => void {
+		if (!this.#isProviderMounted) {
 			throw new Error(
 				"Cannot sync transformation results while system is not mounted",
 			);
@@ -201,7 +195,7 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 
 		const entry = this.#subscriptions.get(hookId);
 		if (entry === undefined) {
-			return;
+			return noOp;
 		}
 
 		// This method is expected to be called from useEffect, which will
@@ -213,10 +207,12 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 				cachedTransformation: newValue,
 			};
 		}
+
+		return noOp;
 	}
 
 	subscribe<T>(options: SubscriptionInit<T>): () => void {
-		if (!this.#isMounted) {
+		if (!this.#isProviderMounted) {
 			throw new Error("Cannot add subscription while system is not mounted");
 		}
 
@@ -283,7 +279,7 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 	}
 
 	getSubscriptionData<T = unknown>(hookId: string): SubscriptionData<T | null> {
-		if (!this.#isMounted) {
+		if (!this.#isProviderMounted) {
 			throw new Error("Cannot access subscription while system is not mounted");
 		}
 
@@ -296,12 +292,12 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 	}
 
 	// MUST be called from inside an effect, because it relies on browser APIs.
-	initialize(): () => void {
-		if (this.#isMounted) {
+	onProviderMount(): () => void {
+		if (this.#isProviderMounted) {
 			throw new Error("Must call cleanup function before re-initializing");
 		}
 
-		this.#isMounted = true;
+		this.#isProviderMounted = true;
 		if (isFrozen(this.#timeSync)) {
 			return noOp;
 		}
@@ -332,10 +328,10 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 			this.#timeSync.clearAll();
 			clearInterval(this.#dateRefreshIntervalId);
 			this.#subscriptions.clear();
-			this.#isMounted = false;
+			this.#isProviderMounted = false;
 		};
 
-		this.#isMounted = true;
+		this.#isProviderMounted = true;
 		return cleanup;
 	}
 }

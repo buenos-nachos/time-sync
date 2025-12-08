@@ -8,7 +8,7 @@
  * duplicate the comments for the hooks and the properties in bindings.tsx.
  * Otherwise, the info will be erased when the user calls createReactBindings
  */
-import type { ReadonlyDate } from "@buenos-nachos/time-sync";
+import type { ReadonlyDate, TimeSync } from "@buenos-nachos/time-sync";
 import React, {
 	useCallback,
 	useId,
@@ -19,7 +19,7 @@ import React, {
 	useSyncExternalStore,
 } from "react";
 import { useEffectEventPolyfill } from "./hookPolyfills";
-import type { ReactTimeSyncGetter, SafeTimeSync } from "./ReactTimeSync";
+import type { ReactTimeSyncGetter } from "./ReactTimeSync";
 import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
 // Copied from bindings.tsx
@@ -32,7 +32,7 @@ import { noOp, structuralMerge, type TransformCallback } from "./utilities";
  * This hook is mainly intended as an escape hatch for when
  * `useTimeSync` won't serve your needs.
  */
-export type UseTimeSyncRef = () => SafeTimeSync;
+export type UseTimeSyncRef = () => TimeSync;
 
 export function createUseTimeSyncRef(
 	getter: ReactTimeSyncGetter,
@@ -263,16 +263,22 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 			});
 			return unsub;
 		});
+
+		// Reminder: useEffect and useLayoutEffect clean up in batches. All cleanup
+		// functions will fire at once for a given render (going from the bottom up
+		// in the tree), and then all the new effects will fire (still bottom-up).
+		// Having all the ReactTimeSync methods have cleanup functions in their
+		// function signatures is the correct move, but since there's a single
+		// ReactTimeSync instance, you have to be careful that cleanups for one
+		// component don't break effects for another component.
 		useLayoutEffect(() => {
 			return reactiveSubscribe(targetRefreshIntervalMs);
 		}, [reactiveSubscribe, targetRefreshIntervalMs]);
-
 		useLayoutEffect(() => {
-			rts.invalidateTransformation(hookId, merged);
+			return rts.invalidateTransformation(hookId, merged);
 		}, [rts, hookId, merged]);
-
 		useLayoutEffect(() => {
-			rts.onComponentMount();
+			return rts.onComponentMount();
 		}, [rts]);
 
 		return merged;
