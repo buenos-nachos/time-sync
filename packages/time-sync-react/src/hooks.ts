@@ -263,14 +263,20 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 			});
 			return unsub;
 		});
+
+		// Reminder: useEffect and useLayoutEffect clean up in batches. All cleanup
+		// functions will fire at once for a given render (going from the bottom up
+		// in the tree), and then all the new effects will fire (still bottom-up).
+		// Having all the ReactTimeSync methods have cleanup functions in their
+		// function signatures is the correct move, but since there's a single
+		// ReactTimeSync instance, you have to be careful that cleanups for one
+		// component don't break effects for another component.
 		useLayoutEffect(() => {
 			return reactiveSubscribe(targetRefreshIntervalMs);
 		}, [reactiveSubscribe, targetRefreshIntervalMs]);
-
 		useLayoutEffect(() => {
 			return rts.invalidateTransformation(hookId, merged);
 		}, [rts, hookId, merged]);
-
 		useLayoutEffect(() => {
 			return rts.onComponentMount();
 		}, [rts]);
