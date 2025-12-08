@@ -208,13 +208,16 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 * the new render because it'll receive a new function reference, and if
 		 * the get result happened to change, we'll be guaranteed to grab it.
 		 */
-		const [forceInvalidator, fallbackSync] = useReducer(negate, false);
+		const [depArrayInvalidator, fallbackSync] = useReducer(negate, false);
 		const getSubWithInvalidation = useCallback(() => {
 			// Literally just doing this to make the linter happy that we're
-			// including an otherwise unused value in the dependency array
-			void forceInvalidator;
+			// including an otherwise unused value in the dependency array. The
+			// big worry is that if this value isn't referenced in the function
+			// whatsoever, the React Compiler will optimize the function the
+			// wrong way and cause bugs.
+			void depArrayInvalidator;
 			return rts.getSubscriptionData<T>(hookId);
-		}, [rts, hookId, forceInvalidator]);
+		}, [rts, hookId, depArrayInvalidator]);
 		const { date, cachedTransformation } = useSyncExternalStore(
 			stableDummySubscribe,
 			getSubWithInvalidation,
@@ -238,8 +241,8 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 
 		// While the contents of reactiveSubscribe will update every render,
 		// the subscription itself is always a one-shot deal, and new
-		// subscriptions will get set up every so often (in most cases, they'll
-		// probably be set up once, total). We need the transform to update
+		// subscriptions will only get set up every so often (in some cases,
+		// they'll be set up once total). We need the transform to update
 		// independently, so that even if the subscription fires once, we'll
 		// keep re-syncing the transform logic based on the latest user-supplied
 		// closure values
@@ -250,7 +253,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 				initialValue: merged,
 				targetRefreshIntervalMs: targetMs,
 				transform: reactiveTransform,
-				onReactStateSync: () => {
+				onStateSync: () => {
 					if (ejectedNotifyRef.current === noOp) {
 						fallbackSync();
 					} else {
@@ -260,16 +263,22 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 			});
 			return unsub;
 		});
+
+		// Reminder: useEffect and useLayoutEffect clean up in batches. All cleanup
+		// functions will fire at once for a given render (going from the bottom up
+		// in the tree), and then all the new effects will fire (still bottom-up).
+		// Having all the ReactTimeSync methods have cleanup functions in their
+		// function signatures is the correct move, but since there's a single
+		// ReactTimeSync instance, you have to be careful that cleanups for one
+		// component don't break effects for another component.
 		useLayoutEffect(() => {
 			return reactiveSubscribe(targetRefreshIntervalMs);
 		}, [reactiveSubscribe, targetRefreshIntervalMs]);
-
 		useLayoutEffect(() => {
-			rts.updateCachedTransformation(hookId, merged);
+			return rts.invalidateTransformation(hookId, merged);
 		}, [rts, hookId, merged]);
-
 		useLayoutEffect(() => {
-			rts.onComponentMount();
+			return rts.onComponentMount();
 		}, [rts]);
 
 		return merged;

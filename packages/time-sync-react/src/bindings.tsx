@@ -34,7 +34,7 @@ function createTimeSyncProvider(
 	return ({ children, timeSync }) => {
 		const [lockedRts] = useState(() => new ReactTimeSync(timeSync));
 		useInsertionEffect(() => {
-			return lockedRts.initialize();
+			return lockedRts.onProviderMount();
 		}, [lockedRts]);
 
 		return <context.Provider value={lockedRts}>{children}</context.Provider>;
