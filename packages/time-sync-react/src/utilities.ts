@@ -147,23 +147,3 @@ export function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
 		newValue,
 	);
 }
-
-export function debounce<TArgs extends readonly unknown[]>(
-	callback: (...args: TArgs) => void,
-	debounceValueMs: number,
-): (...args: TArgs) => void {
-	let timeoutId: NodeJS.Timeout | number | undefined;
-	const resetTimeout = () => {
-		clearTimeout(timeoutId);
-		timeoutId = undefined;
-	};
-
-	return function debounced(...args: TArgs): void {
-		if (timeoutId !== undefined) {
-			return;
-		}
-
-		callback(...args);
-		timeoutId = setTimeout(resetTimeout, debounceValueMs);
-	};
-}
