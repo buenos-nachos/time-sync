@@ -41,17 +41,6 @@ function createTimeSyncProvider(
 	};
 }
 
-type CreateContextWithGetterResult<T extends TimeSync | undefined> =
-	TimeSync extends T
-		? {
-				context: Context<ReactTimeSync>;
-				getter: ReactTimeSyncGetter;
-			}
-		: {
-				context: Context<ReactTimeSync | undefined>;
-				getter: ReactTimeSyncGetter;
-			};
-
 const injectionMethods = [
 	"closure",
 	"reactContext",
