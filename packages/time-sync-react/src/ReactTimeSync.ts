@@ -313,13 +313,7 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		// mounting, we need some kind of way of refreshing the fallback date
 		// so that we can guarantee a fresh value when a new component mounts
 		const refreshFallbackDate = (newDate: ReadonlyDate): void => {
-			const newDateTime = newDate.getTime();
-			if (this.#fallbackData.date.getTime() < newDateTime) {
-				this.#fallbackData = {
-					cachedTransformation: this.#fallbackData.cachedTransformation,
-					date: newDate,
-				};
-			}
+			this.#fallbackData = { ...this.#fallbackData, date: newDate };
 		};
 		this.#timeSync.subscribe({
 			targetRefreshIntervalMs: refreshRates.idle,
@@ -333,7 +327,13 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		const cleanup = () => {
 			// This also cleans up the subscription registered above
 			this.#timeSync.clearAll();
+
 			clearInterval(this.#dateRefreshIntervalId);
+			this.#dateRefreshIntervalId = undefined;
+
+			clearTimeout(this.#componentMountThrottleId);
+			this.#componentMountThrottleId = undefined;
+
 			this.#subscriptions.clear();
 			this.#isProviderMounted = false;
 		};
