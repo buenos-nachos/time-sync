@@ -82,7 +82,7 @@ type CreateReactBindingsResult<
 			readonly useTimeSyncRef: UseTimeSyncRef;
 			readonly useTimeSync: <TData = ReadonlyDate>(
 				options: UseTimeSyncOptions<TData>,
-			) => UseTimeSyncResult<TData, TIsServerRendered>;
+			) => UseTimeSyncResult<TIsServerRendered, TData>;
 		}
 	: {
 			/**
@@ -100,7 +100,7 @@ type CreateReactBindingsResult<
 			 */
 			readonly useTimeSync: <TData = ReadonlyDate>(
 				options: UseTimeSyncOptions<TData>,
-			) => UseTimeSyncResult<TData, TIsServerRendered>;
+			) => UseTimeSyncResult<TIsServerRendered, TData>;
 
 			/**
 			 * Exposes the raw TimeSync instance without binding it to React

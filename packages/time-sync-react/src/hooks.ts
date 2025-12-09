@@ -113,24 +113,32 @@ export interface UseTimeSyncOptions<T> {
 }
 
 export type UseTimeSyncResult<
-	TReturn,
 	TIsServerRendered extends boolean,
+	TReturn,
 > = TIsServerRendered extends true ? TReturn | null : TReturn;
 
 // The setup here is a little bit wonkier than the one for useTimeSyncRef
-// because of type parameters. If we were to define the UseTimeSync type
-// upfront, and then say that this function returns it, we would be forced to
-// evaluate and consume the generic type slot. There's no way to reference a
-// generic type in return type position without either passing it an explicit
-// generic or triggering its default type. We have to avoid writing it out to
-// trick TypeScript into preserving the slot, and then we can pluck the complete
-// type out with the ReturnType utility type
-export function createUseTimeSync<TIsServerRendered extends boolean>(
+// because of type parameters. Have to jump through so many hoops to avoid
+// writing out the type name in certain positions so that we can preserve the
+// type parameter slots. Turns out, one of TypeScript's biggest limitations is
+// that you can't reference generic types by name without consuming the slot or
+// triggering a default parameter, and the only way to avoid that is by making
+// hacks out of function boundaries.
+export type UseTimeSync<
+	TIsServerRendered extends boolean,
+	TData = ReadonlyDate,
+> = (
+	options: UseTimeSyncOptions<TData>,
+) => UseTimeSyncResult<TIsServerRendered, TData>;
+
+// Can't add explicit return type here because then we'd consume the data type
+// parameter slot. Have to defer to the inner function's slot.
+export function createUseTimeSync<const TIsServerRendered extends boolean>(
 	getter: ReactTimeSyncGetter,
 ) {
-	return function useTimeSync<T = ReadonlyDate>(
+	function useTimeSync<T = ReadonlyDate>(
 		options: UseTimeSyncOptions<T>,
-	): UseTimeSyncResult<T, TIsServerRendered> {
+	): UseTimeSyncResult<TIsServerRendered, T> {
 		/**
 		 * A lot of our challenges boil down to the fact that even though it's
 		 * our only viable option right now, useSyncExternalStore is an
@@ -302,22 +310,8 @@ export function createUseTimeSync<TIsServerRendered extends boolean>(
 			return rts.onComponentMount();
 		}, [rts]);
 
-		return merged satisfies T | null as UseTimeSyncResult<T, TIsServerRendered>;
-	};
-}
+		return merged satisfies T | null as UseTimeSyncResult<TIsServerRendered, T>;
+	}
 
-// Copied from bindings.tsx
-/**
- * Sets up a new TimeSync subscription using the specified
- * interval, and ensures that the component will be able to
- * re-render as the TimeSync instance updates its internal state
- * and notifies subscribers.
- *
- * The returned value is fully bound to React's lifecycles, and is
- * always safe to reference inside render logic, event handlers, and
- * effects.
- *
- * See the `UseTimeSyncOptions` type for more info on what each
- * property does.
- */
-export type UseTimeSync = ReturnType<typeof createUseTimeSync>;
+	return useTimeSync satisfies UseTimeSync<TIsServerRendered, unknown>;
+}
