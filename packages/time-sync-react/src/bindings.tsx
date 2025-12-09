@@ -58,16 +58,16 @@ function isInjectionMethod(value: unknown): value is InjectionMethod {
 }
 
 type CreateReactBindingsOptions<
-	T extends InjectionMethod,
-	U extends boolean,
-> = T extends "reactContext"
+	TIsServerRendered extends boolean,
+	TInject extends InjectionMethod,
+> = TInject extends "reactContext"
 	? {
-			readonly injectionMethod: T;
-			readonly isServerRendered: U;
+			readonly injectionMethod: TInject;
+			readonly isServerRendered: TIsServerRendered;
 		}
 	: {
-			readonly injectionMethod: T;
-			readonly isServerRendered: U;
+			readonly injectionMethod: TInject;
+			readonly isServerRendered: TIsServerRendered;
 			readonly timeSync: TimeSync;
 		};
 
@@ -161,7 +161,7 @@ export function createReactBindings<
 	TInject extends InjectionMethod,
 	TIsServerRendered extends boolean,
 >(
-	options: CreateReactBindingsOptions<TInject, TIsServerRendered>,
+	options: CreateReactBindingsOptions<TIsServerRendered, TInject>,
 ): CreateReactBindingsResult<TInject, TIsServerRendered> {
 	const flat = options as FlatCreateReactBindingsOptions;
 	validateCreateReactBindingsOptions(flat);
