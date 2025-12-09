@@ -75,8 +75,8 @@ type CreateReactBindingsOptions<
 // in the union, the info will still be copied to any properties with the same
 // name in other union members
 type CreateReactBindingsResult<
-	TInject extends InjectionMethod,
 	TIsServerRendered extends boolean,
+	TInject extends InjectionMethod,
 > = TInject extends "closure"
 	? {
 			readonly useTimeSyncRef: UseTimeSyncRef;
@@ -162,7 +162,7 @@ export function createReactBindings<
 	TIsServerRendered extends boolean,
 >(
 	options: CreateReactBindingsOptions<TIsServerRendered, TInject>,
-): CreateReactBindingsResult<TInject, TIsServerRendered> {
+): CreateReactBindingsResult<TIsServerRendered, TInject> {
 	const flat = options as FlatCreateReactBindingsOptions;
 	validateCreateReactBindingsOptions(flat);
 	const { injectionMethod, timeSync } = flat;
@@ -227,5 +227,5 @@ export function createReactBindings<
 	if (TimeSyncProvider !== undefined) {
 		result.TimeSyncProvider = TimeSyncProvider;
 	}
-	return result as CreateReactBindingsResult<TInject, TIsServerRendered>;
+	return result as CreateReactBindingsResult<TIsServerRendered, TInject>;
 }
