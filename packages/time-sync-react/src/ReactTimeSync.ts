@@ -3,7 +3,7 @@ import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
 export type ReactTimeSyncGetter = () => ReactTimeSync;
 
-interface SubscriptionData<T> {
+export interface SubscriptionData<T> {
 	readonly date: ReadonlyDate;
 	readonly cachedTransformation: T;
 }

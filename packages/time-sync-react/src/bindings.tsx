@@ -2,7 +2,7 @@
  * @file When updating the comments for the useTimeSync and useTimeSyncRef
  * hooks, be sure to copy them to hooks.ts as well.
  */
-import type { TimeSync } from "@buenos-nachos/time-sync";
+import type { ReadonlyDate, TimeSync } from "@buenos-nachos/time-sync";
 import {
 	type Context,
 	createContext,
@@ -15,8 +15,9 @@ import {
 import {
 	createUseTimeSync,
 	createUseTimeSyncRef,
-	type UseTimeSync,
+	type UseTimeSyncOptions,
 	type UseTimeSyncRef,
+	type UseTimeSyncResult,
 } from "./hooks";
 import { ReactTimeSync, type ReactTimeSyncGetter } from "./ReactTimeSync";
 
@@ -56,23 +57,32 @@ function isInjectionMethod(value: unknown): value is InjectionMethod {
 	return injectionMethods.includes(value as InjectionMethod);
 }
 
-type CreateReactBindingsOptions<T extends InjectionMethod> =
-	T extends "reactContext"
-		? {
-				readonly injectionMethod: T;
-			}
-		: {
-				readonly injectionMethod: T;
-				readonly timeSync: TimeSync;
-			};
+type CreateReactBindingsOptions<
+	T extends InjectionMethod,
+	U extends boolean,
+> = T extends "reactContext"
+	? {
+			readonly injectionMethod: T;
+			readonly isServerRendered: U;
+		}
+	: {
+			readonly injectionMethod: T;
+			readonly isServerRendered: U;
+			readonly timeSync: TimeSync;
+		};
 
 // TypeScript's LSP ensures that even if we only add comments to one property
 // in the union, the info will still be copied to any properties with the same
 // name in other union members
-type CreateReactBindingsResult<T extends InjectionMethod> = T extends "closure"
+type CreateReactBindingsResult<
+	TInject extends InjectionMethod,
+	TIsServerRendered extends boolean,
+> = TInject extends "closure"
 	? {
-			readonly useTimeSync: UseTimeSync;
 			readonly useTimeSyncRef: UseTimeSyncRef;
+			readonly useTimeSync: <T = ReadonlyDate>(
+				options: UseTimeSyncOptions<T>,
+			) => UseTimeSyncResult<T, TIsServerRendered>;
 		}
 	: {
 			/**
@@ -88,7 +98,9 @@ type CreateReactBindingsResult<T extends InjectionMethod> = T extends "closure"
 			 * See the `UseTimeSyncOptions` type for more info on what each
 			 * property does.
 			 */
-			readonly useTimeSync: UseTimeSync;
+			readonly useTimeSync: <T = ReadonlyDate>(
+				options: UseTimeSyncOptions<T>,
+			) => UseTimeSyncResult<T, TIsServerRendered>;
 
 			/**
 			 * Exposes the raw TimeSync instance without binding it to React
@@ -112,6 +124,7 @@ type CreateReactBindingsResult<T extends InjectionMethod> = T extends "closure"
 // provide any nice TypeScript type feedback for external users
 interface FlatCreateReactBindingsOptions {
 	readonly injectionMethod: InjectionMethod;
+	readonly isServerRendered: boolean;
 	readonly timeSync?: TimeSync;
 }
 interface FlatCreateReactBindingsResult {
@@ -144,9 +157,12 @@ function validateCreateReactBindingsOptions(
 
 // The goal of this function is basically to wire up all the individual helpers
 // while providing nice, polished TypeScript types for good developer experience
-export function createReactBindings<T extends InjectionMethod>(
-	options: CreateReactBindingsOptions<T>,
-): CreateReactBindingsResult<T> {
+export function createReactBindings<
+	TInject extends InjectionMethod,
+	TIsServerRendered extends boolean,
+>(
+	options: CreateReactBindingsOptions<TInject, TIsServerRendered>,
+): CreateReactBindingsResult<TInject, TIsServerRendered> {
 	const flat = options as FlatCreateReactBindingsOptions;
 	validateCreateReactBindingsOptions(flat);
 	const { injectionMethod, timeSync } = flat;
@@ -204,12 +220,17 @@ export function createReactBindings<T extends InjectionMethod>(
 	}
 
 	const result: FlatCreateReactBindingsResult = {
-		useTimeSync: createUseTimeSync(get),
+		useTimeSync: createUseTimeSync<TIsServerRendered>(get),
 		useTimeSyncRef: createUseTimeSyncRef(get),
 	};
 	// Only add the key at runtime if we actually have a meaningful value
 	if (TimeSyncProvider !== undefined) {
 		result.TimeSyncProvider = TimeSyncProvider;
 	}
-	return result as CreateReactBindingsResult<T>;
+	return result as CreateReactBindingsResult<TInject, TIsServerRendered>;
 }
+
+const { useTimeSync } = createReactBindings({
+	injectionMethod: "reactContext",
+	isServerRendered: true,
+});

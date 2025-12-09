@@ -19,7 +19,7 @@ import React, {
 	useSyncExternalStore,
 } from "react";
 import { useEffectEventPolyfill } from "./hookPolyfills";
-import type { ReactTimeSyncGetter } from "./ReactTimeSync";
+import type { ReactTimeSyncGetter, SubscriptionData } from "./ReactTimeSync";
 import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
 // Copied from bindings.tsx
@@ -100,6 +100,21 @@ function negate(value: boolean): boolean {
 	return !value;
 }
 
+interface DummyValueForServerRendering {
+	readonly date: null;
+	readonly cachedTransformation: null;
+}
+const dummy: DummyValueForServerRendering = {
+	date: null,
+	cachedTransformation: null,
+};
+const getDummyValue = () => dummy;
+
+type UseTimeSyncResult<
+	TReturn,
+	TIsServerRendered extends boolean,
+> = TIsServerRendered extends true ? TReturn | null : TReturn;
+
 // The setup here is a little bit wonkier than the one for useTimeSyncRef
 // because of type parameters. If we were to define the UseTimeSync type
 // upfront, and then say that this function returns it, we would be forced to
@@ -108,10 +123,12 @@ function negate(value: boolean): boolean {
 // generic or triggering its default type. We have to avoid writing it out to
 // trick TypeScript into preserving the slot, and then we can pluck the complete
 // type out with the ReturnType utility type
-export function createUseTimeSync(getter: ReactTimeSyncGetter) {
-	return function useTimeSync<T = ReadonlyDate>(
-		options: UseTimeSyncOptions<T>,
-	): T {
+export function createUseTimeSync<TIsServerRendered extends boolean>(
+	getter: ReactTimeSyncGetter,
+) {
+	return function useTimeSync<TReturn = ReadonlyDate>(
+		options: UseTimeSyncOptions<TReturn>,
+	): UseTimeSyncResult<TReturn, TIsServerRendered> {
 		/**
 		 * A lot of our challenges boil down to the fact that even though it's
 		 * our only viable option right now, useSyncExternalStore is an
@@ -161,7 +178,8 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 * ecosystem have to put up with this edge case right now, too.
 		 */
 		const { targetRefreshIntervalMs, transform } = options;
-		const activeTransform = (transform ?? identity) as TransformCallback<T>;
+		const activeTransform = (transform ??
+			identity) as TransformCallback<TReturn>;
 		const rts = getter();
 
 		// This is an abuse of the useId API, but because it gives us a stable
@@ -216,12 +234,12 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 			// whatsoever, the React Compiler will optimize the function the
 			// wrong way and cause bugs.
 			void depArrayInvalidator;
-			return rts.getSubscriptionData<T>(hookId);
+			return rts.getSubscriptionData<TReturn>(hookId);
 		}, [rts, hookId, depArrayInvalidator]);
-		const { date, cachedTransformation } = useSyncExternalStore(
-			stableDummySubscribe,
-			getSubWithInvalidation,
-		);
+
+		const { date, cachedTransformation } = useSyncExternalStore<
+			SubscriptionData<TReturn | null> | DummyValueForServerRendering
+		>(stableDummySubscribe, getSubWithInvalidation, getDummyValue);
 
 		// There's some trade-offs with this memo (notably, if the consumer
 		// passes in an inline transform callback, the memo result will be
@@ -229,10 +247,12 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		// the consumer the option of memoizing expensive transformations at the
 		// render level without polluting the hook's API with super-fragile
 		// dependency array logic
-		const newTransformation = useMemo(
-			() => activeTransform(date),
-			[date, activeTransform],
-		);
+		const newTransformation = useMemo(() => {
+			if (date === null) {
+				return null;
+			}
+			return activeTransform(date);
+		}, [date, activeTransform]);
 
 		const merged = useMemo(() => {
 			const prev = cachedTransformation ?? newTransformation;
@@ -281,7 +301,10 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 			return rts.onComponentMount();
 		}, [rts]);
 
-		return merged;
+		return merged satisfies TReturn | null as UseTimeSyncResult<
+			TReturn,
+			TIsServerRendered
+		>;
 	};
 }
 
