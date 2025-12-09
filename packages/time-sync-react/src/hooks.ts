@@ -48,10 +48,18 @@ const useEffectEvent: typeof React.useEffectEvent =
 		? useEffectEventPolyfill
 		: React.useEffectEvent;
 
-interface DummyValueForServerRendering {
-	readonly date: null;
-	readonly cachedTransformation: null;
-}
+/**
+ * Dates are notoriously hard to send over the wire in React Server Rendering
+ * because there's a very high chance that you'll have a server hydration error
+ * from the differences in the server's time and the user's local time.
+ *
+ * What we'll do is always use a null value for all properties on the server
+ * render and initial hydration, and then immediately invalidate the data once
+ * the state initializes on the client's device.
+ */
+type DummyValueForServerRendering = {
+	readonly [k in keyof SubscriptionData<unknown>]: null;
+};
 const dummy: DummyValueForServerRendering = {
 	date: null,
 	cachedTransformation: null,
