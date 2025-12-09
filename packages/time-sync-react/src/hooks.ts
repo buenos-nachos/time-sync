@@ -110,7 +110,7 @@ const dummy: DummyValueForServerRendering = {
 };
 const getDummyValue = () => dummy;
 
-type UseTimeSyncResult<
+export type UseTimeSyncResult<
 	TReturn,
 	TIsServerRendered extends boolean,
 > = TIsServerRendered extends true ? TReturn | null : TReturn;
