@@ -80,9 +80,9 @@ type CreateReactBindingsResult<
 > = TInject extends "closure"
 	? {
 			readonly useTimeSyncRef: UseTimeSyncRef;
-			readonly useTimeSync: <T = ReadonlyDate>(
-				options: UseTimeSyncOptions<T>,
-			) => UseTimeSyncResult<T, TIsServerRendered>;
+			readonly useTimeSync: <TData = ReadonlyDate>(
+				options: UseTimeSyncOptions<TData>,
+			) => UseTimeSyncResult<TData, TIsServerRendered>;
 		}
 	: {
 			/**
@@ -98,9 +98,9 @@ type CreateReactBindingsResult<
 			 * See the `UseTimeSyncOptions` type for more info on what each
 			 * property does.
 			 */
-			readonly useTimeSync: <T = ReadonlyDate>(
-				options: UseTimeSyncOptions<T>,
-			) => UseTimeSyncResult<T, TIsServerRendered>;
+			readonly useTimeSync: <TData = ReadonlyDate>(
+				options: UseTimeSyncOptions<TData>,
+			) => UseTimeSyncResult<TData, TIsServerRendered>;
 
 			/**
 			 * Exposes the raw TimeSync instance without binding it to React
@@ -229,8 +229,3 @@ export function createReactBindings<
 	}
 	return result as CreateReactBindingsResult<TInject, TIsServerRendered>;
 }
-
-const { useTimeSync } = createReactBindings({
-	injectionMethod: "reactContext",
-	isServerRendered: true,
-});

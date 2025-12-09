@@ -48,10 +48,34 @@ const useEffectEvent: typeof React.useEffectEvent =
 		? useEffectEventPolyfill
 		: React.useEffectEvent;
 
+interface DummyValueForServerRendering {
+	readonly date: null;
+	readonly cachedTransformation: null;
+}
+const dummy: DummyValueForServerRendering = {
+	date: null,
+	cachedTransformation: null,
+};
+function getServerValue(): DummyValueForServerRendering {
+	return dummy;
+}
+
+// Even though this is a really simple function, keeping it defined outside
+// useTimeSync helps with render performance, and helps stabilize a bunch
+// of values in the hook when you're not doing transformations
+function identity<T>(value: T): T {
+	return value;
+}
+
+// Should also be defined outside the hook to optimize useReducer behavior
+function negate(value: boolean): boolean {
+	return !value;
+}
+
 /**
  * @todo Need to figure out the best way to describe this
  */
-export type UseTimeSyncOptions<T> = Readonly<{
+export interface UseTimeSyncOptions<T> {
 	/**
 	 * The ideal interval of time, in milliseconds, that defines how often the
 	 * hook should refresh with the newest state value from TimeSync.
@@ -86,29 +110,7 @@ export type UseTimeSyncOptions<T> = Readonly<{
 	 *    re-renders
 	 */
 	transform?: TransformCallback<T>;
-}>;
-
-// Even though this is a really simple function, keeping it defined outside
-// useTimeSync helps with render performance, and helps stabilize a bunch
-// of values in the hook when you're not doing transformations
-function identity<T>(value: T): T {
-	return value;
 }
-
-// Should also be defined outside the hook to optimize useReducer behavior
-function negate(value: boolean): boolean {
-	return !value;
-}
-
-interface DummyValueForServerRendering {
-	readonly date: null;
-	readonly cachedTransformation: null;
-}
-const dummy: DummyValueForServerRendering = {
-	date: null,
-	cachedTransformation: null,
-};
-const getDummyValue = () => dummy;
 
 export type UseTimeSyncResult<
 	TReturn,
@@ -126,9 +128,9 @@ export type UseTimeSyncResult<
 export function createUseTimeSync<TIsServerRendered extends boolean>(
 	getter: ReactTimeSyncGetter,
 ) {
-	return function useTimeSync<TReturn = ReadonlyDate>(
-		options: UseTimeSyncOptions<TReturn>,
-	): UseTimeSyncResult<TReturn, TIsServerRendered> {
+	return function useTimeSync<T = ReadonlyDate>(
+		options: UseTimeSyncOptions<T>,
+	): UseTimeSyncResult<T, TIsServerRendered> {
 		/**
 		 * A lot of our challenges boil down to the fact that even though it's
 		 * our only viable option right now, useSyncExternalStore is an
@@ -178,8 +180,7 @@ export function createUseTimeSync<TIsServerRendered extends boolean>(
 		 * ecosystem have to put up with this edge case right now, too.
 		 */
 		const { targetRefreshIntervalMs, transform } = options;
-		const activeTransform = (transform ??
-			identity) as TransformCallback<TReturn>;
+		const activeTransform = (transform ?? identity) as TransformCallback<T>;
 		const rts = getter();
 
 		// This is an abuse of the useId API, but because it gives us a stable
@@ -234,12 +235,12 @@ export function createUseTimeSync<TIsServerRendered extends boolean>(
 			// whatsoever, the React Compiler will optimize the function the
 			// wrong way and cause bugs.
 			void depArrayInvalidator;
-			return rts.getSubscriptionData<TReturn>(hookId);
+			return rts.getSubscriptionData<T>(hookId);
 		}, [rts, hookId, depArrayInvalidator]);
 
 		const { date, cachedTransformation } = useSyncExternalStore<
-			SubscriptionData<TReturn | null> | DummyValueForServerRendering
-		>(stableDummySubscribe, getSubWithInvalidation, getDummyValue);
+			SubscriptionData<T | null> | DummyValueForServerRendering
+		>(stableDummySubscribe, getSubWithInvalidation, getServerValue);
 
 		// There's some trade-offs with this memo (notably, if the consumer
 		// passes in an inline transform callback, the memo result will be
@@ -301,10 +302,7 @@ export function createUseTimeSync<TIsServerRendered extends boolean>(
 			return rts.onComponentMount();
 		}, [rts]);
 
-		return merged satisfies TReturn | null as UseTimeSyncResult<
-			TReturn,
-			TIsServerRendered
-		>;
+		return merged satisfies T | null as UseTimeSyncResult<T, TIsServerRendered>;
 	};
 }
 
