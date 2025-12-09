@@ -50,8 +50,8 @@ const useEffectEvent: typeof React.useEffectEvent =
 
 /**
  * Dates are notoriously hard to send over the wire in React Server Rendering
- * because there's a very high chance that you'll have a server hydration error
- * from the differences in the server's time and the user's local time.
+ * because there's a very high chance that you'll have a hydration mismatch
+ * error from the differences in the server's time and the user's local time.
  *
  * What we'll do is always use a null value for all properties on the server
  * render and initial hydration, and then immediately invalidate the data once
