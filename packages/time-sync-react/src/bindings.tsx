@@ -148,7 +148,7 @@ interface FlatCreateReactBindingsResult {
 	readonly useTimeSync: unknown;
 	readonly useTimeSyncRef: UseTimeSyncRef;
 
-	// Left mutable on purpose; they'll become readonly before it reaches users
+	// Left mutable on purpose; they'll become readonly before they reach users
 	TimeSyncProvider?: TimeSyncProvider;
 	cleanup?: () => void;
 }
