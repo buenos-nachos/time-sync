@@ -115,7 +115,7 @@ interface ReactTimeSyncApi {
 	 *
 	 * If there is no entry associated with the ID, the method does nothing.
 	 */
-	invalidateTransformation: (hookId: string, newValue: unknown) => () => void;
+	invalidateTransformation: (hookId: string, newValue: unknown) => void;
 }
 
 /**
@@ -208,7 +208,7 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		return this.#timeSync;
 	}
 
-	invalidateTransformation(hookId: string, newValue: unknown): () => void {
+	invalidateTransformation(hookId: string, newValue: unknown) {
 		if (this.#status === "idle") {
 			throw new Error(
 				"Cannot invalidate transformation while system is not initialized",
