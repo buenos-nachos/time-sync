@@ -2,7 +2,7 @@
  * @file When updating the comments for the useTimeSync and useTimeSyncRef
  * hooks, be sure to copy them to hooks.ts as well.
  */
-import type { TimeSync, ReadonlyDate } from "@buenos-nachos/time-sync";
+import type { ReadonlyDate, TimeSync } from "@buenos-nachos/time-sync";
 import {
 	type Context,
 	createContext,
