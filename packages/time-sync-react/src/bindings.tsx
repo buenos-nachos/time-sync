@@ -86,7 +86,7 @@ type CreateReactBindingsResult<
 	TInject extends InjectionMethod,
 > = TInject extends "closure"
 	? {
-			readonly cleanup: () => void;
+			readonly dispose: () => void;
 			readonly useTimeSyncRef: UseTimeSyncRef;
 			readonly useTimeSync: <TData = ReadonlyDate>(
 				options: UseTimeSyncOptions<TData>,
@@ -94,7 +94,7 @@ type CreateReactBindingsResult<
 		}
 	: TInject extends "hybrid"
 		? {
-				readonly cleanup: () => void;
+				readonly dispose: () => void;
 				readonly TimeSyncProvider: TimeSyncProvider;
 				readonly useTimeSyncRef: UseTimeSyncRef;
 				readonly useTimeSync: <TData = ReadonlyDate>(
@@ -150,7 +150,7 @@ interface FlatCreateReactBindingsResult {
 
 	// Left mutable on purpose; they'll become readonly before they reach users
 	TimeSyncProvider?: TimeSyncProvider;
-	cleanup?: () => void;
+	dispose?: () => void;
 }
 
 function validateCreateReactBindingsOptions(
@@ -190,7 +190,7 @@ export function createReactBindings<
 	// to get more complicated and nuanced over time. Code duplication is better
 	// than bad abstractions right now
 	let TimeSyncProvider: TimeSyncProvider | undefined;
-	let cleanup: (() => void) | undefined;
+	let dispose: (() => void) | undefined;
 	let useRts: UseReactTimeSync;
 	switch (injectionMethod) {
 		case "closure": {
@@ -200,7 +200,7 @@ export function createReactBindings<
 
 			const cleanupInit = fixedRts.onAppInit("default-init-closure");
 			const cleanupMount = fixedRts.onProviderMount();
-			cleanup = () => {
+			dispose = () => {
 				// Have to make sure we clean up the mount first, or we'll get an error
 				cleanupMount();
 				cleanupInit();
@@ -211,7 +211,7 @@ export function createReactBindings<
 		case "reactContext": {
 			const context = createContext<ReactTimeSync | undefined>(undefined);
 			TimeSyncProvider = createTimeSyncProvider(context);
-			cleanup = undefined;
+			dispose = undefined;
 
 			useRts = function useReactTimeSyncContext() {
 				const value = useContext(context);
@@ -239,7 +239,7 @@ export function createReactBindings<
 
 			const cleanupInit = defaultRts.onAppInit("default-init-hybrid");
 			const cleanupMount = defaultRts.onComponentMount();
-			cleanup = () => {
+			dispose = () => {
 				cleanupMount();
 				cleanupInit();
 			};
@@ -262,8 +262,8 @@ export function createReactBindings<
 	if (TimeSyncProvider !== undefined) {
 		result.TimeSyncProvider = TimeSyncProvider;
 	}
-	if (cleanup !== undefined) {
-		result.cleanup = cleanup;
+	if (dispose !== undefined) {
+		result.dispose = dispose;
 	}
 	return result as CreateReactBindingsResult<TIsServerRendered, TInject>;
 }
