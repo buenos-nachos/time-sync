@@ -283,7 +283,7 @@ export function createUseTimeSync<const TIsServerRendered extends boolean>(
 		// closure values
 		const reactiveTransform = useEffectEvent(activeTransform);
 		const reactiveSubscribe = useEffectEvent((targetMs: number) => {
-			const unsub = rts.subscribe({
+			const unsub = rts.subscribe<T | null>({
 				hookId,
 				initialValue: merged,
 				targetRefreshIntervalMs: targetMs,
@@ -310,7 +310,7 @@ export function createUseTimeSync<const TIsServerRendered extends boolean>(
 			return reactiveSubscribe(targetRefreshIntervalMs);
 		}, [reactiveSubscribe, targetRefreshIntervalMs]);
 		useLayoutEffect(() => {
-			return rts.invalidateTransformation(hookId, merged);
+			rts.invalidateTransformation(hookId, merged);
 		}, [rts, hookId, merged]);
 		useLayoutEffect(() => {
 			return rts.onComponentMount();
