@@ -9,7 +9,9 @@ import {
 	type FC,
 	type ReactNode,
 	useContext,
+	useId,
 	useInsertionEffect,
+	useLayoutEffect,
 	useState,
 } from "react";
 import {
@@ -33,9 +35,14 @@ function createTimeSyncProvider(
 	context: Context<ReactTimeSync> | Context<ReactTimeSync | undefined>,
 ): TimeSyncProvider {
 	return ({ children, timeSync }) => {
+		const appId = useId();
 		const [lockedRts] = useState(() => new ReactTimeSync(timeSync));
+
 		useInsertionEffect(() => {
-			return lockedRts.initialize();
+			return lockedRts.onAppInit(appId);
+		}, [lockedRts, appId]);
+		useLayoutEffect(() => {
+			return lockedRts.onProviderMount();
 		}, [lockedRts]);
 
 		return <context.Provider value={lockedRts}>{children}</context.Provider>;
@@ -177,7 +184,7 @@ export function createReactBindings<
 			const fixedRts = new ReactTimeSync(timeSync);
 			get = () => fixedRts;
 			TimeSyncProvider = undefined;
-			fixedRts.initialize();
+			fixedRts.onProviderMount();
 			break;
 		}
 
@@ -207,7 +214,7 @@ export function createReactBindings<
 				return useContext(context);
 			};
 			TimeSyncProvider = createTimeSyncProvider(context);
-			defaultRts.initialize();
+			defaultRts.onProviderMount();
 			break;
 		}
 
