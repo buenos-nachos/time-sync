@@ -322,6 +322,26 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 			);
 		}
 
+		const isServerEnvironment = typeof window === "undefined";
+		if (isServerEnvironment) {
+			this.#activeAppId = appId;
+			this.#status = "initialized";
+
+			// This function isn't really expected to run anywhere, ever, but we're
+			// adding it for the sake of correctness, and to help future-proof the
+			// package
+			let cleanedUp = false;
+			return () => {
+				if (cleanedUp || this.#activeAppId !== appId) {
+					cleanedUp = true;
+					return;
+				}
+				this.#activeAppId = null;
+				this.#status = "idle";
+				cleanedUp = true;
+			};
+		}
+
 		// Because we can't control how much time can elapse between components
 		// mounting, we need some kind of way of refreshing the fallback date
 		// so that we can guarantee a fresh value when a new component mounts
@@ -357,6 +377,7 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 
 			this.#subscriptions.clear();
 			this.#status = "idle";
+			this.#activeAppId = null;
 			cleanedUp = true;
 		};
 		return cleanup;
@@ -373,8 +394,11 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		}
 
 		this.#status = "mounted";
+
 		let cleanupPendingRefresh = noOp;
-		if (!isFrozen(this.#timeSync)) {
+		const isLiveClientEnvironment =
+			typeof window !== "undefined" && isFrozen(this.#timeSync);
+		if (isLiveClientEnvironment) {
 			cleanupPendingRefresh = this.#refreshAllSubscribers();
 		}
 
