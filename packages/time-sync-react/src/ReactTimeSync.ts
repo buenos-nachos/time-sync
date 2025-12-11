@@ -42,6 +42,12 @@ const reactTimeSyncStatuses = [
 
 type ReactTimeSyncStatus = (typeof reactTimeSyncStatuses)[number];
 
+/**
+ * If a method returns a function, it's expected that:
+ * 1. The method must be called from inside some kind of useEffect call
+ *    (useEffect, useLayoutEffect, useInsertionEffect).
+ * 2. The returned function is a cleanup function.
+ */
 interface ReactTimeSyncApi {
 	/**
 	 * Registers a new subscription with ReactTimeSync (and its underlying
@@ -54,13 +60,21 @@ interface ReactTimeSyncApi {
 	 */
 	subscribe: <T>(options: SubscriptionInit<T>) => () => void;
 
+	/**
+	 * Takes an ID value (ideally produced by React itself) and initializes the
+	 * ReactTimeSync instance with it. The ReactTimeSync instance will then be
+	 * initialized and ready for mounting.
+	 */
 	onAppInit: (newAppId: string) => () => void;
 
+	/**
+	 * Handles mounting the provider, handling all logic necessary for hydrating
+	 * all useTimeSync subscribers with accurate data.
+	 */
 	onProviderMount: () => () => void;
 
 	/**
-	 * Exposes a stable version of ReactTimeSync's underlying TimeSync instance
-	 * that is safe to use anywhere in UI code.
+	 * Exposes a stable version of ReactTimeSync's underlying TimeSync instance.
 	 */
 	getTimeSync: () => TimeSync;
 
@@ -117,8 +131,8 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 	readonly #subscriptions: Map<string, SubscriptionEntry<unknown>>;
 	readonly #timeSync: TimeSync;
 
-	#status: ReactTimeSyncStatus;
 	#activeAppId: string | null;
+	#status: ReactTimeSyncStatus;
 	#fallbackData: SubscriptionData<null>;
 	#dateRefreshIntervalId: NodeJS.Timeout | number | undefined;
 	#componentMountThrottleId: NodeJS.Timeout | number | undefined;
@@ -177,30 +191,6 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 			clearTimeout(this.#componentMountThrottleId);
 			this.#componentMountThrottleId = undefined;
 		};
-	}
-
-	// This method is expected to be called from a useLayoutEffect call, so
-	// it's vital that all logic is defined synchronously. Otherwise, we risk
-	// screen flickering or other bugs from the UI being able to be painted
-	// before all the work is done
-	onComponentMount(): () => void {
-		if (this.#status === "idle") {
-			throw new Error(
-				"Cannot process component initialization while system is not initialized",
-			);
-		}
-
-		// Throttle the mounting logic so that if we have multiple ReactTimeSync
-		// consumers mount at the same time, we'll only process one mount in a given
-		// commit cycle
-		const shouldProceed =
-			this.#status === "mounted" && !isFrozen(this.#timeSync);
-		if (!shouldProceed) {
-			return noOp;
-		}
-
-		const cleanupPendingRefresh = this.#refreshAllSubscribers();
-		return cleanupPendingRefresh;
 	}
 
 	getTimeSync(): TimeSync {
@@ -366,7 +356,6 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		return cleanup;
 	}
 
-	// MUST be called from inside an effect, because it relies on browser APIs.
 	onProviderMount(): () => void {
 		if (this.#status === "idle") {
 			throw new Error("Cannot mount provider before app has been initialized");
@@ -395,5 +384,24 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 			this.#status = "initialized";
 			cleanedUp = true;
 		};
+	}
+
+	onComponentMount(): () => void {
+		if (this.#status === "idle") {
+			throw new Error(
+				"Cannot process component initialization while system is not initialized",
+			);
+		}
+
+		// If we're not mounted yet, then we're hoping that the provider will handle
+		// updating all subscribers when it handles mounting.
+		const shouldProceed =
+			this.#status === "mounted" && !isFrozen(this.#timeSync);
+		if (!shouldProceed) {
+			return noOp;
+		}
+
+		const cleanupPendingRefresh = this.#refreshAllSubscribers();
+		return cleanupPendingRefresh;
 	}
 }
