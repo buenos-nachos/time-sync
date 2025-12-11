@@ -19,7 +19,7 @@ import React, {
 	useSyncExternalStore,
 } from "react";
 import { useEffectEventPolyfill } from "./hookPolyfills";
-import type { ReactTimeSyncGetter, SubscriptionData } from "./ReactTimeSync";
+import type { SubscriptionData, UseReactTimeSync } from "./ReactTimeSync";
 import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
 // Copied from bindings.tsx
@@ -34,12 +34,10 @@ import { noOp, structuralMerge, type TransformCallback } from "./utilities";
  */
 export type UseTimeSyncRef = () => TimeSync;
 
-export function createUseTimeSyncRef(
-	getter: ReactTimeSyncGetter,
-): UseTimeSyncRef {
+export function createUseTimeSyncRef(useRts: UseReactTimeSync): UseTimeSyncRef {
 	return function useTimeSyncRef() {
-		const reactTs = getter();
-		return reactTs.getTimeSync();
+		const rts = useRts();
+		return rts.getTimeSync();
 	};
 }
 
@@ -142,7 +140,7 @@ export type UseTimeSync<
 // Can't add explicit return type here because then we'd consume the data type
 // parameter slot. Have to defer to the inner function's slot.
 export function createUseTimeSync<const TIsServerRendered extends boolean>(
-	getter: ReactTimeSyncGetter,
+	useRts: UseReactTimeSync,
 ) {
 	function useTimeSync<T = ReadonlyDate>(
 		options: UseTimeSyncOptions<T>,
@@ -197,7 +195,7 @@ export function createUseTimeSync<const TIsServerRendered extends boolean>(
 		 */
 		const { targetRefreshIntervalMs, transform } = options;
 		const activeTransform = (transform ?? identity) as TransformCallback<T>;
-		const rts = getter();
+		const rts = useRts();
 
 		// This is an abuse of the useId API, but because it gives us a stable
 		// ID that is uniquely associated with the current component instance,

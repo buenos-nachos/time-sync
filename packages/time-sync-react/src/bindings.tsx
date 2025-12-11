@@ -21,7 +21,7 @@ import {
 	type UseTimeSyncRef,
 	type UseTimeSyncResult,
 } from "./hooks";
-import { ReactTimeSync, type ReactTimeSyncGetter } from "./ReactTimeSync";
+import { ReactTimeSync, type UseReactTimeSync } from "./ReactTimeSync";
 
 /**
  * @todo Need to figure out the best way to describe this
@@ -191,11 +191,11 @@ export function createReactBindings<
 	// than bad abstractions right now
 	let TimeSyncProvider: TimeSyncProvider | undefined;
 	let cleanup: (() => void) | undefined;
-	let get: ReactTimeSyncGetter;
+	let useRts: UseReactTimeSync;
 	switch (injectionMethod) {
 		case "closure": {
 			const fixedRts = new ReactTimeSync(timeSync);
-			get = () => fixedRts;
+			useRts = () => fixedRts;
 			TimeSyncProvider = undefined;
 
 			const cleanupInit = fixedRts.onAppInit("default-init-closure");
@@ -213,7 +213,7 @@ export function createReactBindings<
 			TimeSyncProvider = createTimeSyncProvider(context);
 			cleanup = undefined;
 
-			get = function useReactTimeSyncContext() {
+			useRts = function useReactTimeSyncContext() {
 				const value = useContext(context);
 				if (value === undefined) {
 					throw new Error(
@@ -233,7 +233,7 @@ export function createReactBindings<
 			const defaultRts = new ReactTimeSync(timeSync);
 			const context = createContext(defaultRts);
 			TimeSyncProvider = createTimeSyncProvider(context);
-			get = function useReactTimeSyncContextWithDefault() {
+			useRts = function useReactTimeSyncContextWithDefault() {
 				return useContext(context);
 			};
 
@@ -255,8 +255,8 @@ export function createReactBindings<
 	}
 
 	const result: FlatCreateReactBindingsResult = {
-		useTimeSync: createUseTimeSync<TIsServerRendered>(get),
-		useTimeSyncRef: createUseTimeSyncRef(get),
+		useTimeSync: createUseTimeSync<TIsServerRendered>(useRts),
+		useTimeSyncRef: createUseTimeSyncRef(useRts),
 	};
 	// Only add the keys at runtime if we actually have meaningful values
 	if (TimeSyncProvider !== undefined) {

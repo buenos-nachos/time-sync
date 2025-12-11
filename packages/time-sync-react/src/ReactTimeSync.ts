@@ -1,7 +1,13 @@
 import { ReadonlyDate, refreshRates, TimeSync } from "@buenos-nachos/time-sync";
 import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
-export type ReactTimeSyncGetter = () => ReactTimeSync;
+/**
+ * Any function that allows some other React hook to get an instance of a
+ * ReactTimeSync. The function does not need to be implemented as a custom hook
+ * itself, but it should always be consumed as a custom hook (and follow rules
+ * of hooks) to maximize interoperability.
+ */
+export type UseReactTimeSync = () => ReactTimeSync;
 
 export interface SubscriptionData<T> {
 	readonly date: ReadonlyDate;
