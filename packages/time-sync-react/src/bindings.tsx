@@ -177,8 +177,8 @@ function validateCreateReactBindingsOptions(
 // The goal of this function is basically to wire up all the individual helpers
 // while providing nice, polished TypeScript types for good developer experience
 export function createReactBindings<
+	const TIsServerRendered extends boolean,
 	TInject extends InjectionMethod,
-	TIsServerRendered extends boolean,
 >(
 	options: CreateReactBindingsOptions<TIsServerRendered, TInject>,
 ): CreateReactBindingsResult<TIsServerRendered, TInject> {
@@ -186,9 +186,7 @@ export function createReactBindings<
 	validateCreateReactBindingsOptions(flat);
 	const { injectionMethod, timeSync } = flat;
 
-	// Not trying to DRY these cases up because realistically, these are going
-	// to get more complicated and nuanced over time. Code duplication is better
-	// than bad abstractions right now
+	// Trying to DRY this code up is almost definitely a mistake
 	let TimeSyncProvider: TimeSyncProvider | undefined;
 	let dispose: (() => void) | undefined;
 	let useRts: UseReactTimeSync;
@@ -201,7 +199,6 @@ export function createReactBindings<
 			const cleanupInit = fixedRts.onAppInit("default-init-closure");
 			const cleanupMount = fixedRts.onProviderMount();
 			dispose = () => {
-				// Have to make sure we clean up the mount first, or we'll get an error
 				cleanupMount();
 				cleanupInit();
 			};

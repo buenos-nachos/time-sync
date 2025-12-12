@@ -22,6 +22,11 @@ import { useEffectEventPolyfill } from "./hookPolyfills";
 import type { SubscriptionData, UseReactTimeSync } from "./ReactTimeSync";
 import { noOp, structuralMerge, type TransformCallback } from "./utilities";
 
+const useEffectEvent: typeof React.useEffectEvent =
+	typeof React.useEffectEvent === "undefined"
+		? useEffectEventPolyfill
+		: React.useEffectEvent;
+
 // Copied from bindings.tsx
 /**
  * Exposes the raw TimeSync instance without binding it to React
@@ -40,11 +45,6 @@ export function createUseTimeSyncRef(useRts: UseReactTimeSync): UseTimeSyncRef {
 		return rts.getTimeSync();
 	};
 }
-
-const useEffectEvent: typeof React.useEffectEvent =
-	typeof React.useEffectEvent === "undefined"
-		? useEffectEventPolyfill
-		: React.useEffectEvent;
 
 /**
  * Dates are notoriously hard to send over the wire in React Server Rendering
@@ -253,7 +253,7 @@ export function createUseTimeSync<const TIsServerRendered extends boolean>(
 		}, [rts, hookId, depArrayInvalidator]);
 
 		const { date, cachedTransformation } = useSyncExternalStore<
-			SubscriptionData<T | null> | DummyValueForServerRendering
+			DummyValueForServerRendering | SubscriptionData<T | null>
 		>(stableDummySubscribe, getSubWithInvalidation, getServerValue);
 
 		// There's some trade-offs with this memo (notably, if the consumer
