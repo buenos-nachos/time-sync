@@ -235,7 +235,7 @@ export function createReactBindings<
 			};
 
 			const cleanupInit = defaultRts.onAppInit("default-init-hybrid");
-			const cleanupMount = defaultRts.onComponentMount();
+			const cleanupMount = defaultRts.onProviderMount();
 			dispose = () => {
 				cleanupMount();
 				cleanupInit();

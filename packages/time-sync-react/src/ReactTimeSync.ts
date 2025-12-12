@@ -1,5 +1,5 @@
 import { ReadonlyDate, refreshRates, TimeSync } from "@buenos-nachos/time-sync";
-import { noOp, structuralMerge, type TransformCallback } from "./utilities";
+import { noOp, type TransformCallback } from "./utilities";
 
 /**
  * Any function that allows some other React hook to get an instance of a
@@ -16,7 +16,7 @@ export interface SubscriptionData<T> {
 
 interface SubscriptionEntry<T> {
 	readonly onReactStateSync: () => void;
-	readonly transform: TransformCallback<T>;
+	readonly transformWithMerge: TransformCallback<T>;
 	// The data value itself MUST be readonly, but the key is being kept mutable
 	// on purpose. We'll be swapping in different values over time, but by keeping
 	// the values themselves readonly, they become render-safe
@@ -27,7 +27,7 @@ interface SubscriptionInit<T> {
 	readonly hookId: string;
 	readonly initialValue: T;
 	readonly targetRefreshIntervalMs: number;
-	readonly transform: TransformCallback<T>;
+	readonly transformWithMerge: TransformCallback<T>;
 	readonly onStateSync: () => void;
 }
 
@@ -104,18 +104,6 @@ interface ReactTimeSyncApi {
 	getSubscriptionData: <T = unknown>(
 		hookId: string,
 	) => SubscriptionData<T | null>;
-
-	/**
-	 * Updates the cached transformation registered with a given hook ID. By
-	 * design, it does nothing else.
-	 *
-	 * This gives the ReactTimeSync fresher data to work with when new date
-	 * updates get dispatched from the TimeSync, and helps minimize needless
-	 * re-renders.
-	 *
-	 * If there is no entry associated with the ID, the method does nothing.
-	 */
-	invalidateTransformation: (hookId: string, newValue: unknown) => void;
 }
 
 /**
@@ -165,16 +153,18 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		// sure there's no risk of infinite loops from the iterator protocol
 		const entries = [...this.#subscriptions.values()];
 		for (const entry of entries) {
-			const { date, cachedTransformation } = entry.data;
-			const newTransform = entry.transform(date);
-			const merged = structuralMerge(cachedTransformation, newTransform);
-
+			const {
+				transformWithMerge,
+				onReactStateSync,
+				data: { date, cachedTransformation },
+			} = entry;
+			const merged = transformWithMerge(date);
 			if (cachedTransformation === merged) {
 				continue;
 			}
 
 			entry.data = { date: date, cachedTransformation: merged };
-			entry.onReactStateSync();
+			onReactStateSync();
 		}
 
 		// Immediately queue up the throttle to be cleared at the browser's nearest
@@ -208,31 +198,6 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		return this.#timeSync;
 	}
 
-	invalidateTransformation(hookId: string, newValue: unknown) {
-		if (this.#status === "idle") {
-			throw new Error(
-				"Cannot invalidate transformation while system is not initialized",
-			);
-		}
-
-		const entry = this.#subscriptions.get(hookId);
-		if (entry === undefined) {
-			return noOp;
-		}
-
-		// This method is expected to be called from useEffect, which will
-		// already provide one layer of protection for change detection. But it
-		// doesn't hurt to have double book-keeping
-		if (entry.data.cachedTransformation !== newValue) {
-			entry.data = {
-				date: entry.data.date,
-				cachedTransformation: newValue,
-			};
-		}
-
-		return noOp;
-	}
-
 	subscribe<T>(options: SubscriptionInit<T>): () => void {
 		if (this.#status === "idle") {
 			throw new Error("Cannot subscribe while system is not initialized");
@@ -240,15 +205,15 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 
 		const {
 			hookId,
+			onStateSync,
 			initialValue,
+			transformWithMerge,
 			targetRefreshIntervalMs,
-			transform,
-			onStateSync: onReactStateSync,
 		} = options;
 
 		this.#subscriptions.set(hookId, {
-			onReactStateSync,
-			transform,
+			onReactStateSync: onStateSync,
+			transformWithMerge,
 			data: {
 				cachedTransformation: initialValue,
 				date: this.#fallbackData.date,
@@ -272,17 +237,15 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 		const rootUnsubscribe = this.#timeSync.subscribe({
 			targetRefreshIntervalMs,
 			onUpdate: (newDate) => {
-				// Not accessing newEntry from closure just to be on the safe
-				// side and make sure we can't access a subscription after it's
-				// been removed
+				// Not accessing newEntry from closure just to be on the safe side and
+				// make sure we can't access a subscription after it's been removed
 				const entry = this.#subscriptions.get(hookId);
 				if (entry === undefined) {
 					return;
 				}
 
 				const oldTransformed = entry.data.cachedTransformation;
-				const newTransformed = transform(newDate);
-				const merged = structuralMerge(oldTransformed, newTransformed);
+				const merged = transformWithMerge(newDate);
 
 				if (merged === oldTransformed) {
 					entry.data = {
@@ -293,7 +256,7 @@ export class ReactTimeSync implements ReactTimeSyncApi {
 				}
 
 				entry.data = { date: newDate, cachedTransformation: merged };
-				onReactStateSync();
+				onStateSync();
 			},
 		});
 
