@@ -78,6 +78,11 @@ function negate(value: boolean): boolean {
 	return !value;
 }
 
+interface TransformMemo<T> {
+	lastDate: ReadonlyDate | null;
+	lastMerged: T;
+}
+
 /**
  * @todo Need to figure out the best way to describe this
  */
@@ -206,13 +211,15 @@ export function createUseTimeSync<const TIsServerRendered extends boolean>(
 		const hookId = useId();
 
 		// The notifyReact callback is what React uses to decide when to re-call
-		// the state getter while outside a render. We have to eject this
-		// function specifically; trying to force re-rendering via a simple
-		// useReducer hack won't work. Not only will it lack the necessary level
-		// of granularity, but it's not guaranteed the getter will re-run. Also,
-		// we MUST make sure that useRef is initialized with a function that we
-		// both own and that is defined outside the render so that we can do
-		// simple comparisons to see if the real callback has been loaded yet
+		// the state getter while outside a render. We have to eject it because
+		// we need to speed up the firing speed for the subscriptions, but there's
+		// no other way to achieve the granularity of useSyncExternalStore's updates
+		// without it. Trying to force re-rendering via a simple useReducer hack
+		// won't work. Not only will it lack the necessary level of granularity, but
+		// it's not guaranteed the getter will re-run. Also, we MUST make sure that
+		// this useRef is initialized with a function that we both own and that is
+		// defined outside the render so that we can do simple comparisons to see if
+		// the real callback has been loaded yet
 		const ejectedNotifyRef = useRef(noOp);
 		const stableDummySubscribe = useCallback((notifyReact: () => void) => {
 			ejectedNotifyRef.current = notifyReact;
@@ -274,20 +281,77 @@ export function createUseTimeSync<const TIsServerRendered extends boolean>(
 			return structuralMerge(prev, newTransformation);
 		}, [cachedTransformation, newTransformation]);
 
+		/**
+		 * This whole setup is to get around a behavior that useSyncExternalStore
+		 * does for correctness guarantees and to minimize footguns, but actually
+		 * has a risk of causing infinite render loops and unnecessary renders for
+		 * this package specifically.
+		 *
+		 * Basically, any time a component that uses useSyncExternalStore is part
+		 * of a new render cycle, React will always call the state getter at
+		 * useEffect speed to double-check that the snapshot from the mutable data
+		 * source is still accurate. It does not matter whether the component
+		 * initiated the render or not – if it was part of the render at all, that
+		 * getter will get called. And if the value changed AT ALL, React will
+		 * immediately start a new render.
+		 *
+		 * This package does a lot of transformations inside and outside of React,
+		 * but realistically, a lot of the results are going to be the same. So
+		 * whenever we produce a new value in a render, we need to eject it so that
+		 * ReactTimeSync has access to it and can minimize new work for its external
+		 * subscription updates.
+		 *
+		 * This code used to directly invalidate the state snapshot that it hands
+		 * to ReactTimeSync, but it was incredibly hard to get the timing right.
+		 * Change the snapshot too early, and React will create new renders. Change
+		 * it too late, and there's a risk that useTimeSync consumers will de-sync.
+		 *
+		 * So, rather than putting new state computations directly in the snapshot,
+		 * we'll transition the render state into ref state that can never trigger
+		 * re-renders, and only use it when we know we need to compute a new
+		 * transformation externally as part a subscription update.
+		 */
+		// biome-ignore lint:style/noNonNullAssertion -- Minimizes GC costs
+		const externalMemoRef = useRef<TransformMemo<T | null>>(null!);
+		if (externalMemoRef.current === null) {
+			externalMemoRef.current = {
+				lastDate: date,
+				lastMerged: merged,
+			};
+		}
+		useLayoutEffect(() => {
+			externalMemoRef.current.lastMerged = merged;
+		}, [merged]);
+		const reactiveTransformWithMergeAndMemo = useEffectEvent<
+			TransformCallback<T | null>
+		>((date) => {
+			const memo = externalMemoRef.current;
+			const shouldProcessChange = date.getTime() !== memo.lastDate?.getTime();
+			if (!shouldProcessChange) {
+				return memo.lastMerged;
+			}
+
+			const newResult = activeTransform(date);
+			const merged = structuralMerge(memo.lastMerged, newResult);
+
+			memo.lastDate = date;
+			memo.lastMerged = merged;
+			return merged;
+		});
+
 		// While the contents of reactiveSubscribe will update every render,
 		// the subscription itself is always a one-shot deal, and new
 		// subscriptions will only get set up every so often (in some cases,
-		// they'll be set up once total). We need the transform to update
-		// independently, so that even if the subscription fires once, we'll
-		// keep re-syncing the transform logic based on the latest user-supplied
-		// closure values
-		const reactiveTransform = useEffectEvent(activeTransform);
+		// they'll be set up once total). We need to make sure that the subscription
+		// and transform logic are both defined as two separate reactive callbacks
+		// so that even if the subscription fires once, it will always have access
+		// to the latest data for the transformation logic.
 		const reactiveSubscribe = useEffectEvent((targetMs: number) => {
 			const unsub = rts.subscribe<T | null>({
 				hookId,
 				initialValue: merged,
 				targetRefreshIntervalMs: targetMs,
-				transform: reactiveTransform,
+				transformWithMerge: reactiveTransformWithMergeAndMemo,
 				onStateSync: () => {
 					if (ejectedNotifyRef.current === noOp) {
 						fallbackSync();
@@ -298,20 +362,10 @@ export function createUseTimeSync<const TIsServerRendered extends boolean>(
 			});
 			return unsub;
 		});
-
-		// Reminder: useEffect and useLayoutEffect clean up in batches. All cleanup
-		// functions will fire at once for a given render (going from the bottom up
-		// in the tree), and then all the new effects will fire (still bottom-up).
-		// Having all the ReactTimeSync methods have cleanup functions in their
-		// function signatures is the correct move, but since there's a single
-		// ReactTimeSync instance, you have to be careful that cleanups for one
-		// component don't break effects for another component.
 		useLayoutEffect(() => {
 			return reactiveSubscribe(targetRefreshIntervalMs);
 		}, [reactiveSubscribe, targetRefreshIntervalMs]);
-		useLayoutEffect(() => {
-			rts.invalidateTransformation(hookId, merged);
-		}, [rts, hookId, merged]);
+
 		useLayoutEffect(() => {
 			return rts.onComponentMount();
 		}, [rts]);
