@@ -193,7 +193,7 @@ function processOnUpdate(date: ReadonlyDate, ctx: SubscriptionContext): void {
 	console.log(`This subscription runs every ${ctx.targetRefreshIntervalMs}`);
 
 	// This is the same callback that you receive when you call the subscribe
-	// method (exact same refererence equality)
+	// method (exact same reference equality)
 	ctx.unsubscribe;
 	const shouldCancel = shouldCancelSubscription(date);
 	if (shouldCancel) {
