@@ -17,10 +17,7 @@
 		"ui"
 	],
 	"files": [
-		"./src",
-		"./dist",
-		"CHANGELOG.md",
-		"!*.test.ts"
+		"./dist"
 	],
 	"scripts": {
 		"check:types": "tsc --noEmit"
@@ -30,7 +27,7 @@
 	"publishConfig": {
 		"access": "public",
 		"main": "./dist/index.js",
-		"module": "./dist/index.mjs",
+		"module": "./dist/index.js",
 		"types": "./dist/index.d.ts"
 	}
 }

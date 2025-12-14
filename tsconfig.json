@@ -22,7 +22,7 @@
 
 		"composite": true,
 		"declaration": true,
-		"declarationMap": true,
+		"declarationMap": false,
 		"incremental": true,
 
 		"strict": true,
