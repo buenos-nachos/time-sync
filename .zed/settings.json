@@ -36,6 +36,7 @@
 		"JSONC": { "formatter": { "language_server": { "name": "biome" } } },
 		"CSS": { "formatter": { "language_server": { "name": "biome" } } },
 
+		// Prettier settings
 		"Markdown": {
 			"soft_wrap": "bounded",
 			"formatter": {
