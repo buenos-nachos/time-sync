@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.6.1
+
+### Patch Changes
+
+- 03c41c8: removed internal comments from NPM output
+
 ## 0.6.0
 
 ### Minor Changes
