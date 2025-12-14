@@ -131,9 +131,10 @@ function displayYear(date: Date): void {
 
 const unsubscribe3 = sync.subscribe({
 	// This refresh rate lets a subscriber "passively" subscribe to the
-	// TimeSync. It does not trigger updates on its own, but it can be notified
-	// when other subscribers change so that it can be "kept in the loop". If
-	// all subscribers use this interval, no updates will ever be dispatched.
+	// TimeSync. It does not trigger updates on its own, but the subscriber can
+	// be notified when other subscribers change so that it can be "kept in the
+	// loop". If all subscribers use this interval, no updates will ever be
+	// dispatched.
 	targetRefreshIntervalMs: refreshRates.idle,
 	onUpdate: displayYear,
 });
