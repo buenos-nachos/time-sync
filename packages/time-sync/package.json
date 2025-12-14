@@ -17,7 +17,9 @@
 		"ui"
 	],
 	"files": [
-		"./src"
+		"./src",
+		"./dist",
+		"CHANGELOG.md"
 	],
 	"scripts": {
 		"check:types": "tsc --noEmit"
