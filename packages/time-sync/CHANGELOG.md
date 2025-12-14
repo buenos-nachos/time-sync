@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.5.5
+
+### Patch Changes
+
+- 1862a8b: Added explicit build process when preparing NPM scripts to ensure ./dist files can't be omitted
+
 ## 0.5.4
 
 ### Patch Changes
