@@ -19,7 +19,8 @@
 	"files": [
 		"./src",
 		"./dist",
-		"CHANGELOG.md"
+		"CHANGELOG.md",
+		"!*.test.ts"
 	],
 	"scripts": {
 		"check:types": "tsc --noEmit"
