@@ -36,6 +36,14 @@ jobs:
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
 
+      # Changesets sometimes runs this process automatically, but the tradeoff
+      # is that it's magical and not clear about which script it depends on.
+      # The other problem is that depending on your package.json configuration,
+      # it might either include unwanted files like test files or accidentally
+      # skip over important files (like all of ./dist).
+      - name: Build via TSDown
+        run: pnpm build:all
+
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@e0145edc7d9d8679003495b11f87bd8ef63c0cba # v1.5.3
