@@ -320,12 +320,22 @@ export function createUseTimeSync<const TIsServerRendered extends boolean>(
 			};
 		}
 		useLayoutEffect(() => {
+			externalMemoRef.current.lastDate = date;
 			externalMemoRef.current.lastMerged = merged;
-		}, [merged]);
+		}, [date, merged]);
 		const reactiveTransformWithMergeAndMemo = useEffectEvent<
 			TransformCallback<T | null>
 		>((date) => {
 			const memo = externalMemoRef.current;
+
+			/**
+			 * Wish this were more obvious, but even though we're not including the
+			 * transform callback in the memo object, we don't have to worry about
+			 * stale versions of the callback affecting the results. Subscription
+			 * updates have no choice but to fire at useEffect speed or later, meaning
+			 * that by the time they trigger, we'll have the latest versions of all
+			 * values for the memo and the callback flushed and ready to go.
+			 */
 			const shouldProcessChange = date.getTime() !== memo.lastDate?.getTime();
 			if (!shouldProcessChange) {
 				return memo.lastMerged;
