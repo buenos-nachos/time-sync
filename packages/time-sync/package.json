@@ -16,6 +16,9 @@
 		"utility",
 		"ui"
 	],
+	"files": [
+		"./src"
+	],
 	"scripts": {
 		"check:types": "tsc --noEmit"
 	},
