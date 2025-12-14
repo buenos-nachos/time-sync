@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.6.0
+
+### Minor Changes
+
+- 8678493: Removed support for CommonJS. Also removed source files, changelog, and sourcemaps from output packages.
+
 ## 0.5.5
 
 ### Patch Changes
