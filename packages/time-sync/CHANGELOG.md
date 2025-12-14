@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.5.2
+
+### Patch Changes
+
+- a2a6843: Removed test files from NPM builds.
+
 ## 0.5.1
 
 ### Patch Changes
