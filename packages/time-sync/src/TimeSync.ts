@@ -113,7 +113,9 @@ export interface SubscriptionInitOptions {
  */
 export interface Snapshot {
 	/**
-	 * The date that was last dispatched to all subscribers.
+	 * The date that TimeSync last processed. This will always match the date that
+	 * was last dispatched to all subscribers, but if no updates have been issued,
+	 * this value will match the date used to instantiate the TimeSync.
 	 */
 	readonly date: ReadonlyDate;
 
