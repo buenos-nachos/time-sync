@@ -19,8 +19,13 @@ import React, {
 	useSyncExternalStore,
 } from "react";
 import { useEffectEventPolyfill } from "./hookPolyfills";
-import type { ReactTimeSyncGetter } from "./ReactTimeSync";
+import type { SubscriptionData, UseReactTimeSync } from "./ReactTimeSync";
 import { noOp, structuralMerge, type TransformCallback } from "./utilities";
+
+const useEffectEvent: typeof React.useEffectEvent =
+	typeof React.useEffectEvent === "undefined"
+		? useEffectEventPolyfill
+		: React.useEffectEvent;
 
 // Copied from bindings.tsx
 /**
@@ -34,24 +39,54 @@ import { noOp, structuralMerge, type TransformCallback } from "./utilities";
  */
 export type UseTimeSyncRef = () => TimeSync;
 
-export function createUseTimeSyncRef(
-	getter: ReactTimeSyncGetter,
-): UseTimeSyncRef {
+export function createUseTimeSyncRef(useRts: UseReactTimeSync): UseTimeSyncRef {
 	return function useTimeSyncRef() {
-		const reactTs = getter();
-		return reactTs.getTimeSync();
+		const rts = useRts();
+		return rts.getTimeSync();
 	};
 }
 
-const useEffectEvent: typeof React.useEffectEvent =
-	typeof React.useEffectEvent === "undefined"
-		? useEffectEventPolyfill
-		: React.useEffectEvent;
+/**
+ * Dates are notoriously hard to send over the wire in React Server Rendering
+ * because there's a very high chance that you'll have a hydration mismatch
+ * error from the differences in the server's time and the user's local time.
+ *
+ * What we'll do is always use a null value for all properties on the server
+ * render and initial hydration, and then immediately invalidate the data once
+ * the state initializes on the client's device.
+ */
+type DummyValueForServerRendering = {
+	readonly [k in keyof SubscriptionData<unknown>]: null;
+};
+const dummy: DummyValueForServerRendering = {
+	date: null,
+	cachedTransformation: null,
+};
+function getServerValue(): DummyValueForServerRendering {
+	return dummy;
+}
+
+// Even though this is a really simple function, keeping it defined outside
+// useTimeSync helps with render performance, and helps stabilize a bunch
+// of values in the hook when you're not doing transformations
+function identity<T>(value: T): T {
+	return value;
+}
+
+// Should also be defined outside the hook to optimize useReducer behavior
+function negate(value: boolean): boolean {
+	return !value;
+}
+
+interface TransformMemo<T> {
+	lastDate: ReadonlyDate | null;
+	lastMerged: T;
+}
 
 /**
  * @todo Need to figure out the best way to describe this
  */
-export type UseTimeSyncOptions<T> = Readonly<{
+export interface UseTimeSyncOptions<T> {
 	/**
 	 * The ideal interval of time, in milliseconds, that defines how often the
 	 * hook should refresh with the newest state value from TimeSync.
@@ -86,32 +121,35 @@ export type UseTimeSyncOptions<T> = Readonly<{
 	 *    re-renders
 	 */
 	transform?: TransformCallback<T>;
-}>;
-
-// Even though this is a really simple function, keeping it defined outside
-// useTimeSync helps with render performance, and helps stabilize a bunch
-// of values in the hook when you're not doing transformations
-function identity<T>(value: T): T {
-	return value;
 }
 
-// Should also be defined outside the hook to optimize useReducer behavior
-function negate(value: boolean): boolean {
-	return !value;
-}
+export type UseTimeSyncResult<
+	TIsServerRendered extends boolean,
+	TReturn,
+> = TIsServerRendered extends true ? TReturn | null : TReturn;
 
 // The setup here is a little bit wonkier than the one for useTimeSyncRef
-// because of type parameters. If we were to define the UseTimeSync type
-// upfront, and then say that this function returns it, we would be forced to
-// evaluate and consume the generic type slot. There's no way to reference a
-// generic type in return type position without either passing it an explicit
-// generic or triggering its default type. We have to avoid writing it out to
-// trick TypeScript into preserving the slot, and then we can pluck the complete
-// type out with the ReturnType utility type
-export function createUseTimeSync(getter: ReactTimeSyncGetter) {
-	return function useTimeSync<T = ReadonlyDate>(
+// because of type parameters. Have to jump through so many hoops to avoid
+// writing out the type name in certain positions so that we can preserve the
+// type parameter slots. Turns out, one of TypeScript's biggest limitations is
+// that you can't reference generic types by name without consuming the slot or
+// triggering a default parameter, and the only way to avoid that is by making
+// hacks out of function boundaries.
+export type UseTimeSync<
+	TIsServerRendered extends boolean,
+	TData = ReadonlyDate,
+> = (
+	options: UseTimeSyncOptions<TData>,
+) => UseTimeSyncResult<TIsServerRendered, TData>;
+
+// Can't add explicit return type here because then we'd consume the data type
+// parameter slot. Have to defer to the inner function's slot.
+export function createUseTimeSync<const TIsServerRendered extends boolean>(
+	useRts: UseReactTimeSync,
+) {
+	function useTimeSync<T = ReadonlyDate>(
 		options: UseTimeSyncOptions<T>,
-	): T {
+	): UseTimeSyncResult<TIsServerRendered, T> {
 		/**
 		 * A lot of our challenges boil down to the fact that even though it's
 		 * our only viable option right now, useSyncExternalStore is an
@@ -162,7 +200,7 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		 */
 		const { targetRefreshIntervalMs, transform } = options;
 		const activeTransform = (transform ?? identity) as TransformCallback<T>;
-		const rts = getter();
+		const rts = useRts();
 
 		// This is an abuse of the useId API, but because it gives us a stable
 		// ID that is uniquely associated with the current component instance,
@@ -173,13 +211,15 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		const hookId = useId();
 
 		// The notifyReact callback is what React uses to decide when to re-call
-		// the state getter while outside a render. We have to eject this
-		// function specifically; trying to force re-rendering via a simple
-		// useReducer hack won't work. Not only will it lack the necessary level
-		// of granularity, but it's not guaranteed the getter will re-run. Also,
-		// we MUST make sure that useRef is initialized with a function that we
-		// both own and that is defined outside the render so that we can do
-		// simple comparisons to see if the real callback has been loaded yet
+		// the state getter while outside a render. We have to eject it because
+		// we need to speed up the firing speed for the subscriptions, but there's
+		// no other way to achieve the granularity of useSyncExternalStore's updates
+		// without it. Trying to force re-rendering via a simple useReducer hack
+		// won't work. Not only will it lack the necessary level of granularity, but
+		// it's not guaranteed the getter will re-run. Also, we MUST make sure that
+		// this useRef is initialized with a function that we both own and that is
+		// defined outside the render so that we can do simple comparisons to see if
+		// the real callback has been loaded yet
 		const ejectedNotifyRef = useRef(noOp);
 		const stableDummySubscribe = useCallback((notifyReact: () => void) => {
 			ejectedNotifyRef.current = notifyReact;
@@ -218,10 +258,10 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 			void depArrayInvalidator;
 			return rts.getSubscriptionData<T>(hookId);
 		}, [rts, hookId, depArrayInvalidator]);
-		const { date, cachedTransformation } = useSyncExternalStore(
-			stableDummySubscribe,
-			getSubWithInvalidation,
-		);
+
+		const { date, cachedTransformation } = useSyncExternalStore<
+			DummyValueForServerRendering | SubscriptionData<T | null>
+		>(stableDummySubscribe, getSubWithInvalidation, getServerValue);
 
 		// There's some trade-offs with this memo (notably, if the consumer
 		// passes in an inline transform callback, the memo result will be
@@ -229,30 +269,99 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 		// the consumer the option of memoizing expensive transformations at the
 		// render level without polluting the hook's API with super-fragile
 		// dependency array logic
-		const newTransformation = useMemo(
-			() => activeTransform(date),
-			[date, activeTransform],
-		);
+		const newTransformation = useMemo(() => {
+			if (date === null) {
+				return null;
+			}
+			return activeTransform(date);
+		}, [date, activeTransform]);
 
 		const merged = useMemo(() => {
 			const prev = cachedTransformation ?? newTransformation;
 			return structuralMerge(prev, newTransformation);
 		}, [cachedTransformation, newTransformation]);
 
+		/**
+		 * This whole setup is to get around a behavior that useSyncExternalStore
+		 * does for correctness guarantees and to minimize footguns, but actually
+		 * has a risk of causing infinite render loops and unnecessary renders for
+		 * this package specifically.
+		 *
+		 * Basically, any time a component that uses useSyncExternalStore is part
+		 * of a new render cycle, React will always call the state getter at
+		 * useEffect speed to double-check that the snapshot from the mutable data
+		 * source is still accurate. It does not matter whether the component
+		 * initiated the render or not – if it was part of the render at all, that
+		 * getter will get called. And if the value changed AT ALL, React will
+		 * immediately start a new render.
+		 *
+		 * This package does a lot of transformations inside and outside of React,
+		 * but realistically, a lot of the results are going to be the same. So
+		 * whenever we produce a new value in a render, we need to eject it so that
+		 * ReactTimeSync has access to it and can minimize new work for its external
+		 * subscription updates.
+		 *
+		 * This code used to directly invalidate the state snapshot that it hands
+		 * to ReactTimeSync, but it was incredibly hard to get the timing right.
+		 * Change the snapshot too early, and React will create new renders. Change
+		 * it too late, and there's a risk that useTimeSync consumers will de-sync.
+		 *
+		 * So, rather than putting new state computations directly in the snapshot,
+		 * we'll transition the render state into ref state that can never trigger
+		 * re-renders, and only use it when we know we need to compute a new
+		 * transformation externally as part a subscription update.
+		 */
+		// biome-ignore lint:style/noNonNullAssertion -- Minimizes GC costs
+		const externalMemoRef = useRef<TransformMemo<T | null>>(null!);
+		if (externalMemoRef.current === null) {
+			externalMemoRef.current = {
+				lastDate: date,
+				lastMerged: merged,
+			};
+		}
+		useLayoutEffect(() => {
+			externalMemoRef.current.lastDate = date;
+			externalMemoRef.current.lastMerged = merged;
+		}, [date, merged]);
+		const reactiveTransformWithMergeAndMemo = useEffectEvent<
+			TransformCallback<T | null>
+		>((date) => {
+			const memo = externalMemoRef.current;
+
+			/**
+			 * Wish this were more obvious, but even though we're not including the
+			 * transform callback in the memo object, we don't have to worry about
+			 * stale versions of the callback affecting the results. Subscription
+			 * updates have no choice but to fire at useEffect speed or later, meaning
+			 * that by the time they trigger, we'll have the latest versions of all
+			 * values for the memo and the callback flushed and ready to go.
+			 */
+			const shouldProcessChange = date.getTime() !== memo.lastDate?.getTime();
+			if (!shouldProcessChange) {
+				return memo.lastMerged;
+			}
+
+			const newResult = activeTransform(date);
+			const merged = structuralMerge(memo.lastMerged, newResult);
+
+			memo.lastDate = date;
+			memo.lastMerged = merged;
+			return merged;
+		});
+
 		// While the contents of reactiveSubscribe will update every render,
 		// the subscription itself is always a one-shot deal, and new
 		// subscriptions will only get set up every so often (in some cases,
-		// they'll be set up once total). We need the transform to update
-		// independently, so that even if the subscription fires once, we'll
-		// keep re-syncing the transform logic based on the latest user-supplied
-		// closure values
-		const reactiveTransform = useEffectEvent(activeTransform);
+		// they'll be set up once total). We need to make sure that the subscription
+		// and transform logic are both defined as two separate reactive callbacks
+		// so that even if the subscription fires once, it will always have access
+		// to the latest data for the transformation logic.
 		const reactiveSubscribe = useEffectEvent((targetMs: number) => {
-			const unsub = rts.subscribe({
+			const unsub = rts.subscribe<T | null>({
 				hookId,
 				initialValue: merged,
 				targetRefreshIntervalMs: targetMs,
-				transform: reactiveTransform,
+				transformWithMerge: reactiveTransformWithMergeAndMemo,
 				onStateSync: () => {
 					if (ejectedNotifyRef.current === noOp) {
 						fallbackSync();
@@ -263,40 +372,16 @@ export function createUseTimeSync(getter: ReactTimeSyncGetter) {
 			});
 			return unsub;
 		});
-
-		// Reminder: useEffect and useLayoutEffect clean up in batches. All cleanup
-		// functions will fire at once for a given render (going from the bottom up
-		// in the tree), and then all the new effects will fire (still bottom-up).
-		// Having all the ReactTimeSync methods have cleanup functions in their
-		// function signatures is the correct move, but since there's a single
-		// ReactTimeSync instance, you have to be careful that cleanups for one
-		// component don't break effects for another component.
 		useLayoutEffect(() => {
 			return reactiveSubscribe(targetRefreshIntervalMs);
 		}, [reactiveSubscribe, targetRefreshIntervalMs]);
-		useLayoutEffect(() => {
-			return rts.invalidateTransformation(hookId, merged);
-		}, [rts, hookId, merged]);
+
 		useLayoutEffect(() => {
 			return rts.onComponentMount();
 		}, [rts]);
 
-		return merged;
-	};
-}
+		return merged satisfies T | null as UseTimeSyncResult<TIsServerRendered, T>;
+	}
 
-// Copied from bindings.tsx
-/**
- * Sets up a new TimeSync subscription using the specified
- * interval, and ensures that the component will be able to
- * re-render as the TimeSync instance updates its internal state
- * and notifies subscribers.
- *
- * The returned value is fully bound to React's lifecycles, and is
- * always safe to reference inside render logic, event handlers, and
- * effects.
- *
- * See the `UseTimeSyncOptions` type for more info on what each
- * property does.
- */
-export type UseTimeSync = ReturnType<typeof createUseTimeSync>;
+	return useTimeSync satisfies UseTimeSync<TIsServerRendered, unknown>;
+}

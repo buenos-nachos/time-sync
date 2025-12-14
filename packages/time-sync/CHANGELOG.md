@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.5.1
+
+### Patch Changes
+
+- 5fdc201: Updated wording on `Snapshot.date` to be less misleading.
+
 ## 0.5.0
 
 ### Breaking Changes

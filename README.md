@@ -29,7 +29,7 @@ In other words, `time-sync` aims to make time more obvious, less magical, and ea
 - 🖥️ **Bindings for popular UI frameworks** – `time-sync` will be launching bindings for React in the next few weeks. Solid.js bindings will launch soon after. Other frameworks may be added based on demand/interest.
 - 🏝️ **Astro islands** – All the packages for binding `time-sync` to a UI framework aim to support Astro out of the box. This includes support for islands and the ability to mix the bindings with `.astro` files.
 - 💿 **Mix and match UI frameworks** – The React and Solid.js packages are being designed so that they can be used together in a single Astro project. Any future framework bindings will aim to have the same support.
-- 🤝 **Minimal dependencies** – Every package for binding `time-sync` to a UI library/framework aims to have the library/framework and `time-sync` as its only two dependencies.
+- 🤝 **Minimal dependencies** – Each package for binding `time-sync` to a UI library aims to have the library and `time-sync` as its only two dependencies.
 
 ## Quick start
 
