@@ -30,7 +30,7 @@
 		"check:lint": "biome check --error-on-warnings . && prettier --check --ignore-unknown '**' '!**/*.{json,jsonc,js,ts,jsx,tsx}' '!./pnpm-workspace.yaml'",
 		"check:types": "pnpm --recursive check:types",
 		"fix:dependencies": "knip --fix",
-		"format": "biome format --write .",
+		"format": "biome format --write . && prettier --ignore-unknown '**' '!**/*.{json,jsonc,js,ts,jsx,tsx}' '!./pnpm-workspace.yaml'",
 		"test": "vitest run",
 		"test:watch": "vitest watch"
 	},
