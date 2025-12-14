@@ -1,6 +1,6 @@
 {
 	"name": "@buenos-nachos/time-sync",
-	"version": "0.5.3",
+	"version": "0.5.4",
 	"license": "MIT",
 	"type": "module",
 	"packageManager": "pnpm@10.17.0",

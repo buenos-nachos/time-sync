@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.5.4
+
+### Patch Changes
+
+- 3f130f1: updated `files` in package.json to include accidentally removed files
+
 ## 0.5.3
 
 ### Patch Changes
