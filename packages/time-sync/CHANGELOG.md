@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.5.3
+
+### Patch Changes
+
+- e401ae4: further updated which files are included in NPM packages
+
 ## 0.5.2
 
 ### Patch Changes
