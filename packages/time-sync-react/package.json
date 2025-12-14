@@ -19,10 +19,7 @@
 		"ui"
 	],
 	"files": [
-		"./src",
-		"./dist",
-		"CHANGELOG.md",
-		"!*.test.{ts,tsx}"
+		"./dist"
 	],
 	"scripts": {
 		"check:types": "tsc --noEmit"
