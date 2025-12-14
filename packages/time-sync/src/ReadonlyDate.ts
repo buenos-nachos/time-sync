@@ -1,5 +1,5 @@
-/**
- * @file This comment is here to provide clarity on why proxy objects might
+/*
+ * This comment is here to provide clarity on why proxy objects might
  * always be a dead end for this library, and document failed experiments.
  *
  * Readonly dates need to have a lot of interoperability with native dates
@@ -77,7 +77,7 @@ export class ReadonlyDate extends Date implements ReadonlyDateApi {
 		seconds?: number,
 		milliseconds?: number,
 	) {
-		/**
+		/*
 		 * One problem with the native Date type is that they allow you to
 		 * produce invalid dates silently, and you won't find out until it's too
 		 * late. It's a lot like NaN for numbers.
@@ -96,13 +96,13 @@ export class ReadonlyDate extends Date implements ReadonlyDateApi {
 			);
 		}
 
-		/**
+		/*
 		 * biome-ignore lint:complexity/noArguments -- We're going to be using
 		 * `arguments` a good bit because the native Date relies on the meta
 		 * parameter so much for runtime behavior
 		 */
 		const hasInvalidNums = [...arguments].some((el) => {
-			/**
+			/*
 			 * You almost never see them in practice, but native dates do
 			 * support using negative AND fractional values for instantiation.
 			 * Negative values produce values before 1970.
@@ -115,7 +115,7 @@ export class ReadonlyDate extends Date implements ReadonlyDateApi {
 			);
 		}
 
-		/**
+		/*
 		 * This guard clause looks incredibly silly, but we need to do this to
 		 * make sure that the readonly class works properly with Jest, Vitest,
 		 * and anything else that supports fake timers. Critically, it makes
@@ -176,7 +176,7 @@ export class ReadonlyDate extends Date implements ReadonlyDateApi {
 			);
 		}
 
-		/**
+		/*
 		 * biome-ignore lint:complexity/noArguments -- Native dates are super
 		 * wonky, and they actually check arguments.length to define behavior
 		 * at runtime. We can't pass all the arguments in via a single call,

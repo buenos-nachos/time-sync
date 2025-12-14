@@ -224,7 +224,7 @@ interface TimeSyncApi {
 	clearAll: () => void;
 }
 
-/**
+/*
  * Even though both the browser and the server are able to give monotonic times
  * that are at least as precise as a nanosecond, we're using milliseconds for
  * consistency with useInterval, which cannot be more precise than a
@@ -244,7 +244,7 @@ function getMonotonicTimeMs(): number {
 	return Math.floor(highResTimestamp);
 }
 
-/**
+/*
  * This function is just a convenience for us to sidestep some problems around
  * TypeScript's LSP and Object.freeze. Because Object.freeze can accept any
  * arbitrary type, it basically acts as a "type boundary" between the left and
@@ -268,7 +268,7 @@ function freezeSnapshot(snap: Snapshot): Snapshot {
 
 const defaultMinimumRefreshIntervalMs = 200;
 
-/**
+/*
  * One thing that was considered was giving TimeSync the ability to flip which
  * kinds of dates it uses, and let it use native dates instead of readonly
  * dates. We type readonly dates as native dates for better interoperability
@@ -304,13 +304,13 @@ const defaultMinimumRefreshIntervalMs = 200;
  * some parts of the screen.)
  */
 export class TimeSync implements TimeSyncApi {
-	/**
+	/*
 	 * The monotonic time in milliseconds from when the TimeSync instance was
 	 * first instantiated.
 	 */
 	readonly #initializedAtMs: number;
 
-	/**
+	/*
 	 * Stores all refresh intervals actively associated with an onUpdate
 	 * callback (along with their associated unsubscribe callbacks).
 	 *
@@ -344,19 +344,19 @@ export class TimeSync implements TimeSyncApi {
 	 */
 	#subscriptions: Map<OnTimeSyncUpdate, readonly SubscriptionContext[]>;
 
-	/**
+	/*
 	 * The latest public snapshot of TimeSync's internal state. The snapshot
 	 * should always be treated as an immutable value.
 	 */
 	#latestSnapshot: Snapshot;
 
-	/**
+	/*
 	 * A cached version of the fastest interval currently registered with
 	 * TimeSync. Should always be derived from #subscriptions
 	 */
 	#fastestRefreshInterval: number;
 
-	/**
+	/*
 	 * Used for both its intended purpose (creating interval), but also as a
 	 * janky version of setTimeout. Also, all versions of setInterval are
 	 * monotonic, so we don't have to do anything special for it.
@@ -429,7 +429,7 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		/**
+		/*
 		 * Two things:
 		 * 1. Even though the context arrays are defined as readonly (which
 		 * removes on the worst edge cases during dispatching), the
@@ -467,7 +467,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 	}
 
-	/**
+	/*
 	 * The logic that should happen at each step in TimeSync's active interval.
 	 *
 	 * Defined as an arrow function so that we can just pass it directly to
