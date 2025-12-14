@@ -21,7 +21,8 @@
 	"files": [
 		"./src",
 		"./dist",
-		"CHANGELOG.md"
+		"CHANGELOG.md",
+		"!*.test.{ts,tsx}"
 	],
 	"scripts": {
 		"check:types": "tsc --noEmit"
