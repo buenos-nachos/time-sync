@@ -40,7 +40,7 @@
 		"url": "https://www.github.com/buenos-nachos/time-sync/issues"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.3.4",
+		"@biomejs/biome": "2.3.10",
 		"@changesets/cli": "2.29.8",
 		"@types/node": "catalog:",
 		"happy-dom": "catalog:",
