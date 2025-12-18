@@ -45,7 +45,7 @@
 		"@types/node": "catalog:",
 		"happy-dom": "catalog:",
 		"knip": "5.70.2",
-		"prettier": "3.6.2",
+		"prettier": "3.7.4",
 		"tsdown": "0.16.6",
 		"typescript": "5.9.3",
 		"vitest": "catalog:"
