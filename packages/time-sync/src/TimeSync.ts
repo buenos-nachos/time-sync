@@ -266,6 +266,45 @@ function freezeSnapshot(snap: Snapshot): Snapshot {
 	return snap;
 }
 
+/*
+ * This function assumes that new subscription contexts will always be inserted
+ * one at a time, and that all contexts previously in the array were already
+ * fully sorted.
+ *
+ * Great use case for a single-pass insertion sort, and it means that we don't
+ * have to go through the .sort API. That always uses some variation of merge
+ * sort (so it would create a bunch of extra memory), and it has no guarantees
+ * about the overall sorting of the whole array, and it requires that you create
+ * a callback to handle the sorting. This is so much cheaper overall.
+ *
+ * To be clear, this is 100% overkill on client devices, but on servers, every
+ * allocation you skip (especially with JavaScript/V8 being so memory-hungry)
+ * can help a lot.
+ */
+function insertContext(
+	ctxs: SubscriptionContext[],
+	newC: SubscriptionContext,
+): SubscriptionContext[] {
+	ctxs.push(newC);
+
+	for (let i = ctxs.length - 1; i > 0; i--) {
+		const c1 = ctxs[i - 1];
+		const c2 = ctxs[i];
+		if (c1 === undefined || c2 === undefined) {
+			throw new Error(`Went out of bounds when inserting for index ${i}`);
+		}
+
+		if (c1.refreshIntervalMs <= c2.refreshIntervalMs) {
+			break;
+		}
+
+		ctxs[i - 1] = c2;
+		ctxs[i] = c1;
+	}
+
+	return ctxs;
+}
+
 const defaultMinimumRefreshIntervalMs = 200;
 
 /*
@@ -612,6 +651,10 @@ export class TimeSync implements TimeSyncApi {
 					if (contexts === undefined) {
 						return;
 					}
+
+					// Sadly, we can't do an in-place filter here to reduce memory usage,
+					// because the rest of the system requires that all contexts be
+					// defined as readonly arrays on subscription updates
 					const filtered = contexts.filter(
 						(c) => c.unsubscribe !== ctx.unsubscribe,
 					);
@@ -645,16 +688,15 @@ export class TimeSync implements TimeSyncApi {
 		// readonly, and because dispatching updates should be far more common than
 		// adding subscriptions, we're placing the immutable copying here to
 		// minimize overall pressure on the system.
-		let newContexts: SubscriptionContext[];
 		const prevContexts = subsOnSetup.get(onUpdate);
-		if (prevContexts !== undefined) {
-			newContexts = [...prevContexts, ctx];
+		let newContexts: SubscriptionContext[];
+		if (prevContexts === undefined) {
+			newContexts = [];
 		} else {
-			newContexts = [ctx];
+			newContexts = [...prevContexts];
 		}
-
 		subsOnSetup.set(onUpdate, newContexts);
-		newContexts.sort((c1, c2) => c1.refreshIntervalMs - c2.refreshIntervalMs);
+		insertContext(newContexts, ctx);
 
 		this.#latestSnapshot = freezeSnapshot({
 			...this.#latestSnapshot,
