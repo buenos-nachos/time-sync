@@ -536,6 +536,18 @@ export class TimeSync implements TimeSyncApi {
 		this.#notifyAllSubscriptions();
 	};
 
+	readonly #resolvePseudoTimeout = (): void => {
+		clearInterval(this.#intervalId);
+
+		// Need to set up interval before ticking in the tiny, tiny chance
+		// that ticking would cause the TimeSync instance to be reset. We
+		// don't want to start a new interval right after we've lost our
+		// ability to do cleanup. The timer won't start getting processed
+		// until this method leaves scope anyway
+		this.#intervalId = setInterval(this.#onTick, this.#fastestRefreshInterval);
+		this.#onTick();
+	};
+
 	#onFastestIntervalChange(): void {
 		const fastest = this.#fastestRefreshInterval;
 		const { lastUpdatedAtMs, config } = this.#latestSnapshot;
@@ -572,19 +584,10 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		// Otherwise, use setInterval as pseudo-timeout to resolve the remaining
-		// time as a one-time update, and then go back to using normal intervals
-		this.#intervalId = setInterval(() => {
-			clearInterval(this.#intervalId);
-
-			// Need to set up interval before ticking in the tiny, tiny chance
-			// that ticking would cause the TimeSync instance to be reset. We
-			// don't want to start a new interval right after we've lost our
-			// ability to do cleanup. The timer won't start getting processed
-			// until the function leaves scope anyway
-			this.#intervalId = setInterval(this.#onTick, fastest);
-			this.#onTick();
-		}, timeBeforeNextUpdate);
+		this.#intervalId = setInterval(
+			this.#resolvePseudoTimeout,
+			timeBeforeNextUpdate,
+		);
 	}
 
 	#updateFastestInterval(): void {
