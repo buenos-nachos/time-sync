@@ -1,5 +1,11 @@
 # @buenos-nachos/time-sync
 
+## 0.6.2
+
+### Patch Changes
+
+- 7a2903c: reduced memory usage and allocations for internal methods
+
 ## 0.6.1
 
 ### Patch Changes
