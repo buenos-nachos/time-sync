@@ -33,8 +33,8 @@ importers:
         specifier: 'catalog:'
         version: 20.0.10
       knip:
-        specifier: 5.76.3
-        version: 5.76.3(@types/node@24.10.0)(typescript@5.9.3)
+        specifier: 5.77.1
+        version: 5.77.1(@types/node@24.10.0)(typescript@5.9.3)
       prettier:
         specifier: 3.7.4
         version: 3.7.4
@@ -1107,8 +1107,8 @@ packages:
   jsonfile@4.0.0:
     resolution: {integrity: sha512-m6F1R3z8jjlf2imQHS2Qez5sjKWQzbuuhuJ/FKYFRZvPE3PuHcSMVZzfsLhGVOkfd20obL5SWEBew5ShlquNxg==}
 
-  knip@5.76.3:
-    resolution: {integrity: sha512-YLCCzOFzkuNgyL9LdrwFBstV9gpmvPCuolRzs9W++of0mtPH1D3ehE3M4okgayksgq7tWkkMAmyjrDrXxX6aAQ==}
+  knip@5.77.1:
+    resolution: {integrity: sha512-+yA/vfQUDEFUOcR0XRn/dOZmNEsS10pIMztS5JbKUhk9zvQiAFvr3Mcc3zC7Dn9gBG8LeImhaXA6/D3uhzwZvg==}
     engines: {node: '>=18.18.0'}
     hasBin: true
     peerDependencies:
@@ -2576,7 +2576,7 @@ snapshots:
     optionalDependencies:
       graceful-fs: 4.2.11
 
-  knip@5.76.3(@types/node@24.10.0)(typescript@5.9.3):
+  knip@5.77.1(@types/node@24.10.0)(typescript@5.9.3):
     dependencies:
       '@nodelib/fs.walk': 1.2.8
       '@types/node': 24.10.0
