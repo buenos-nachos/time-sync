@@ -46,7 +46,7 @@
 		"happy-dom": "catalog:",
 		"knip": "5.80.0",
 		"prettier": "3.8.1",
-		"tsdown": "0.19.0",
+		"tsdown": "0.20.1",
 		"typescript": "5.9.3",
 		"vitest": "catalog:"
 	},
