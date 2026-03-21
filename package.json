@@ -44,7 +44,7 @@
 		"@changesets/cli": "2.29.8",
 		"@types/node": "catalog:",
 		"happy-dom": "catalog:",
-		"knip": "5.86.0",
+		"knip": "6.0.1",
 		"prettier": "3.8.1",
 		"tsdown": "0.20.1",
 		"typescript": "5.9.3",
