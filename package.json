@@ -47,7 +47,7 @@
 		"knip": "6.7.0",
 		"prettier": "3.8.1",
 		"tsdown": "0.20.1",
-		"typescript": "5.9.3",
+		"typescript": "6.0.3",
 		"vitest": "catalog:"
 	},
 	"overrides": {
