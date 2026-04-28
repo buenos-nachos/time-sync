@@ -41,7 +41,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.2",
-		"@changesets/cli": "2.29.8",
+		"@changesets/cli": "2.31.0",
 		"@types/node": "catalog:",
 		"happy-dom": "catalog:",
 		"knip": "6.7.0",
